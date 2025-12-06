@@ -110,11 +110,11 @@ def get_processed_articles(
         # apply date filters
         if cutoff_start_iso and cutoff_end_iso:
             # full day window (>= start and < next_start)
-            query = query.gte("processed_at", cutoff_start_iso)
+            query = query.gte("published_at", cutoff_start_iso)
             # use lt for exclusive upper bound; if .lt not available in client, consider .lte with minus microsecond
-            query = query.lt("processed_at", cutoff_end_iso)
+            query = query.lt("published_at", cutoff_end_iso)
         elif cutoff_start_iso:
-            query = query.gte("processed_at", cutoff_start_iso)
+            query = query.gte("published_at", cutoff_start_iso)
 
         if impact_score is not None:
             query = query.gte("impact_score", impact_score)
@@ -133,7 +133,7 @@ def get_processed_articles(
                 query = query.in_("sentiment", sentiments)
 
         # order + paginate
-        query = query.order("processed_at", desc=True).range(offset, offset + limit - 1)
+        query = query.order("published_at", desc=True).range(offset, offset + limit - 1)
 
         resp = query.execute()
     except Exception as e:

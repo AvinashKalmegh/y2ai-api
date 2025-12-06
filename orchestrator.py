@@ -495,7 +495,7 @@ def run_newsletter_generation():
             else:
                 logger.warning(
                     "No article IDs to delete or storage backend does not "
-                    "support delete_processed_articles_by_ids"
+                    "support `delete_processed_articles_by_ids`"
                 )
         except Exception as del_err:
             logger.error(f"Error while deleting processed articles: {del_err}")
