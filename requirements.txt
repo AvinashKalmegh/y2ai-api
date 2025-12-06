@@ -34,3 +34,10 @@ xlrd>=2.0.0
 
 # Development
 python-dotenv>=1.0.0
+
+
+fastapi
+uvicorn
+supabase
+pydantic
+python-dotenv
