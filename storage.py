@@ -469,7 +469,7 @@ class SupabaseStorage:
     # -------------------------------------------------------------------------
     
     def insert_raw_articles(self, articles: List[Dict], collection_run_id: int = None) -> int:
-        """Insert raw articles, skip duplicates"""
+        """Insert raw articles, using composite uniqueness (hash + date)"""
         if not self.is_connected():
             return 0
 
@@ -479,7 +479,7 @@ class SupabaseStorage:
                 if collection_run_id:
                     article["collection_run_id"] = collection_run_id
 
-                # Normalize keywords_used in raw articles (same logic as processed)
+                # Normalize keywords_used
                 kw = article.get("keywords_used", None)
                 if isinstance(kw, str):
                     if "," in kw:
@@ -498,75 +498,100 @@ class SupabaseStorage:
 
                 article["keywords_used"] = normalized_kw
 
-                self.client.table("raw_articles").upsert(
-                    article,
-                    on_conflict="article_hash"
-                ).execute()
-                inserted += 1
+                # 🔥 FIX: Check uniqueness based on BOTH hash AND published date
+                # This allows same article on different dates, but prevents duplicates on same date
+                published_date = article.get("published_at", "")[:10] if article.get("published_at") else ""
+                
+                if not published_date:
+                    logger.warning(f"Article has no published_at date, using current date: {article.get('title', 'Unknown')[:50]}")
+                    from datetime import datetime
+                    published_date = datetime.utcnow().strftime("%Y-%m-%d")
+                    article["published_at"] = f"{published_date}T00:00:00Z"
+                
+                existing = (
+                    self.client.table("raw_articles")
+                    .select("id")
+                    .eq("article_hash", article["article_hash"])
+                    .like("published_at", f"{published_date}%")  # Same day
+                    .limit(1)
+                    .execute()
+                )
+                
+                # Only insert if this (hash + date) combination doesn't exist
+                if not existing.data:
+                    self.client.table("raw_articles").insert(article).execute()
+                    inserted += 1
+                    logger.debug(f"✅ Inserted: {article.get('title', 'Unknown')[:50]} ({published_date})")
+                else:
+                    logger.debug(f"⏭️  Skipping duplicate: {article.get('title', 'Unknown')[:50]} ({published_date})")
+                    
             except Exception as e:
-                logger.error(f"Article insert error: {e}")
+                logger.error(f"❌ Article insert error: {e}")
 
         return inserted
-
+    
     
     def insert_processed_articles(self, articles: List[Dict]) -> int:
-        """Insert processed articles into 'processed_articles' table.
-
-        - Expects each `article` to be a dict (ProcessedArticle.to_dict()).
-        - Preserves `keywords_used` if provided (list or comma-separated string).
-        - Does not overwrite `published_at` or `processed_at` if they exist.
-        - Normalizes keywords to a JSON-serializable list (or None).
-        """
+        """Insert processed articles, using composite uniqueness (hash + date)"""
         if not self.is_connected():
             return 0
 
         inserted = 0
         for article in articles:
             try:
-                # Defensive normalization of keywords_used
+                # Normalize keywords_used
                 kw = article.get("keywords_used", None)
 
                 if isinstance(kw, str):
-                    # If it's a comma-separated string, split it; otherwise keep single string as single-element list
                     if "," in kw:
                         normalized_kw = [k.strip() for k in kw.split(",") if k.strip()]
                     else:
                         normalized_kw = [kw] if kw.strip() else []
                 elif isinstance(kw, list):
-                    # Ensure items are strings and trim whitespace
                     normalized_kw = [str(k).strip() for k in kw if k is not None and str(k).strip()]
                 elif kw is None:
                     normalized_kw = None
                 else:
-                    # Unexpected type: coerce to string list
                     normalized_kw = [str(kw)]
 
-                # If empty list, you may want None or empty list depending on schema choice.
-                # Keep None for no keywords, or [] if you prefer empty array.
                 if normalized_kw == []:
                     normalized_kw = None
 
-                # Place normalized value back into article dict for upsert
                 article["keywords_used"] = normalized_kw
 
-                # Do NOT overwrite published_at or processed_at here.
-                # Assume upstream code sets them. If missing, let DB defaults handle it (or set here deliberately).
-                # Example: if you want to set processed_at when missing:
-                # if not article.get("processed_at"):
-                #     article["processed_at"] = datetime.utcnow().isoformat()
-
-                # Upsert into Supabase (or whatever client)
-                self.client.table("processed_articles").upsert(
-                    article,
-                    on_conflict="article_hash"
-                ).execute()
-                inserted += 1
+                # 🔥 FIX: Check uniqueness based on BOTH hash AND published date
+                # This allows same article on different dates, but prevents duplicates on same date
+                published_date = article.get("published_at", "")[:10] if article.get("published_at") else ""
+                
+                if not published_date:
+                    logger.warning(f"Article has no published_at date, using current date: {article.get('title', 'Unknown')[:50]}")
+                    from datetime import datetime
+                    published_date = datetime.utcnow().strftime("%Y-%m-%d")
+                    article["published_at"] = f"{published_date}T00:00:00Z"
+                
+                existing = (
+                    self.client.table("processed_articles")
+                    .select("id")
+                    .eq("article_hash", article["article_hash"])
+                    .like("published_at", f"{published_date}%")  # Same day
+                    .limit(1)
+                    .execute()
+                )
+                
+                # Only insert if this (hash + date) combination doesn't exist
+                if not existing.data:
+                    self.client.table("processed_articles").insert(article).execute()
+                    inserted += 1
+                    logger.debug(f"✅ Inserted: {article.get('title', 'Unknown')[:50]} ({published_date})")
+                else:
+                    logger.debug(f"⏭️  Skipping duplicate: {article.get('title', 'Unknown')[:50]} ({published_date})")
 
             except Exception as e:
-                logger.error(f"Processed article insert error (article_hash=%s): %s", article.get("article_hash"), e)
+                logger.error(f"❌ Processed article insert error (article_hash={article.get('article_hash')}): {e}")
 
         return inserted
 
+    
     
     def get_newsletter_ready_articles(self, days_back: int = 7) -> Dict[str, List[Dict]]:
         """Get articles organized for newsletter generation"""

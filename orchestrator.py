@@ -45,21 +45,73 @@ from datetime import datetime, timedelta
 import logging
 logger = logging.getLogger(__name__)
 
+# def backfill_news_and_generate_newsletter(start_date_str: str, end_date_str: str, process_limit: int = 500):
+#     """
+#     Backfill ARGUS-1 articles between start_date and end_date (inclusive)
+#     and then run newsletter generation.
+
+#     start_date_str, end_date_str: 'YYYY-MM-DD'
+#     """
+#     # parse dates (explicit)
+#     start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
+#     end_date = datetime.strptime(end_date_str, "%Y-%m-%d")
+
+#     if end_date < start_date:
+#         raise ValueError("end_date must be >= start_date")
+
+#     # import argus1 backfill API
+#     sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+#     try:
+#         from argus1.scheduler import backfill
+#     except Exception as e:
+#         logger.error(f"argus1 backfill API not available: {e}")
+#         raise
+
+#     logger.info(f"Starting backfill: {start_date_str} -> {end_date_str}")
+#     # Ensure we pass datetime objects covering the entire day
+#     start_dt = datetime.combine(start_date, datetime.min.time())
+#     end_dt = datetime.combine(end_date, datetime.max.time())
+
+#     status = backfill(start_date=start_dt, end_date=end_dt, process_limit=process_limit)
+#     if not status.get("status") == "completed":
+#         logger.warning(f"Backfill reported non-completed status: {status}")
+#     else:
+#         logger.info(f"Backfill complete: raw={status.get('raw_count')}, processed={status.get('processed_count')}")
+
+#     # Now generate newsletter from that data
+#     from .storage import get_storage
+#     storage = get_storage()
+
+#     # Use newsletter generation (this uses storage.get_newsletter_ready_articles(days_back=...))
+#     # but we'll pass days_back = number of days between inclusive range
+#     days_back = (end_date - start_date).days + 1
+#     articles = storage.get_newsletter_ready_articles(days_back=days_back)
+
+#     if not articles:
+#         logger.warning("No articles found for newsletter after backfill")
+#         return False
+
+#     # run existing generator
+#     return run_newsletter_generation()
+
+
 def backfill_news_and_generate_newsletter(start_date_str: str, end_date_str: str, process_limit: int = 500):
     """
     Backfill ARGUS-1 articles between start_date and end_date (inclusive)
-    and then run newsletter generation.
-
-    start_date_str, end_date_str: 'YYYY-MM-DD'
+    and STOP after storing raw + processed articles.
+    
+    No newsletter generation.
+    No deletion.
     """
-    # parse dates (explicit)
+
+    # parse dates
     start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
     end_date = datetime.strptime(end_date_str, "%Y-%m-%d")
 
     if end_date < start_date:
         raise ValueError("end_date must be >= start_date")
 
-    # import argus1 backfill API
+    # import argus backfill API
     sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
     try:
         from argus1.scheduler import backfill
@@ -67,32 +119,25 @@ def backfill_news_and_generate_newsletter(start_date_str: str, end_date_str: str
         logger.error(f"argus1 backfill API not available: {e}")
         raise
 
-    logger.info(f"Starting backfill: {start_date_str} -> {end_date_str}")
-    # Ensure we pass datetime objects covering the entire day
+    logger.info(f"Starting backfill ONLY (no newsletter): {start_date_str} -> {end_date_str}")
+
+    # Full date-time boundaries
     start_dt = datetime.combine(start_date, datetime.min.time())
     end_dt = datetime.combine(end_date, datetime.max.time())
 
+    # Run backfill (this stores raw + processed!)
     status = backfill(start_date=start_dt, end_date=end_dt, process_limit=process_limit)
-    if not status.get("status") == "completed":
-        logger.warning(f"Backfill reported non-completed status: {status}")
+
+    if status.get("status") != "completed":
+        logger.warning(f"Backfill finished with warnings: {status}")
     else:
-        logger.info(f"Backfill complete: raw={status.get('raw_count')}, processed={status.get('processed_count')}")
+        logger.info(
+            f"Backfill done. Raw={status.get('raw_count')}, Processed={status.get('processed_count')}"
+        )
 
-    # Now generate newsletter from that data
-    from .storage import get_storage
-    storage = get_storage()
+    logger.info("Backfill completed. Skipping newsletter generation completely.")
+    return True
 
-    # Use newsletter generation (this uses storage.get_newsletter_ready_articles(days_back=...))
-    # but we'll pass days_back = number of days between inclusive range
-    days_back = (end_date - start_date).days + 1
-    articles = storage.get_newsletter_ready_articles(days_back=days_back)
-
-    if not articles:
-        logger.warning("No articles found for newsletter after backfill")
-        return False
-
-    # run existing generator
-    return run_newsletter_generation()
 
 
 def run_daily_indicators():
@@ -484,21 +529,7 @@ def run_newsletter_generation():
         else:
             logger.warning("Storage backend does not support save_newsletter_edition")
 
-        # 4b) 🔥 After successful generation, delete the articles we used
-        try:
-            if article_ids and hasattr(storage, "delete_processed_articles_by_ids"):
-                deleted_count = storage.delete_processed_articles_by_ids(article_ids)
-                logger.info(
-                    f"After newsletter generation, deleted {deleted_count} "
-                    f"processed_articles from Supabase"
-                )
-            else:
-                logger.warning(
-                    "No article IDs to delete or storage backend does not "
-                    "support `delete_processed_articles_by_ids`"
-                )
-        except Exception as del_err:
-            logger.error(f"Error while deleting processed articles: {del_err}")
+        
 
         return True
 
