@@ -28,7 +28,7 @@ app = FastAPI(title="Y2AI Processed Articles API", version="2.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Your React dev server
+    allow_origins=["http://localhost:3000",'https://y2ai-frontend.vercel.app'],  # Your React dev server
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
