@@ -1,161 +1,3 @@
-
-# # api_processed_articles.py
-# import os
-# from datetime import datetime, timedelta, timezone
-# from typing import Optional, List
-
-# from fastapi import FastAPI, Query, HTTPException
-# from pydantic import BaseModel
-# from supabase import create_client  # supabase-py
-
-# # ---------- Config from ENV ----------
-# SUPABASE_URL = 'https://jfdihmlxzemvdytrdcpw.supabase.co'
-# SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpmZGlobWx4emVtdmR5dHJkY3B3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MzgwNzE1NywiZXhwIjoyMDc5MzgzMTU3fQ.WDhd11X1G41ia7SclfnTg_DiEjpv6sGhZ071R7yGZKA'
-
-# if not SUPABASE_URL or not SUPABASE_KEY:
-#     raise RuntimeError("Please set SUPABASE_URL and SUPABASE_KEY environment variables before starting the API.")
-
-# sb = create_client(SUPABASE_URL, SUPABASE_KEY)
-
-# app = FastAPI(title="Y2AI Processed Articles API (Supabase direct)")
-
-# # ---------- Response model ----------
-# class ArticleOut(BaseModel):
-#     id: int
-#     article_hash: Optional[str]
-#     source_type: Optional[str]
-#     source_name: Optional[str]
-#     title: Optional[str]
-#     url: Optional[str]
-#     published_at: Optional[str]
-#     processed_at: Optional[str]
-#     y2ai_category: Optional[str]
-#     impact_score: Optional[float]
-#     sentiment: Optional[str]
-#     keywords_used: Optional[List[str]]
-#     # you can add other fields if needed
-
-# class PaginatedResponse(BaseModel):
-#     total: Optional[int]
-#     limit: int
-#     offset: int
-#     data: List[ArticleOut]
-
-# # ---------- helpers ----------
-# def parse_iso(dt_str: str) -> datetime:
-#     """Parse common ISO formats and treat trailing Z as UTC"""
-#     try:
-#         if dt_str.endswith("Z"):
-#             dt_str = dt_str.replace("Z", "+00:00")
-#         dt = datetime.fromisoformat(dt_str)
-#         # ensure tz-aware: if no tzinfo, assume UTC
-#         if dt.tzinfo is None:
-#             dt = dt.replace(tzinfo=timezone.utc)
-#         return dt
-#     except Exception:
-#         raise HTTPException(status_code=400, detail=f"Invalid ISO datetime: {dt_str}")
-
-# # ---------- endpoint ----------
-# @app.get("/processed_articles", response_model=PaginatedResponse)
-# def get_processed_articles(
-#     hours: Optional[int] = Query(None, ge=0, description="Fetch articles processed in last N hours"),
-#     processed_date: Optional[str] = Query(None, description="Either YYYY-MM-DD (date window, UTC) or ISO start time (e.g. 2025-12-06T16:00:00Z)"),
-#     impact_score: Optional[float] = Query(None, ge=0.0, description="Minimum impact score"),
-#     source_type: Optional[str] = Query(None),
-#     source_name: Optional[str] = Query(None),
-#     sentiment: Optional[str] = Query(None, description="Comma-separated sentiments, e.g. neutral,bullish"),
-#     limit: int = Query(100, ge=1, le=1000),
-#     offset: int = Query(0, ge=0),
-# ):
-#     """
-#     Returns processed articles with optional filters:
-#      - hours=N  => processed_at >= now() - N hours
-#      - processed_date=YYYY-MM-DD => all articles with processed_at on that UTC date
-#      - processed_date=ISO_DATETIME => processed_at >= ISO_DATETIME
-#      - impact_score, source_type, source_name, sentiment
-#     """
-
-#     # Compute cutoff(s)
-#     cutoff_start_iso = None
-#     cutoff_end_iso = None  # used only when processed_date was YYYY-MM-DD
-
-#     if hours is not None:
-#         cutoff_dt = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(hours=hours)
-#         cutoff_start_iso = cutoff_dt.isoformat()
-#     elif processed_date:
-#         # If user passed YYYY-MM-DD, treat as full-day UTC window:
-#         # start = YYYY-MM-DDT00:00:00+00:00
-#         # end   = next day YYYY-MM-DDT00:00:00+00:00 (exclusive)
-#         try:
-#             if len(processed_date) == 10:
-#                 # assume date string YYYY-MM-DD
-#                 date_obj = datetime.strptime(processed_date, "%Y-%m-%d").date()
-#                 start_dt = datetime.combine(date_obj, datetime.min.time()).replace(tzinfo=timezone.utc)
-#                 next_start = start_dt + timedelta(days=1)
-#                 cutoff_start_iso = start_dt.isoformat()
-#                 cutoff_end_iso = next_start.isoformat()
-#             else:
-#                 # treat as ISO datetime (start)
-#                 start_dt = parse_iso(processed_date)
-#                 cutoff_start_iso = start_dt.isoformat()
-#         except HTTPException:
-#             raise
-#         except Exception:
-#             raise HTTPException(status_code=400, detail="Invalid processed_date format. Use YYYY-MM-DD or ISO datetime.")
-
-#     try:
-#         # start building the supabase query
-#         query = sb.table("processed_articles").select("*", count="exact")
-
-#         # apply date filters
-#         if cutoff_start_iso and cutoff_end_iso:
-#             # full day window (>= start and < next_start)
-#             query = query.gte("published_at", cutoff_start_iso)
-#             # use lt for exclusive upper bound; if .lt not available in client, consider .lte with minus microsecond
-#             query = query.lt("published_at", cutoff_end_iso)
-#         elif cutoff_start_iso:
-#             query = query.gte("published_at", cutoff_start_iso)
-
-#         if impact_score is not None:
-#             query = query.gte("impact_score", impact_score)
-
-#         if source_type:
-#             query = query.eq("source_type", source_type)
-
-#         if source_name:
-#             query = query.eq("source_name", source_name)
-
-#         if sentiment:
-#             sentiments = [s.strip() for s in sentiment.split(",") if s.strip()]
-#             if len(sentiments) == 1:
-#                 query = query.eq("sentiment", sentiments[0])
-#             else:
-#                 query = query.in_("sentiment", sentiments)
-
-#         # order + paginate
-#         query = query.order("published_at", desc=True).range(offset, offset + limit - 1)
-
-#         resp = query.execute()
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=f"DB error: {e}")
-
-#     data = resp.data or []
-#     total = getattr(resp, "count", None)
-
-#     # normalize to pydantic model shape (ArticleOut)
-#     out_items = []
-#     for r in data:
-#         # supabase returns JSON fields as Python objects already; pydantic will validate
-#         try:
-#             out_items.append(ArticleOut(**r))
-#         except Exception as e:
-#             # Defensive: if a record has unexpected shape, skip it with logging in production.
-#             raise HTTPException(status_code=500, detail=f"Record validation error: {e}")
-
-#     return PaginatedResponse(total=total, limit=limit, offset=offset, data=out_items)
-
-
-
 # api_processed_articles.py
 """
 Y2AI Processed Articles API
@@ -169,6 +11,8 @@ from typing import Optional, List, Any
 from fastapi import FastAPI, Query, HTTPException
 from pydantic import BaseModel
 from supabase import create_client
+from fastapi.middleware.cors import CORSMiddleware
+
 
 # ---------- Config from ENV ----------
 SUPABASE_URL = os.getenv('SUPABASE_URL', 'https://jfdihmlxzemvdytrdcpw.supabase.co')
@@ -182,6 +26,13 @@ sb = create_client(SUPABASE_URL, SUPABASE_KEY)
 app = FastAPI(title="Y2AI Processed Articles API", version="2.0")
 
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],  # Your React dev server
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 # =============================================================================
 # NESTED RESPONSE MODELS
 # =============================================================================
@@ -262,7 +113,7 @@ class ArticleOut(BaseModel):
     source_name: Optional[str] = None
     title: Optional[str] = None
     url: Optional[str] = None
-    published_at: Optional[str] = None
+    processed_at: Optional[str] = None
     processed_at: Optional[str] = None
     keywords_used: Optional[List[str]] = None
     
@@ -421,6 +272,9 @@ def get_processed_articles(
     hours: Optional[int] = Query(None, ge=0, description="Articles from last N hours"),
     after: Optional[str] = Query(None, description="Articles after this date (YYYY-MM-DD or ISO datetime)"),
     before: Optional[str] = Query(None, description="Articles before this date (YYYY-MM-DD or ISO datetime)"),
+    # New: specific date + time windows
+    date: Optional[str] = Query(None, description="Specific date (YYYY-MM-DD) to filter by"),
+    time_window: Optional[List[str]] = Query(None, description="Repeatable. Time window(s) in HH:MM-HH:MM format, e.g. 08:00-11:00"),
     
     # Classification filters
     category: Optional[str] = Query(None, description="Y2AI category (spending, constraints, energy, etc.)"),
@@ -445,44 +299,85 @@ def get_processed_articles(
 ):
     """
     Returns processed articles with nested signal structure.
-    
-    Signal filtering examples:
-    - /processed_articles?signal_type=capex&signal_detected=true
-    - /processed_articles?include_in_weekly=true&limit=50
-    - /processed_articles?impact_score_min=0.7&category=spending
+    Supports filtering by specific date and repeatable time windows (HH:MM-HH:MM).
+    Example:
+      /processed_articles?date=2025-12-11&time_window=08:00-11:00&time_window=15:00-18:00
     """
-    
-    # Build date filters
+    # --- build base date range filters (match DB timestamp WITHOUT timezone format) ---
     cutoff_start = None
     cutoff_end = None
-    
-    if hours is not None:
-        cutoff_start = (datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(hours=hours)).isoformat()
-    
-    if after:
-        if len(after) == 10:  # YYYY-MM-DD
-            date_obj = datetime.strptime(after, "%Y-%m-%d").date()
-            cutoff_start = datetime.combine(date_obj, datetime.min.time()).replace(tzinfo=timezone.utc).isoformat()
-        else:
-            cutoff_start = parse_iso(after).isoformat()
-    
-    if before:
-        if len(before) == 10:  # YYYY-MM-DD
-            date_obj = datetime.strptime(before, "%Y-%m-%d").date()
-            cutoff_end = datetime.combine(date_obj, datetime.max.time()).replace(tzinfo=timezone.utc).isoformat()
-        else:
-            cutoff_end = parse_iso(before).isoformat()
-    
+
+    if date:
+        # user wants a specific date; use entire day range in DB query
+        try:
+            date_obj = datetime.strptime(date, "%Y-%m-%d").date()
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.")
+        cutoff_start = datetime.combine(date_obj, datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
+        cutoff_end = datetime.combine(date_obj, datetime.max.time()).strftime("%Y-%m-%d %H:%M:%S")
+    else:
+        # previous behavior: hours/after/before
+        if hours is not None:
+            cutoff_start = (datetime.utcnow() - timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S")
+
+        if after:
+            if len(after) == 10:  # YYYY-MM-DD
+                date_obj = datetime.strptime(after, "%Y-%m-%d").date()
+                cutoff_start = datetime.combine(date_obj, datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
+            else:
+                parsed = parse_iso(after).replace(tzinfo=None)
+                cutoff_start = parsed.strftime("%Y-%m-%d %H:%M:%S")
+
+        if before:
+            if len(before) == 10:
+                date_obj = datetime.strptime(before, "%Y-%m-%d").date()
+                cutoff_end = datetime.combine(date_obj, datetime.max.time()).strftime("%Y-%m-%d %H:%M:%S")
+            else:
+                parsed = parse_iso(before).replace(tzinfo=None)
+                cutoff_end = parsed.strftime("%Y-%m-%d %H:%M:%S")
+
+    # --- Parse time windows if provided (validate) ---
+    # --- Parse time windows safely (normalize all dash types) ---
+    parsed_windows = []
+    if time_window:
+        import re
+
+        # normalize: convert en-dash, em-dash, minus, etc. → normal hyphen
+        def normalize_dashes(s: str) -> str:
+            return (
+                s.replace('\u2013', '-')  # en-dash –
+                .replace('\u2014', '-')  # em-dash —
+                .replace('\u2212', '-')  # minus sign −
+                .replace('\u2012', '-')  # figure dash
+                .replace('\u2010', '-')  # hyphen
+                .strip()
+            )
+
+        tw_re = re.compile(r'^([0-1]\d|2[0-3]):([0-5]\d)-([0-1]\d|2[0-3]):([0-5]\d)$')
+
+        for win in time_window:
+            win_norm = normalize_dashes(win)
+
+            if not tw_re.match(win_norm):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid time_window format: {win}. Use HH:MM-HH:MM"
+                )
+
+            start_hm, end_hm = win_norm.split("-")
+            start_dt = datetime.strptime(start_hm, "%H:%M").time()
+            end_dt = datetime.strptime(end_hm, "%H:%M").time()
+            parsed_windows.append((start_dt, end_dt))
+
+    # --- Build Supabase query with DB-level date range only (if any) to reduce transferred rows ---
     try:
         query = sb.table("processed_articles").select("*", count="exact")
-        
-        # Date filters
         if cutoff_start:
-            query = query.gte("published_at", cutoff_start)
+            query = query.gte("processed_at", cutoff_start)
         if cutoff_end:
-            query = query.lte("published_at", cutoff_end)
-        
-        # Classification filters
+            query = query.lte("processed_at", cutoff_end)
+
+        # other filters (classification, sources, signals, newsletter) remain the same
         if category:
             query = query.eq("y2ai_category", category)
         if impact_score_min is not None:
@@ -493,49 +388,90 @@ def get_processed_articles(
                 query = query.eq("sentiment", sentiments[0])
             else:
                 query = query.in_("sentiment", sentiments)
-        
-        # Source filters
         if source_type:
             query = query.eq("source_type", source_type)
         if source_name:
             query = query.eq("source_name", source_name)
-        
-        # Signal filters
         if signal_type and signal_detected is not None:
             signal_column = f"{signal_type}_detected"
             query = query.eq(signal_column, signal_detected)
         elif signal_type and signal_detected is None:
-            # If signal_type specified but signal_detected not, assume they want detected=true
             signal_column = f"{signal_type}_detected"
             query = query.eq(signal_column, True)
-        
-        # Newsletter filters
         if include_in_weekly is not None:
             query = query.eq("include_in_weekly", include_in_weekly)
         if suggested_pillar:
             query = query.eq("suggested_pillar", suggested_pillar)
-        
-        # Order and paginate
-        query = query.order("published_at", desc=True).range(offset, offset + limit - 1)
-        
-        resp = query.execute()
-        
+
+        # Do not range() here — we need to fetch all matching rows for in-app time-window filtering (page afterwards)
+        resp = query.order("processed_at", desc=True).execute()
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {e}")
-    
-    data = resp.data or []
-    total = getattr(resp, "count", None)
-    
-    # Transform flat rows to nested structure
+
+    rows = resp.data or []
+
+    # --- If user requested time windows, filter rows in Python by processed_at time-of-day ---
+    def parse_processed_at_val(v):
+        # handle str or datetime
+        if v is None:
+            return None
+        if isinstance(v, datetime):
+            return v
+        try:
+            # accepted formats: 'YYYY-MM-DD HH:MM:SS[.ffffff]' or ISO with T
+            s = str(v)
+            # allow both space and T separators
+            s = s.replace("T", " ")
+            # Python's fromisoformat handles microseconds; try it first
+            try:
+                return datetime.fromisoformat(s)
+            except Exception:
+                # fallback parse with microseconds optional
+                fmt_try = ("%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S")
+                for fmt in fmt_try:
+                    try:
+                        return datetime.strptime(s, fmt)
+                    except:
+                        continue
+                raise
+        except Exception:
+            return None
+
+    filtered_rows = []
+    if parsed_windows:
+        for r in rows:
+            p = parse_processed_at_val(r.get("processed_at"))
+            if p is None:
+                continue
+            p_time = p.time()
+            # check any window matches (inclusive start, exclusive end)
+            for (start_t, end_t) in parsed_windows:
+                if start_t <= end_t:
+                    if start_t <= p_time < end_t:
+                        filtered_rows.append(r)
+                        break
+                else:
+                    # window wraps midnight e.g., 23:00-02:00
+                    if p_time >= start_t or p_time < end_t:
+                        filtered_rows.append(r)
+                        break
+    else:
+        filtered_rows = rows
+
+    # --- Pagination applied after filtering ---
+    total = len(filtered_rows)
+    sliced = filtered_rows[offset: offset + limit]
+
+    # Transform to nested
     out_items = []
-    for row in data:
+    for row in sliced:
         try:
             out_items.append(transform_to_nested(row))
         except Exception as e:
-            # Log and skip malformed records in production
             print(f"Transform error for article {row.get('id')}: {e}")
             continue
-    
+
     return PaginatedResponse(total=total, limit=limit, offset=offset, data=out_items)
 
 
@@ -571,8 +507,8 @@ def get_signal_summary(
     try:
         resp = sb.table("processed_articles")\
             .select("*")\
-            .gte("published_at", start_dt.isoformat())\
-            .lte("published_at", end_dt.isoformat())\
+            .gte("processed_at", start_dt.isoformat())\
+            .lte("processed_at", end_dt.isoformat())\
             .execute()
         
         data = resp.data or []

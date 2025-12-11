@@ -303,6 +303,9 @@ python -m y2ai.orchestrator --news
 python -m y2ai.orchestrator --newsletter
 
 python -m y2ai.orchestrator --backfill 2025-11-22 2025-12-05
+
+uvicorn api_processed_articles:app --reload --host 0.0.0.0 --port 8000
+
 <!--Commands -->
 
 
