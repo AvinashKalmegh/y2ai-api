@@ -37,6 +37,185 @@ app.add_middleware(
 # NESTED RESPONSE MODELS
 # =============================================================================
 
+
+
+# ---- add these imports near the top of the file ----
+from pydantic import Field
+from typing import Union
+from datetime import date as date_class
+
+# ---- Pydantic model for daily signals ----
+class DailySignalsOut(BaseModel):
+    signal_date: str
+    capex_signal: Optional[float] = None
+    energy_signal: Optional[float] = None
+    compute_signal: Optional[float] = None
+    depreciation_signal: Optional[float] = None
+    thesis_balance: Optional[float] = None
+    veto_triggers: Optional[int] = None
+    signal_regime: Optional[str] = None
+    notes: Optional[str] = None
+    rows_aggregated: int = Field(..., description="Number of DB rows used to compute aggregates")
+    last_updated: Optional[str] = None
+
+# ---- helper to parse YYYY-MM-DD ----
+def parse_ymd(date_str: Optional[str]) -> date_class:
+    if date_str is None:
+        # default to today UTC date
+        return datetime.utcnow().date()
+    try:
+        return datetime.strptime(date_str, "%Y-%m-%d").date()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.")
+
+# ---- daily signals endpoint (two routes point to same function) ----
+@app.get("/daily-signals", response_model=DailySignalsOut)
+def get_daily_signals(date: Optional[str] = Query(None, description="Date in YYYY-MM-DD (defaults to today UTC)")):
+    """
+    Fetch aggregated daily signals for a particular date.
+    Works with either /daily_signals or /daily-signals.
+    """
+    sig_date = parse_ymd(date)
+    day_start = datetime.combine(sig_date, datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
+    day_end = datetime.combine(sig_date, datetime.max.time()).strftime("%Y-%m-%d %H:%M:%S")
+
+    # Column candidates to try in order (adjust these if your table uses different column names)
+    date_columns = ["date", "signal_date", "run_date"]
+
+    rows = []
+    last_err = None
+    try:
+        # First try direct equality queries on likely date columns
+        for col in date_columns:
+            try:
+                resp = sb.table("daily_signals").select("*").eq(col, sig_date.isoformat()).execute()
+                if resp.data:
+                    rows = resp.data
+                    break
+            except Exception as e:
+                # ignore and try next candidate
+                last_err = e
+                continue
+
+        # If nothing found, fall back to matching within processed_at / created_at timestamp range
+        if not rows:
+            try:
+                resp = sb.table("daily_signals")\
+                    .select("*")\
+                    .gte("processed_at", day_start)\
+                    .lte("processed_at", day_end)\
+                    .execute()
+                rows = resp.data or []
+            except Exception as e:
+                last_err = e
+                rows = []
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error while fetching daily_signals: {e}")
+
+    if not rows:
+        # Return an empty/zero-style payload so frontend can show "no data" gracefully
+        return DailySignalsOut(
+            signal_date=sig_date.isoformat(),
+            capex_signal=None,
+            energy_signal=None,
+            compute_signal=None,
+            depreciation_signal=None,
+            thesis_balance=None,
+            veto_triggers=0,
+            signal_regime=None,
+            notes=f"No rows found for {sig_date.isoformat()}.",
+            rows_aggregated=0,
+            last_updated=None,
+        )
+
+    # numeric fields to average (continuous signals)
+    avg_fields = ["capex_signal", "energy_signal", "compute_signal", "depreciation_signal", "thesis_balance"]
+    # integer counters to sum
+    sum_fields = ["veto_triggers"]
+    # optional string fields - take most recent non-null value (by updated_at if present)
+    str_fields = ["signal_regime", "notes"]
+
+    # safe extractor
+    def safe_float(v):
+        try:
+            return float(v)
+        except Exception:
+            return None
+
+    def safe_int(v):
+        try:
+            return int(v)
+        except Exception:
+            return None
+
+    # compute averages
+    aggregates = {}
+    for f in avg_fields:
+        vals = [safe_float(r.get(f)) for r in rows if r.get(f) is not None]
+        vals = [v for v in vals if v is not None]
+        aggregates[f] = (sum(vals) / len(vals)) if vals else None
+
+    for f in sum_fields:
+        vals = [safe_int(r.get(f)) for r in rows if r.get(f) is not None]
+        vals = [v for v in vals if v is not None]
+        aggregates[f] = sum(vals) if vals else 0
+
+    # pick most-recent string by last_updated if available
+    for f in str_fields:
+        chosen = None
+        best_ts = None
+        for r in rows:
+            val = r.get(f)
+            if val:
+                # prefer row with updated_at or created_at most recent
+                ts = None
+                for ts_col in ("updated_at", "last_updated", "created_at", "processed_at"):
+                    if r.get(ts_col):
+                        try:
+                            ts = datetime.fromisoformat(str(r.get(ts_col)).replace("Z", "+00:00"))
+                        except Exception:
+                            try:
+                                ts = datetime.strptime(str(r.get(ts_col)), "%Y-%m-%d %H:%M:%S")
+                            except Exception:
+                                ts = None
+                        if ts:
+                            break
+                if best_ts is None or (ts is not None and ts > best_ts):
+                    best_ts = ts
+                    chosen = val
+        aggregates[f] = chosen
+
+    # determine last_updated across rows
+    last_updated = None
+    for r in rows:
+        for ts_col in ("updated_at", "last_updated", "processed_at", "created_at"):
+            if r.get(ts_col):
+                try:
+                    cand = datetime.fromisoformat(str(r.get(ts_col)).replace("Z", "+00:00"))
+                except Exception:
+                    try:
+                        cand = datetime.strptime(str(r.get(ts_col)), "%Y-%m-%d %H:%M:%S")
+                    except Exception:
+                        cand = None
+                if cand and (last_updated is None or cand > last_updated):
+                    last_updated = cand
+
+    return DailySignalsOut(
+        signal_date=sig_date.isoformat(),
+        capex_signal=aggregates.get("capex_signal"),
+        energy_signal=aggregates.get("energy_signal"),
+        compute_signal=aggregates.get("compute_signal"),
+        depreciation_signal=aggregates.get("depreciation_signal"),
+        thesis_balance=aggregates.get("thesis_balance"),
+        veto_triggers=aggregates.get("veto_triggers"),
+        signal_regime=aggregates.get("signal_regime"),
+        notes=aggregates.get("notes"),
+        rows_aggregated=len(rows),
+        last_updated=last_updated.isoformat() if last_updated else None,
+    )
+
+
 class ClassificationOut(BaseModel):
     y2ai_category: Optional[str] = None
     impact_score: Optional[float] = None
