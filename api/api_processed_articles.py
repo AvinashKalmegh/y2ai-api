@@ -777,6 +777,52 @@ from fastapi import FastAPI, Query, HTTPException
 from pydantic import BaseModel
 from supabase import create_client
 from fastapi.middleware.cors import CORSMiddleware
+from zoneinfo import ZoneInfo
+
+DISPLAY_TZ = ZoneInfo("America/New_York")  # EST/EDT
+
+def convert_est_to_utc_for_query(date_str: str, is_start: bool = True):
+    """
+    Convert EST/EDT date string to UTC for Supabase queries.
+    
+    Args:
+        date_str: Date in YYYY-MM-DD format
+        is_start: True for day start (00:00:00), False for day end (23:59:59)
+    
+    Returns:
+        UTC datetime string for Supabase query
+    """
+    date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
+    
+    if is_start:
+        local_dt = datetime.combine(date_obj, datetime.min.time())
+    else:
+        local_dt = datetime.combine(date_obj, datetime.max.time())
+    
+    # Attach EST/EDT timezone
+    local_dt = local_dt.replace(tzinfo=DISPLAY_TZ)
+    
+    # Convert to UTC
+    utc_dt = local_dt.astimezone(timezone.utc)
+    
+    return utc_dt.isoformat()
+
+
+def to_display_tz(dt_val):
+    if not dt_val:
+        return None
+
+    if isinstance(dt_val, datetime):
+        dt = dt_val
+    else:
+        s = str(dt_val).replace("Z", "+00:00")
+        dt = datetime.fromisoformat(s)
+
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+
+    return dt.astimezone(DISPLAY_TZ).isoformat()
+
 
 
 # ---------- Config from ENV ----------
@@ -1268,7 +1314,7 @@ def transform_to_nested(row: dict) -> ArticleOut:
         title=row.get("title"),
         url=row.get("url"),
         published_at=row.get("published_at"),
-        processed_at=row.get("processed_at"),
+        processed_at=to_display_tz(row.get("processed_at")),
         keywords_used=safe_list(row.get("keywords_used")),
         
         classification=ClassificationOut(
@@ -1336,8 +1382,8 @@ def get_processed_articles(
     hours: Optional[int] = Query(None, ge=0, description="Articles from last N hours"),
     after: Optional[str] = Query(None, description="Articles after this date (YYYY-MM-DD or ISO datetime)"),
     before: Optional[str] = Query(None, description="Articles before this date (YYYY-MM-DD or ISO datetime)"),
-    date: Optional[str] = Query(None, description="Specific date (YYYY-MM-DD) to filter by"),
-    time_window: Optional[List[str]] = Query(None, description="Repeatable. Time window(s) in HH:MM-HH:MM format"),
+    date: Optional[str] = Query(None, description="Specific date in EST/EDT (YYYY-MM-DD)"),
+    time_window: Optional[List[str]] = Query(None, description="Time window(s) in HH:MM-HH:MM format (EST/EDT)"),
     category: Optional[str] = Query(None, description="Y2AI category"),
     impact_score_min: Optional[float] = Query(None, ge=0.0, le=1.0),
     sentiment: Optional[str] = Query(None, description="Comma-separated: bullish,bearish,neutral"),
@@ -1354,32 +1400,29 @@ def get_processed_articles(
     cutoff_end = None
 
     if date:
-        try:
-            date_obj = datetime.strptime(date, "%Y-%m-%d").date()
-        except Exception:
-            raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.")
-        cutoff_start = datetime.combine(date_obj, datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
-        cutoff_end = datetime.combine(date_obj, datetime.max.time()).strftime("%Y-%m-%d %H:%M:%S")
+        # 🔥 FIX: Convert EST date to UTC range for query
+        cutoff_start = convert_est_to_utc_for_query(date, is_start=True)
+        cutoff_end = convert_est_to_utc_for_query(date, is_start=False)
     else:
         if hours is not None:
-            cutoff_start = (datetime.utcnow() - timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S")
+            # Hours are relative to current UTC time
+            cutoff_start = (datetime.utcnow() - timedelta(hours=hours)).isoformat()
 
         if after:
-            if len(after) == 10:
-                date_obj = datetime.strptime(after, "%Y-%m-%d").date()
-                cutoff_start = datetime.combine(date_obj, datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
-            else:
-                parsed = parse_iso(after).replace(tzinfo=None)
-                cutoff_start = parsed.strftime("%Y-%m-%d %H:%M:%S")
+            if len(after) == 10:  # YYYY-MM-DD format
+                cutoff_start = convert_est_to_utc_for_query(after, is_start=True)
+            else:  # ISO datetime
+                parsed = parse_iso(after)
+                cutoff_start = parsed.isoformat()
 
         if before:
-            if len(before) == 10:
-                date_obj = datetime.strptime(before, "%Y-%m-%d").date()
-                cutoff_end = datetime.combine(date_obj, datetime.max.time()).strftime("%Y-%m-%d %H:%M:%S")
-            else:
-                parsed = parse_iso(before).replace(tzinfo=None)
-                cutoff_end = parsed.strftime("%Y-%m-%d %H:%M:%S")
+            if len(before) == 10:  # YYYY-MM-DD format
+                cutoff_end = convert_est_to_utc_for_query(before, is_start=False)
+            else:  # ISO datetime
+                parsed = parse_iso(before)
+                cutoff_end = parsed.isoformat()
 
+    # Time window filtering now works with EST/EDT times
     parsed_windows = []
     if time_window:
         import re
@@ -1396,6 +1439,7 @@ def get_processed_articles(
 
         tw_re = re.compile(r'^([0-1]\d|2[0-3]):([0-5]\d)-([0-1]\d|2[0-3]):([0-5]\d)$')
 
+
         for win in time_window:
             win_norm = normalize_dashes(win)
 
@@ -1410,6 +1454,7 @@ def get_processed_articles(
             end_dt = datetime.strptime(end_hm, "%H:%M").time()
             parsed_windows.append((start_dt, end_dt))
 
+    # Query database with UTC times
     try:
         query = sb.table("processed_articles").select("*", count="exact")
         if cutoff_start:
@@ -1449,27 +1494,25 @@ def get_processed_articles(
 
     rows = resp.data or []
 
+    # Convert UTC timestamps to EST/EDT for time window filtering
     def parse_processed_at_val(v):
         if v is None:
             return None
-        if isinstance(v, datetime):
-            return v
-        try:
-            s = str(v)
-            s = s.replace("T", " ")
-            try:
-                return datetime.fromisoformat(s)
-            except Exception:
-                fmt_try = ("%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S")
-                for fmt in fmt_try:
-                    try:
-                        return datetime.strptime(s, fmt)
-                    except:
-                        continue
-                raise
-        except Exception:
-            return None
 
+        if isinstance(v, datetime):
+            dt = v
+        else:
+            s = str(v).replace("Z", "+00:00")
+            dt = datetime.fromisoformat(s)
+
+        # Ensure UTC
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+
+        # Convert to EST/EDT for time window comparison
+        return dt.astimezone(DISPLAY_TZ)
+
+    # Filter by time windows (in EST/EDT)
     filtered_rows = []
     if parsed_windows:
         for r in rows:
