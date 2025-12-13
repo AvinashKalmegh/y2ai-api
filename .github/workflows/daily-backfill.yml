@@ -2,35 +2,39 @@ name: Daily Backfill (3x per day)
 
 on:
   schedule:
-    - cron: "30 0 * * *"   # 6 AM IST
-    - cron: "30 6 * * *"   # 12 PM IST
-    - cron: "30 12 * * *"  # 6 PM IST
+    - cron: "0 6 * * *"
+    - cron: "0 12 * * *"
+    - cron: "0 18 * * *"
   workflow_dispatch: {}
 
 jobs:
   run-backfill:
     runs-on: ubuntu-latest
-
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
     env:
+      TZ: America/New_York
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - uses: actions/setup-python@v4
         with:
           python-version: "3.10"
 
       - name: Install dependencies
         run: |
+          pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run orchestrator backfill for TODAY
+      - name: Run orchestrator backfill for TODAY (EST)
         run: |
+          export PYTHONPATH=$PYTHONPATH:.
           TODAY=$(date +'%Y-%m-%d')
-          echo "Running backfill for $TODAY"
-          python -m orchestrator --backfill "$TODAY" "$TODAY"
+          echo "Running backfill for $TODAY (US/Eastern)"
+          python orchestrator.py --backfill "$TODAY" "$TODAY"
