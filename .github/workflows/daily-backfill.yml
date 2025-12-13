@@ -2,12 +2,9 @@ name: Daily Backfill (3x per day)
 
 on:
   schedule:
-    # 6 AM IST → 00:30 UTC
-    - cron: '30 0 * * *'
-    # 12 PM IST → 06:30 UTC
-    - cron: '30 6 * * *'
-    # 6 PM IST → 12:30 UTC
-    - cron: '30 12 * * *'
+    - cron: "30 0 * * *"   # 6 AM IST
+    - cron: "30 6 * * *"   # 12 PM IST
+    - cron: "30 12 * * *"  # 6 PM IST
   workflow_dispatch: {}
 
 jobs:
@@ -26,7 +23,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: "3.10"
 
       - name: Install dependencies
         run: |
