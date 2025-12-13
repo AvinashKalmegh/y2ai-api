@@ -1,0 +1,35 @@
+name: Daily Backfill (3x per day)
+
+on:
+  schedule:
+    # 6 AM IST → 00:30 UTC
+    - cron: '30 0 * * *'
+    # 12 PM IST → 06:30 UTC
+    - cron: '30 6 * * *'
+    # 6 PM IST → 12:30 UTC
+    - cron: '30 12 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  run-backfill:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run orchestrator backfill for TODAY
+        run: |
+          TODAY=$(date +'%Y-%m-%d')
+          echo "Running backfill for $TODAY"
+          python -m y2ai.orchestrator --backfill "$TODAY" "$TODAY"
+
