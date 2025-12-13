@@ -33,4 +33,4 @@ jobs:
         run: |
           TODAY=$(date +'%Y-%m-%d')
           echo "Running backfill for $TODAY"
-          python -m y2ai.orchestrator --backfill "$TODAY" "$TODAY"
+          python -m orchestrator --backfill "$TODAY" "$TODAY"
