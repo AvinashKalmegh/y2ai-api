@@ -7,6 +7,8 @@ Sources:
 - Alpha Vantage (free, 25 req/day) 
 - SEC EDGAR (free, unlimited)
 - RSS Feeds (free, unlimited) - 30+ curated sources
+
+Updated: Added Google URL extraction to prevent duplicate articles
 """
 
 import os
@@ -16,10 +18,68 @@ from datetime import datetime, timedelta
 from typing import List, Optional
 from dataclasses import dataclass, asdict
 from abc import ABC, abstractmethod
+from urllib.parse import urlparse, parse_qs, unquote
 import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# URL UTILITIES
+# =============================================================================
+
+def extract_real_url(google_url: str) -> str:
+    """
+    Extract the actual article URL from a Google redirect URL.
+    
+    Google Alerts URLs look like:
+    https://www.google.com/url?rct=j&sa=t&url=https://example.com/article&ct=ga&cd=...
+    
+    This extracts: https://example.com/article
+    """
+    if "google.com/url" in google_url:
+        try:
+            parsed = urlparse(google_url)
+            params = parse_qs(parsed.query)
+            if 'url' in params:
+                return unquote(params['url'][0])
+        except Exception:
+            pass
+    return google_url
+
+
+def normalize_url(url: str) -> str:
+    """
+    Normalize URL for deduplication:
+    - Extract real URL from Google redirects
+    - Remove tracking parameters
+    - Lowercase the domain
+    """
+    # First extract real URL if it's a Google redirect
+    url = extract_real_url(url)
+    
+    # Remove common tracking parameters
+    try:
+        parsed = urlparse(url)
+        params = parse_qs(parsed.query)
+        
+        # Remove tracking params
+        tracking_params = {'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 
+                          'utm_term', 'ref', 'source', 'fbclid', 'gclid'}
+        cleaned_params = {k: v for k, v in params.items() if k.lower() not in tracking_params}
+        
+        # Rebuild URL without tracking params
+        if cleaned_params:
+            from urllib.parse import urlencode
+            query = urlencode(cleaned_params, doseq=True)
+            url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}?{query}"
+        else:
+            url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
+    except Exception:
+        pass
+    
+    return url
 
 
 # =============================================================================
@@ -42,8 +102,9 @@ class RawArticle:
     
     @property
     def article_hash(self) -> str:
-        """Unique hash for deduplication"""
-        return hashlib.sha256(self.url.encode()).hexdigest()[:16]
+        """Unique hash for deduplication - based on normalized URL"""
+        normalized = normalize_url(self.url)
+        return hashlib.sha256(normalized.encode()).hexdigest()[:16]
     
     def to_dict(self) -> dict:
         return asdict(self)
@@ -714,6 +775,9 @@ class GoogleAlertsAdapter(SourceAdapter):
     
     These are pre-filtered by Google based on your alert queries,
     but we still apply compound keyword filtering to ensure relevance.
+    
+    IMPORTANT: Extracts real URLs from Google redirect wrappers to prevent
+    duplicate articles when the same article appears in multiple alerts.
     """
     
     def __init__(self):
@@ -768,6 +832,7 @@ class GoogleAlertsAdapter(SourceAdapter):
             return []
 
         articles = []
+        seen_urls = set()  # Track URLs within this fetch to prevent duplicates
 
         if start_time is not None:
             cutoff_time = start_time
@@ -806,6 +871,17 @@ class GoogleAlertsAdapter(SourceAdapter):
                     else:
                         content = entry.get("summary", "")
                     
+                    # CRITICAL: Extract real URL from Google redirect
+                    raw_url = entry.get("link", "")
+                    real_url = extract_real_url(raw_url)
+                    
+                    # Skip if we've already seen this URL in this fetch
+                    normalized = normalize_url(real_url)
+                    if normalized in seen_urls:
+                        logger.debug(f"Skipping duplicate URL: {real_url[:60]}...")
+                        continue
+                    seen_urls.add(normalized)
+                    
                     # Optional: Apply compound relevance filter
                     if self.min_relevance_score > 0:
                         is_relevant, matched_keywords, relevance_score = check_article_relevance(title, content)
@@ -819,7 +895,7 @@ class GoogleAlertsAdapter(SourceAdapter):
                         source_type="google_alerts",
                         source_name=f"google_alert_{alert_query[:30]}",
                         title=title,
-                        url=entry.get("link", ""),
+                        url=real_url,  # Use the extracted real URL
                         published_at=pub_date.isoformat() if pub_date else "",
                         content=content,
                         author=None,
@@ -829,7 +905,7 @@ class GoogleAlertsAdapter(SourceAdapter):
             except Exception as e:
                 logger.error(f"Google Alerts fetch error for {alert_name}: {e}")
 
-        logger.info(f"Google Alerts adapter: {len(articles)} articles fetched from {len(self.feeds)} alerts")
+        logger.info(f"Google Alerts adapter: {len(articles)} unique articles fetched from {len(self.feeds)} alerts (deduplicated {len(seen_urls)} URLs)")
         return articles
 
 
@@ -871,7 +947,7 @@ class NewsAggregator:
             except Exception as e:
                 logger.error(f"Adapter {adapter.source_id} failed: {e}")
 
-        # Deduplicate by URL hash
+        # Deduplicate by URL hash (now uses normalized URLs)
         unique_articles = []
         for article in all_articles:
             if article.article_hash not in self.seen_hashes:
