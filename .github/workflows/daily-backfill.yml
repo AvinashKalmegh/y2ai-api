@@ -2,18 +2,16 @@ name: Daily Backfill (3x per day)
 
 on:
   schedule:
-    - cron: "0 6 * * *"
-    - cron: "0 12 * * *"
-    - cron: "0 18 * * *"
+    - cron: "0 11 * * *"   # 6:00 AM EST
+    - cron: "0 17 * * *"   # 12:00 PM EST
+    - cron: "0 23 * * *"   # 6:00 PM EST
   workflow_dispatch: {}
 
 jobs:
   run-backfill:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    defaults:
-      run:
-        shell: bash
+
     env:
       TZ: America/New_York
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
