@@ -2,43 +2,61 @@ name: Daily Backfill (4x per day)
 
 on:
   schedule:
-    - cron: "0 11 * * *"   # 6:00 AM ET
-    - cron: "0 16 * * *"   # 11:00 AM ET
-    - cron: "0 20 * * *"   # 3:00 PM ET
-    - cron: "0 1 * * *"    # 8:00 PM ET
+    # GitHub cron is UTC
+    # 6:00 AM ET  -> 11:00 UTC
+    # 11:00 AM ET -> 16:00 UTC
+    # 3:00 PM ET  -> 20:00 UTC
+    # 8:00 PM ET  -> 01:00 UTC (next day)
+    - cron: "0 11 * * *"
+    - cron: "0 16 * * *"
+    - cron: "0 20 * * *"
+    - cron: "0 1 * * *"
   workflow_dispatch: {}
 
 jobs:
   run-backfill:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     env:
       TZ: America/New_York
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
 
     steps:
-      - uses: actions/checkout@v3
+      # 1️⃣ Checkout code
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-      - uses: actions/setup-python@v4
+      # 2️⃣ Setup Python
+      - name: Setup Python
+        uses: actions/setup-python@v4
         with:
           python-version: "3.10"
 
+      # 3️⃣ Install dependencies
       - name: Install dependencies
         run: |
           pip install --upgrade pip
           pip install -r requirements.txt
 
+      # 4️⃣ Create Google credentials file (runtime only)
+      - name: Create Google credentials.json
+        run: |
+          echo "$GOOGLE_CREDENTIALS_JSON" > credentials.json
+
+      # 5️⃣ Run orchestrator (main pipeline)
       - name: Run orchestrator backfill for TODAY (ET)
         run: |
           export PYTHONPATH=$PYTHONPATH:.
           TODAY=$(date +'%Y-%m-%d')
-          echo "Running backfill for $TODAY (US/Eastern)"
+          echo "Running orchestrator for $TODAY (US/Eastern)"
           python orchestrator.py --backfill "$TODAY" "$TODAY"
 
-      - name: Run post-processing
+      # 6️⃣ Run NCI AFTER all data is processed
+      - name: Run Narrative Coherence Index (NCI)
         run: |
-          echo "Running post processing"
-          python nci_narrative_coherence.py
+          echo "Running NCI post-processing"
+          python nci_narrative_coherence.py run
