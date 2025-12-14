@@ -1,10 +1,11 @@
-name: Daily Backfill (3x per day)
+name: Daily Backfill (4x per day)
 
 on:
   schedule:
-    - cron: "0 11 * * *"   # 6:00 AM EST
-    - cron: "0 17 * * *"   # 12:00 PM EST
-    - cron: "0 23 * * *"   # 6:00 PM EST
+    - cron: "0 11 * * *"   # 6:00 AM ET
+    - cron: "0 16 * * *"   # 11:00 AM ET
+    - cron: "0 20 * * *"   # 3:00 PM ET
+    - cron: "0 1 * * *"    # 8:00 PM ET
   workflow_dispatch: {}
 
 jobs:
@@ -30,9 +31,14 @@ jobs:
           pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run orchestrator backfill for TODAY (EST)
+      - name: Run orchestrator backfill for TODAY (ET)
         run: |
           export PYTHONPATH=$PYTHONPATH:.
           TODAY=$(date +'%Y-%m-%d')
           echo "Running backfill for $TODAY (US/Eastern)"
           python orchestrator.py --backfill "$TODAY" "$TODAY"
+
+      - name: Run post-processing
+        run: |
+          echo "Running post processing"
+          python nci_narrative_coherence.py
