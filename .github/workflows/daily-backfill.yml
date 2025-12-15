@@ -45,7 +45,7 @@ jobs:
       # 4️⃣ Create Google credentials file (runtime only)
       - name: Create Google credentials.json
         run: |
-          echo "$GOOGLE_CREDENTIALS_JSON" > credentials.json
+          echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > credentials.json
 
       # 5️⃣ Run orchestrator (main pipeline)
       - name: Run orchestrator backfill for TODAY (ET)
@@ -57,6 +57,20 @@ jobs:
 
       # 6️⃣ Run NCI AFTER all data is processed
       - name: Run Narrative Coherence Index (NCI)
+        if: success()
         run: |
           echo "Running NCI post-processing"
           python nci_narrative_coherence.py run
+
+      - name: Run Burst Keyword Detection
+        if: success()
+        run: |
+          echo "Running BKD post-processing"
+          python burst_keyword_detection.py run
+
+
+      - name: Run Event Volatility Event (EVI)
+        if: success()
+        run: |
+          echo "Running EVI post-processing"
+          python evi_event_volatility_index.py run        
