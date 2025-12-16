@@ -24,6 +24,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 import logging
 import pprint
+from .urgency_mode import get_system_mode, check_nlp_urgency_triggers, is_urgency_mode
 
 
 logging.basicConfig(
@@ -138,7 +139,26 @@ def backfill_news_and_generate_newsletter(start_date_str: str, end_date_str: str
     logger.info("Backfill completed. Skipping newsletter generation completely.")
     return True
 
-
+def run_pipeline_with_mode_check(start_date_str: str, end_date_str: str):
+    """
+    Run backfill pipeline with urgency mode awareness.
+    In urgency mode, logs extra info and checks NLP triggers after.
+    """
+    mode = get_system_mode()
+    
+    if mode["mode"] == "urgency":
+        logger.info("=" * 50)
+        logger.info("🚨 RUNNING IN URGENCY MODE")
+        logger.info(f"   Triggered by: {mode['triggered_by']}")
+        logger.info(f"   Reason: {mode['reason']}")
+        logger.info("=" * 50)
+    
+    # Run normal backfill
+    backfill_news_and_generate_newsletter(start_date_str, end_date_str)
+    
+    # After NLP processing, check if we should trigger urgency
+    check_nlp_urgency_triggers()
+    
 
 def run_daily_indicators():
     """
@@ -749,7 +769,7 @@ if __name__ == "__main__":
         run_all_now()
     elif args.backfill:
         start_date, end_date = args.backfill
-        backfill_news_and_generate_newsletter(start_date, end_date) 
+        run_pipeline_with_mode_check(start_date, end_date) 
         
     else:
         parser.print_help()

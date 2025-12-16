@@ -1,16 +1,18 @@
-name: Daily Backfill (4x per day)
+name: Daily Backfill (5x per day)
 
 on:
   schedule:
-    # GitHub cron is UTC
-    # 6:00 AM ET  -> 11:00 UTC
-    # 11:00 AM ET -> 16:00 UTC
-    # 3:00 PM ET  -> 20:00 UTC
-    # 8:00 PM ET  -> 01:00 UTC (next day)
-    - cron: "0 11 * * *"
-    - cron: "0 16 * * *"
-    - cron: "0 20 * * *"
-    - cron: "0 1 * * *"
+    # GitHub cron is UTC (EST = UTC-5)
+    # 4:00 AM ET  -> 09:00 UTC  (Pre-market overnight)
+    # 8:00 AM ET  -> 13:00 UTC  (Pre-market buzz)
+    # 12:00 PM ET -> 17:00 UTC  (Midday)
+    # 5:00 PM ET  -> 22:00 UTC  (After close)
+    # 9:00 PM ET  -> 02:00 UTC  (After-hours)
+    - cron: "0 9 * * *"
+    - cron: "0 13 * * *"
+    - cron: "0 17 * * *"
+    - cron: "0 22 * * *"
+    - cron: "0 2 * * *"
   workflow_dispatch: {}
 
 jobs:
@@ -74,9 +76,15 @@ jobs:
           echo "Running BKD post-processing"
           python burst_keyword_detection.py run
 
-
-      - name: Run Event Volatility Event (EVI)
+      - name: Run Event Volatility Index (EVI)
         if: success()
         run: |
           echo "Running EVI post-processing"
-          python evi_event_volatility_index.py run        
+          python evi_event_volatility_index.py run
+
+      # 7️⃣ Check if NLP signals should trigger urgency mode
+      - name: Check NLP Urgency Triggers
+        if: success()
+        run: |
+          echo "Checking if NLP should trigger urgency mode"
+          python urgency_mode.py check
