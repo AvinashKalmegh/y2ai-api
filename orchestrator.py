@@ -24,7 +24,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 import logging
 import pprint
-from .urgency_mode import get_system_mode, check_nlp_urgency_triggers, is_urgency_mode
+from urgency_mode import get_system_mode, check_nlp_urgency_triggers, is_urgency_mode
 
 
 logging.basicConfig(
