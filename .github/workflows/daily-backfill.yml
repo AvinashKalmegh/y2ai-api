@@ -62,6 +62,12 @@ jobs:
           echo "Running NCI post-processing"
           python nci_narrative_coherence.py run
 
+      - name: Run NPD
+        if: success()
+        run: |
+          echo "Running NPD post-processing"
+          python npd_narrative_polarity_drift.py run    
+
       - name: Run Burst Keyword Detection
         if: success()
         run: |

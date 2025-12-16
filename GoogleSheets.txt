@@ -1,0 +1,4 @@
+Files created in Google Sheet
+
+1. PushDailyDataToSupabase.gs
+2. UrgencyMode.gs
