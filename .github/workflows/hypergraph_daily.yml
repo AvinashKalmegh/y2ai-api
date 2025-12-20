@@ -1,0 +1,39 @@
+name: Hypergraph Daily Analysis
+
+on:
+  schedule:
+    # Run at 5:30 PM ET (market close + 90 min) = 10:30 PM UTC
+    - cron: '30 22 * * 1-5'
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  hypergraph-analysis:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install yfinance pandas numpy networkx supabase python-dotenv
+      
+      - name: Run Hypergraph Pipeline
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: |
+          python -m hypergraph.pipeline
+      
+      - name: Run Bubble Radar
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: |
+          python -m hypergraph.radar
