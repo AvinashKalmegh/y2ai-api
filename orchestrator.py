@@ -172,9 +172,9 @@ def run_daily_indicators():
     logger.info("RUNNING DAILY INDICATORS UPDATE")
     logger.info("=" * 60)
     
-    from .bubble_index import BubbleIndexCalculator
-    from .stock_tracker import StockTracker
-    from .storage import get_storage
+    from bubble_index import BubbleIndexCalculator
+    from stock_tracker import StockTracker
+    from storage import get_storage
     
     storage = get_storage()
     

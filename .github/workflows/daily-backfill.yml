@@ -88,3 +88,11 @@ jobs:
         run: |
           echo "Checking if NLP should trigger urgency mode"
           python urgency_mode.py check
+
+
+      # 5.5 Run daily indicators (bubble index + stock tracker)
+      - name: Run Daily Indicators
+        run: |
+          export PYTHONPATH=$PYTHONPATH:.
+          echo "Running bubble index and stock tracker"
+          python orchestrator.py --indicators    

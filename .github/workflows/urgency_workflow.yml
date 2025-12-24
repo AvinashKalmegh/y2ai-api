@@ -44,6 +44,11 @@ jobs:
           echo "mode=$MODE" >> $GITHUB_OUTPUT
           echo "Current mode: $MODE"
 
+      - name: Install hypergraph dependencies
+        if: steps.check-mode.outputs.mode == 'urgency'
+        run: |
+          pip install yfinance networkx
+
       - name: Run urgency pipeline
         if: steps.check-mode.outputs.mode == 'urgency'
         run: |
@@ -56,6 +61,14 @@ jobs:
           python burst_keyword_detection.py run
           python evi_event_volatility_index.py run
           python urgency_mode.py check
+
+      - name: Run hypergraph in urgency mode
+        if: steps.check-mode.outputs.mode == 'urgency'
+        run: |
+          export PYTHONPATH=$PYTHONPATH:.
+          echo "🔄 URGENCY: Updating hypergraph"
+          python -m hypergraph.pipeline
+          python -m hypergraph.radar
 
       - name: Skip (normal mode)
         if: steps.check-mode.outputs.mode != 'urgency'
