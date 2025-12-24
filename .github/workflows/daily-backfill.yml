@@ -2,12 +2,6 @@ name: Daily Backfill (5x per day)
 
 on:
   schedule:
-    # GitHub cron is UTC (EST = UTC-5)
-    # 4:00 AM ET  -> 09:00 UTC  (Pre-market overnight)
-    # 8:00 AM ET  -> 13:00 UTC  (Pre-market buzz)
-    # 12:00 PM ET -> 17:00 UTC  (Midday)
-    # 5:00 PM ET  -> 22:00 UTC  (After close)
-    # 9:00 PM ET  -> 02:00 UTC  (After-hours)
     - cron: "0 9 * * *"
     - cron: "0 13 * * *"
     - cron: "0 17 * * *"
@@ -44,12 +38,19 @@ jobs:
           pip install --upgrade pip
           pip install -r requirements.txt
 
-      # 4️⃣ Create Google credentials file (runtime only)
+      # 4️⃣ Create Google credentials file
       - name: Create Google credentials.json
         run: |
           echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > credentials.json
 
-      # 5️⃣ Run orchestrator (main pipeline)
+      # 5️⃣ Run daily indicators (bubble index + stock tracker)
+      - name: Run Daily Indicators
+        run: |
+          export PYTHONPATH=$PYTHONPATH:.
+          echo "Running bubble index and stock tracker"
+          python -m orchestrator --indicators
+
+      # 6️⃣ Run orchestrator (news collection)
       - name: Run orchestrator backfill for TODAY (ET)
         run: |
           export PYTHONPATH=$PYTHONPATH:.
@@ -57,42 +58,36 @@ jobs:
           echo "Running orchestrator for $TODAY (US/Eastern)"
           python orchestrator.py --backfill "$TODAY" "$TODAY"
 
-      # 6️⃣ Run NCI AFTER all data is processed
+      # 7️⃣ Run NLP signals
       - name: Run Narrative Coherence Index (NCI)
         if: success()
         run: |
-          echo "Running NCI post-processing"
           python nci_narrative_coherence.py run
 
       - name: Run NPD
         if: success()
         run: |
-          echo "Running NPD post-processing"
           python npd_narrative_polarity_drift.py run    
 
       - name: Run Burst Keyword Detection
         if: success()
         run: |
-          echo "Running BKD post-processing"
           python burst_keyword_detection.py run
 
       - name: Run Event Volatility Index (EVI)
         if: success()
         run: |
-          echo "Running EVI post-processing"
           python evi_event_volatility_index.py run
 
-      # 7️⃣ Check if NLP signals should trigger urgency mode
+      # 8️⃣ Check urgency mode
       - name: Check NLP Urgency Triggers
         if: success()
         run: |
-          echo "Checking if NLP should trigger urgency mode"
           python urgency_mode.py check
 
-
-      # 5.5 Run daily indicators (bubble index + stock tracker)
-      - name: Run Daily Indicators
+      # 9️⃣ Run ARGUS-1 Analytical Calculator
+      - name: Run ARGUS-1 Calculator
+        if: success()
         run: |
-          export PYTHONPATH=$PYTHONPATH:.
-          echo "Running bubble index and stock tracker"
-          python orchestrator.py --indicators    
+          echo "Running ARGUS-1 analytical module"
+          python -c "from analytical import ARGUS1Calculator; c = ARGUS1Calculator(); r = c.run(); c.store_result(r); print(f'Stored: {r.regime.value} AMRI={r.amri.composite}')"
