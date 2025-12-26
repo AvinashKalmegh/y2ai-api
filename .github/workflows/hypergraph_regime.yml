@@ -2,13 +2,12 @@ name: Hypergraph Regime-Aware Analysis
 
 on:
   schedule:
-    # Run every 2 hours during market hours (9 AM - 6 PM ET = 14:00 - 23:00 UTC)
-    - cron: '30 14 * * 1-5'  # 9:30 AM ET
-    - cron: '30 16 * * 1-5'  # 11:30 AM ET  
-    - cron: '30 18 * * 1-5'  # 1:30 PM ET
-    - cron: '30 20 * * 1-5'  # 3:30 PM ET
-    - cron: '30 22 * * 1-5'  # 5:30 PM ET (main after-close run)
-    - cron: '30 0 * * 2-6'   # 7:30 PM ET (evening follow-up)
+    - cron: '30 14 * * 1-5'
+    - cron: '30 16 * * 1-5'
+    - cron: '30 18 * * 1-5'
+    - cron: '30 20 * * 1-5'
+    - cron: '30 22 * * 1-5'
+    - cron: '30 0 * * 2-6'
   workflow_dispatch:
     inputs:
       force_run:
@@ -21,7 +20,6 @@ env:
   SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
   SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
   TZ: America/New_York
-  PYTHONPATH: ${{ github.workspace }}/y2ai
 
 jobs:
   check-regime:
@@ -47,8 +45,7 @@ jobs:
       
       - name: Check regime and staleness
         id: regime-check
-        env:
-          PYTHONPATH: ${{ github.workspace }}/y2ai
+        working-directory: y2ai
         run: |
           if [ "${{ github.event.inputs.force_run }}" == "true" ]; then
             echo "Force run requested"
@@ -56,18 +53,18 @@ jobs:
             echo "regime=FORCED" >> $GITHUB_OUTPUT
             echo "staleness=forced" >> $GITHUB_OUTPUT
           else
-            cd y2ai
-            python -c "
-from hypergraph.regime_scheduler import should_update_hypergraph
-result = should_update_hypergraph()
-print(f\"SHOULD_RUN={'true' if result['should_run'] else 'false'}\")
-print(f\"REGIME={result['current_regime']}\")
-print(f\"STALENESS={result['staleness_hours']:.1f}h\")
-" | tee /tmp/regime_output.txt
+            python -m hypergraph.regime_scheduler > /tmp/regime_output.txt 2>&1 || true
+            cat /tmp/regime_output.txt
             
-            SHOULD_RUN=$(grep "SHOULD_RUN=" /tmp/regime_output.txt | cut -d= -f2)
-            REGIME=$(grep "REGIME=" /tmp/regime_output.txt | cut -d= -f2)
-            STALENESS=$(grep "STALENESS=" /tmp/regime_output.txt | cut -d= -f2)
+            if grep -q "SHOULD_RUN=" /tmp/regime_output.txt; then
+              SHOULD_RUN=$(grep "SHOULD_RUN=" /tmp/regime_output.txt | cut -d= -f2)
+              REGIME=$(grep "REGIME=" /tmp/regime_output.txt | cut -d= -f2)
+              STALENESS=$(grep "STALENESS=" /tmp/regime_output.txt | cut -d= -f2)
+            else
+              SHOULD_RUN=true
+              REGIME=UNKNOWN
+              STALENESS=unknown
+            fi
             
             echo "should_run=$SHOULD_RUN" >> $GITHUB_OUTPUT
             echo "regime=$REGIME" >> $GITHUB_OUTPUT
