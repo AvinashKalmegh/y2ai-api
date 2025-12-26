@@ -205,6 +205,12 @@ def main():
     logger.info(f"Decision: {'RUN' if result['should_run'] else 'SKIP'}")
     logger.info(f"Reason: {result['reason']}")
     
+    # Print parseable output for GitHub Actions
+    should_run = 'true' if result['should_run'] else 'false'
+    print(f"SHOULD_RUN={should_run}")
+    print(f"REGIME={result['current_regime']}")
+    print(f"STALENESS={result['staleness_hours']:.1f}h")
+    
     # Log to Supabase for monitoring
     log_staleness_to_supabase(result['staleness_hours'], result['current_regime'])
     
