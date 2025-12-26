@@ -21,6 +21,7 @@ env:
   SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
   SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
   TZ: America/New_York
+  PYTHONPATH: ${{ github.workspace }}/y2ai
 
 jobs:
   check-regime:
@@ -46,6 +47,8 @@ jobs:
       
       - name: Check regime and staleness
         id: regime-check
+        env:
+          PYTHONPATH: ${{ github.workspace }}/y2ai
         run: |
           if [ "${{ github.event.inputs.force_run }}" == "true" ]; then
             echo "Force run requested"
@@ -53,6 +56,7 @@ jobs:
             echo "regime=FORCED" >> $GITHUB_OUTPUT
             echo "staleness=forced" >> $GITHUB_OUTPUT
           else
+            cd y2ai
             python -c "
 from hypergraph.regime_scheduler import should_update_hypergraph
 result = should_update_hypergraph()
@@ -105,9 +109,11 @@ print(f\"STALENESS={result['staleness_hours']:.1f}h\")
           echo "Staleness: ${{ needs.check-regime.outputs.staleness }}"
       
       - name: Run Hypergraph Pipeline
+        working-directory: y2ai
         run: python -m hypergraph.pipeline
       
       - name: Run Bubble Radar
+        working-directory: y2ai
         run: python -m hypergraph.radar
 
   skip-notification:
