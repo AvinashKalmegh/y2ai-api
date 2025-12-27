@@ -24,6 +24,7 @@ env:
 jobs:
   check-regime:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       should_run: ${{ steps.regime-check.outputs.should_run }}
       regime: ${{ steps.regime-check.outputs.regime }}
@@ -41,7 +42,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install supabase python-dotenv
+          pip install --prefer-binary --timeout 120 supabase python-dotenv
       
       - name: Check regime and staleness
         id: regime-check
@@ -83,6 +84,7 @@ jobs:
     needs: check-regime
     if: needs.check-regime.outputs.should_run == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     
     steps:
       - name: Checkout repository
@@ -96,7 +98,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install yfinance pandas numpy networkx supabase python-dotenv
+          pip install --prefer-binary --timeout 120 yfinance pandas numpy networkx supabase python-dotenv
       
       - name: Log run context
         run: |
