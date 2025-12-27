@@ -45,7 +45,6 @@ jobs:
       
       - name: Check regime and staleness
         id: regime-check
-        working-directory: y2ai
         run: |
           if [ "${{ github.event.inputs.force_run }}" == "true" ]; then
             echo "Force run requested"
@@ -106,11 +105,9 @@ jobs:
           echo "Staleness: ${{ needs.check-regime.outputs.staleness }}"
       
       - name: Run Hypergraph Pipeline
-        working-directory: y2ai
         run: python -m hypergraph.pipeline
       
       - name: Run Bubble Radar
-        working-directory: y2ai
         run: python -m hypergraph.radar
 
   skip-notification:
