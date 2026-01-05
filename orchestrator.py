@@ -4,6 +4,7 @@ Main scheduler that coordinates all Y2AI services
 
 Schedule:
 - 4:30 PM ET: Daily bubble index and stock tracker update
+- 4:35 PM ET: Daily dials update (all market condition indicators)
 - 4:45 PM ET: Social media daily update post
 - 6:00 AM, 12:00 PM, 6:00 PM, 10:00 PM ET: ARGUS-1 news collection (weekdays)
 - 10:00 AM ET: Weekend news collection
@@ -14,6 +15,7 @@ This ties together:
 - ARGUS-1 (news collection)
 - Bubble Index Service
 - Stock Tracker Service
+- Dials (all market condition modules)
 - Social Publisher
 - Supabase Storage
 """
@@ -209,6 +211,45 @@ def run_daily_indicators():
     return True
 
 
+def run_dials(save: bool = True):
+    """
+    Run all Y2AI dial modules.
+    
+    Run at 4:35 PM ET daily after indicators update.
+    
+    Phases:
+    1. Foundation: PillarIndex, VixDial, CreditSpreadDial
+    2. Core: BreadthDial, MCI, MacroDial, SignalsDial
+    3. Additional: ClusterDial, LiquidityDial, LaborDial, ETFDial, SentimentDial
+    4. Flow: StockFlowDial, FlowDivergence
+    5. Multipliers: MacroMultipliers
+    6. Aggregation: RegimeArbiter, PortfolioTracker
+    7. Output: Dashboard, MorningBrief
+    """
+    logger.info("=" * 60)
+    logger.info("RUNNING ALL DIALS")
+    logger.info("=" * 60)
+    
+    try:
+        from dials_runner import run_all_dials
+        result = run_all_dials(save=save)
+        
+        logger.info(f"\nDials complete: {result['success']}/{result['total']} in {result['duration']:.1f}s")
+        
+        if result['errors']:
+            logger.warning(f"Errors ({len(result['errors'])}):")
+            for err in result['errors']:
+                logger.warning(f"  - {err}")
+        
+        return result['success'] == result['total']
+    except ImportError as e:
+        logger.error(f"Dials runner not available: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Dials runner error: {e}")
+        return False
+
+
 def run_daily_social_post():
     """
     Run at 4:45 PM ET daily after indicators update.
@@ -342,7 +383,7 @@ full content of the previous edition (Edition #{context.get('previous_edition_nu
 Use it to maintain narrative and analytical continuity:
 - Keep the same overall voice and tone
 - Treat this edition as a continuation: update the thesis, call back to prior points
-- Refer to prior edition when helpful (e.g., “Last week we argued that…”)
+- Refer to prior edition when helpful (e.g., "Last week we argued that…")
 - Do NOT repeat the exact same text; build on it and extend the argument
 
 Rewrite the weekly newsletter using the EXACT SAME THEME, STRUCTURE, AND STYLE as the following model newsletter:
@@ -387,7 +428,7 @@ Rewrite the weekly newsletter using the EXACT SAME THEME, STRUCTURE, AND STYLE a
 ---
 
 ## THE THESIS
-(1 paragraph summarizing the “big insight” of the week.)
+(1 paragraph summarizing the "big insight" of the week.)
 
 ---
 
@@ -618,6 +659,7 @@ def start_scheduler():
     
     Schedule:
     - 4:30 PM ET: Daily indicators
+    - 4:35 PM ET: Daily dials (all market condition modules)
     - 4:45 PM ET: Daily social post
     - 6:00, 12:00, 18:00, 22:00 ET: News collection (weekdays)
     - 10:00 ET: News collection (weekends)
@@ -639,6 +681,14 @@ def start_scheduler():
         CronTrigger(day_of_week='mon-fri', hour=16, minute=30),
         id='daily_indicators',
         name='Daily Indicators Update'
+    )
+    
+    # Daily dials (4:35 PM ET) - NEW
+    scheduler.add_job(
+        run_dials,
+        CronTrigger(day_of_week='mon-fri', hour=16, minute=35),
+        id='daily_dials',
+        name='Daily Dials Update'
     )
     
     # Daily social post (4:45 PM ET)
@@ -704,6 +754,7 @@ def run_all_now():
     
     run_news_collection(hours_back=24, process_limit=50)
     run_daily_indicators()
+    run_dials()  # NEW: Run all dial modules
     run_daily_social_post()
     
     
@@ -726,21 +777,22 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Y2AI Orchestrator")
     parser.add_argument('--daemon', action='store_true', help='Run as background scheduler')
     parser.add_argument('--indicators', action='store_true', help='Run daily indicators now')
+    parser.add_argument('--dials', action='store_true', help='Run all dial modules now')
     parser.add_argument('--social', action='store_true', help='Run daily social post now')
     parser.add_argument('--news', action='store_true', help='Run news collection now')
     parser.add_argument('--newsletter', action='store_true', help='Run newsletter generation now')
     parser.add_argument('--all', action='store_true', help='Run all daily tasks now')
     parser.add_argument(
-    '--backfill',
-    nargs=2,
-    metavar=('START_DATE', 'END_DATE'),
-    help='Backfill articles and generate newsletter (YYYY-MM-DD YYYY-MM-DD)'
-)
+        '--backfill',
+        nargs=2,
+        metavar=('START_DATE', 'END_DATE'),
+        help='Backfill articles and generate newsletter (YYYY-MM-DD YYYY-MM-DD)'
+    )
     parser.add_argument(
-    '--wipe-supabase',
-    action='store_true',
-    help='Delete ALL data from Supabase storage (DANGEROUS)'
-)
+        '--wipe-supabase',
+        action='store_true',
+        help='Delete ALL data from Supabase storage (DANGEROUS)'
+    )
 
 
     
@@ -759,6 +811,8 @@ if __name__ == "__main__":
                 print("\nScheduler stopped.")
     elif args.indicators:
         run_daily_indicators()
+    elif args.dials:
+        run_dials()
     elif args.social:
         run_daily_social_post()
     elif args.news:
@@ -776,7 +830,6 @@ if __name__ == "__main__":
         print("\nExamples:")
         print("  python -m y2ai.orchestrator --daemon     # Run scheduler")
         print("  python -m y2ai.orchestrator --indicators # Run bubble index + stocks")
+        print("  python -m y2ai.orchestrator --dials      # Run all dial modules")
         print("  python -m y2ai.orchestrator --social     # Post to social media")
         print("  python -m y2ai.orchestrator --all        # Run everything now")
-        
-       

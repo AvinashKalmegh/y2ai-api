@@ -23,6 +23,9 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 import pandas as pd
 import numpy as np
+from dotenv import load_dotenv
+load_dotenv()
+
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)

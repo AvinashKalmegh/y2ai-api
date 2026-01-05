@@ -1,28 +1,29 @@
 """
-ARGUS-1 Backtesting Module
+Y2AI Backtest Module
 
-Test ARGUS-1 regime signals against historical market data.
+Matches Google Sheets backtest functionality:
+- Breadth Divergence: backtestPillarBreadthDivergences()
+- Portfolio Rotation: buildBacktestEngine()
+- Historical Backfill: VIX/CAPE/Spreads data
 
 Usage:
-    from backtest import BacktestRunner
-    
-    runner = BacktestRunner()
-    results = runner.run(start_date="2024-01-01", end_date="2024-12-01")
-    
-    print(results.summary())
-    results.export_report("backtest_results.html")
+    python -m backtest.breadth_divergence --days 1000
+    python -m backtest.portfolio_backtest --days 365
+    python -m backtest.history --days 365
 """
 
-from .data_loader import HistoricalDataLoader
-from .outcomes import OutcomeCalculator
-from .performance import PerformanceAnalyzer
-from .runner import BacktestRunner
-from .reports import ReportGenerator
+from .breadth_divergence import BreadthDivergenceBacktest, run_backtest as run_divergence_backtest
+from .portfolio_backtest import PortfolioBacktest, BacktestConfig, run_backtest as run_portfolio_backtest
+from .history import HistoricalDataBackfill
+from .storage import BacktestStorage, get_backtest_storage
 
 __all__ = [
-    "HistoricalDataLoader",
-    "OutcomeCalculator", 
-    "PerformanceAnalyzer",
-    "BacktestRunner",
-    "ReportGenerator",
+    "BreadthDivergenceBacktest",
+    "PortfolioBacktest",
+    "BacktestConfig",
+    "HistoricalDataBackfill",
+    "BacktestStorage",
+    "get_backtest_storage",
+    "run_divergence_backtest",
+    "run_portfolio_backtest",
 ]

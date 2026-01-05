@@ -1627,6 +1627,410 @@ def health_check():
         return {"status": "healthy", "database": "connected"}
     except Exception as e:
         return {"status": "unhealthy", "database": str(e)}
+    
+    
+    
+# =============================================================================
+# DIALS ENDPOINTS (append this to api_processed_articles.py)
+# =============================================================================
+
+# Add these imports at the top of the file if not already present:
+# from typing import Dict, Any
+
+# -----------------------------------------------------------------------------
+# DIALS HELPER FUNCTIONS
+# -----------------------------------------------------------------------------
+
+def get_latest_dial(table: str) -> Optional[dict]:
+    """Get latest row from a dial table."""
+    try:
+        response = sb.table(table).select("*").order("date", desc=True).limit(1).execute()
+        if response.data:
+            return response.data[0]
+    except Exception:
+        pass
+    return None
+
+
+def get_dial_history(table: str, days: int = 30) -> List[dict]:
+    """Get historical data from a dial table."""
+    try:
+        cutoff = (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%d")
+        response = sb.table(table).select("*").gte("date", cutoff).order("date", desc=True).execute()
+        return response.data or []
+    except Exception:
+        return []
+
+
+# -----------------------------------------------------------------------------
+# DIALS DASHBOARD
+# -----------------------------------------------------------------------------
+
+@app.get("/dials/dashboard")
+def get_dials_dashboard():
+    """Get current dashboard state from all dials."""
+    data = get_latest_dial("dashboard_daily")
+    
+    if not data:
+        raise HTTPException(status_code=404, detail="No dashboard data available")
+    
+    return {
+        "date": data.get("date"),
+        "timestamp": data.get("timestamp"),
+        "regime": data.get("regime", "Unknown"),
+        "regime_confidence": data.get("regime_confidence", "Unknown"),
+        "amri_score": data.get("amri_score"),
+        "bubble_index": data.get("bubble_index"),
+        "mci_score": data.get("mci_score"),
+        "vix_level": data.get("vix_level"),
+        "bullish_count": data.get("bullish_count", 0),
+        "bearish_count": data.get("bearish_count", 0),
+        "neutral_count": data.get("neutral_count", 0),
+        "pillar_signals": data.get("pillar_signals"),
+        "alerts": data.get("alerts"),
+        "recommendation": data.get("recommendation")
+    }
+
+
+# -----------------------------------------------------------------------------
+# MORNING BRIEF
+# -----------------------------------------------------------------------------
+
+@app.get("/dials/brief")
+def get_dials_brief():
+    """Get current morning brief."""
+    data = get_latest_dial("morning_brief_daily")
+    
+    if not data:
+        raise HTTPException(status_code=404, detail="No morning brief available")
+    
+    return {
+        "date": data.get("date"),
+        "headline": data.get("headline", ""),
+        "regime_status": data.get("regime_status", ""),
+        "risk_level": data.get("risk_level", "Unknown"),
+        "amri": data.get("amri"),
+        "mci": data.get("mci"),
+        "vix": data.get("vix"),
+        "key_risks": data.get("key_risks"),
+        "actions": data.get("actions"),
+        "leading_pillars": data.get("leading_pillars"),
+        "lagging_pillars": data.get("lagging_pillars"),
+        "full_brief": data.get("full_brief")
+    }
+
+
+# -----------------------------------------------------------------------------
+# REGIME STATUS
+# -----------------------------------------------------------------------------
+
+@app.get("/dials/regime")
+def get_dials_regime():
+    """Get current regime status from arbiter."""
+    data = get_latest_dial("regime_arbiter_daily")
+    
+    if not data:
+        raise HTTPException(status_code=404, detail="No regime data available")
+    
+    return {
+        "date": data.get("date"),
+        "regime": data.get("regime", "Unknown"),
+        "confidence": data.get("confidence", "Unknown"),
+        "driver": data.get("driver"),
+        "bullish_count": data.get("bullish_count", 0),
+        "bearish_count": data.get("bearish_count", 0),
+        "neutral_count": data.get("neutral_count", 0),
+        "fragility_score": data.get("fragility_score", 0)
+    }
+
+
+# -----------------------------------------------------------------------------
+# ALL DIALS
+# -----------------------------------------------------------------------------
+
+@app.get("/dials/all")
+def get_all_dials():
+    """Get latest readings from all dial modules."""
+    dial_tables = {
+        "pillar_index": "pillar_index_daily",
+        "breadth": "breadth_daily",
+        "mci": "mci_daily",
+        "vix": "vix_dial_daily",
+        "credit": "credit_spread_daily",
+        "signals": "signals_dial_daily",
+        "macro": "macro_dial_daily",
+        "cluster": "cluster_dial_daily",
+        "liquidity": "liquidity_dial_daily",
+        "etf": "etf_dial_daily",
+        "labor": "labor_dial_daily",
+        "sentiment": "sentiment_dial_daily",
+        "stock_flow": "stock_flow_dial_daily",
+        "flow_divergence": "flow_divergence_daily",
+        "macro_multipliers": "macro_multipliers_daily",
+    }
+    
+    results = {}
+    
+    for dial_name, table in dial_tables.items():
+        try:
+            data = get_latest_dial(table)
+            if data:
+                results[dial_name] = {
+                    "date": data.get("date"),
+                    "regime": data.get("regime") or data.get("combined_regime") or data.get("overall_regime"),
+                    "interpretation": data.get("interpretation"),
+                }
+                
+                # Add dial-specific values
+                if dial_name == "mci":
+                    results[dial_name]["score"] = data.get("mci_score")
+                elif dial_name == "vix":
+                    results[dial_name]["vix"] = data.get("vix")
+                elif dial_name == "breadth":
+                    results[dial_name]["breadth_20d"] = data.get("breadth_20d")
+                elif dial_name == "cluster":
+                    results[dial_name]["cluster_count"] = data.get("cluster_count")
+                elif dial_name == "liquidity":
+                    results[dial_name]["vol_of_vol"] = data.get("vol_of_vol")
+                elif dial_name == "macro_multipliers":
+                    results[dial_name]["final_multiplier"] = data.get("final_multiplier")
+        except Exception as e:
+            results[dial_name] = {"error": str(e)}
+    
+    return {
+        "timestamp": datetime.utcnow().isoformat(),
+        "dials": results
+    }
+
+
+# -----------------------------------------------------------------------------
+# SPECIFIC DIAL
+# -----------------------------------------------------------------------------
+
+@app.get("/dials/{dial_name}")
+def get_specific_dial(dial_name: str):
+    """Get data for a specific dial."""
+    dial_tables = {
+        "pillar_index": "pillar_index_daily",
+        "breadth": "breadth_daily",
+        "mci": "mci_daily",
+        "vix": "vix_dial_daily",
+        "credit": "credit_spread_daily",
+        "signals": "signals_dial_daily",
+        "macro": "macro_dial_daily",
+        "cluster": "cluster_dial_daily",
+        "liquidity": "liquidity_dial_daily",
+        "etf": "etf_dial_daily",
+        "labor": "labor_dial_daily",
+        "sentiment": "sentiment_dial_daily",
+        "stock_flow": "stock_flow_dial_daily",
+        "flow_divergence": "flow_divergence_daily",
+        "macro_multipliers": "macro_multipliers_daily",
+        "regime": "regime_arbiter_daily",
+        "portfolio": "portfolio_nav_daily",
+    }
+    
+    if dial_name not in dial_tables:
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Unknown dial: {dial_name}. Available: {list(dial_tables.keys())}"
+        )
+    
+    data = get_latest_dial(dial_tables[dial_name])
+    
+    if not data:
+        raise HTTPException(status_code=404, detail=f"No data for {dial_name}")
+    
+    return {
+        "dial": dial_name,
+        "data": data
+    }
+
+
+# -----------------------------------------------------------------------------
+# DIAL HISTORY
+# -----------------------------------------------------------------------------
+
+@app.get("/dials/history/{dial_name}")
+def get_dial_history_endpoint(
+    dial_name: str,
+    days: int = Query(default=30, ge=1, le=365)
+):
+    """Get historical data for a dial."""
+    dial_tables = {
+        "pillar_index": "pillar_index_daily",
+        "breadth": "breadth_daily",
+        "mci": "mci_daily",
+        "vix": "vix_dial_daily",
+        "credit": "credit_spread_daily",
+        "signals": "signals_dial_daily",
+        "macro": "macro_dial_daily",
+        "cluster": "cluster_dial_daily",
+        "liquidity": "liquidity_dial_daily",
+        "etf": "etf_dial_daily",
+        "labor": "labor_dial_daily",
+        "sentiment": "sentiment_dial_daily",
+        "stock_flow": "stock_flow_dial_daily",
+        "flow_divergence": "flow_divergence_daily",
+        "macro_multipliers": "macro_multipliers_daily",
+        "regime": "regime_arbiter_daily",
+        "portfolio": "portfolio_nav_daily",
+        "dashboard": "dashboard_daily",
+        "brief": "morning_brief_daily",
+    }
+    
+    if dial_name not in dial_tables:
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Unknown dial: {dial_name}. Available: {list(dial_tables.keys())}"
+        )
+    
+    data = get_dial_history(dial_tables[dial_name], days=days)
+    
+    return {
+        "dial": dial_name,
+        "days": days,
+        "count": len(data),
+        "data": data
+    }
+
+
+# -----------------------------------------------------------------------------
+# PILLARS STATUS
+# -----------------------------------------------------------------------------
+
+@app.get("/dials/pillars")
+def get_pillar_status():
+    """Get current status of all 6 pillars."""
+    data = get_latest_dial("pillar_index_daily")
+    
+    if not data:
+        raise HTTPException(status_code=404, detail="No pillar data available")
+    
+    pillars = {
+        "Infrastructure": {
+            "index": data.get("infra_index"),
+            "5d": data.get("infra_5d"),
+            "1m": data.get("infra_1m"),
+            "3m": data.get("infra_3m"),
+        },
+        "Enterprise": {
+            "index": data.get("enterprise_index"),
+            "5d": data.get("enterprise_5d"),
+            "1m": data.get("enterprise_1m"),
+            "3m": data.get("enterprise_3m"),
+        },
+        "Productivity": {
+            "index": data.get("productivity_index"),
+            "5d": data.get("productivity_5d"),
+            "1m": data.get("productivity_1m"),
+            "3m": data.get("productivity_3m"),
+        },
+        "Demand": {
+            "index": data.get("demand_index"),
+            "5d": data.get("demand_5d"),
+            "1m": data.get("demand_1m"),
+            "3m": data.get("demand_3m"),
+        },
+        "Macro": {
+            "index": data.get("macro_index"),
+            "5d": data.get("macro_5d"),
+            "1m": data.get("macro_1m"),
+            "3m": data.get("macro_3m"),
+        },
+        "Financial": {
+            "index": data.get("financial_index"),
+            "5d": data.get("financial_5d"),
+            "1m": data.get("financial_1m"),
+            "3m": data.get("financial_3m"),
+        },
+    }
+    
+    # Determine signal for each pillar
+    for name, pillar in pillars.items():
+        mom_5d = pillar.get("5d") or 0
+        mom_1m = pillar.get("1m") or 0
+        
+        if mom_5d > 2 and mom_1m > 5:
+            pillar["signal"] = "LEADING"
+        elif mom_5d < -2 and mom_1m < -5:
+            pillar["signal"] = "LAGGING"
+        elif mom_5d < -1 or mom_1m < -3:
+            pillar["signal"] = "WEAKENING"
+        else:
+            pillar["signal"] = "NEUTRAL"
+    
+    return {
+        "date": data.get("date"),
+        "pillars": pillars,
+        "signals": data.get("pillar_signals")
+    }
+
+
+# -----------------------------------------------------------------------------
+# PORTFOLIO
+# -----------------------------------------------------------------------------
+
+@app.get("/dials/portfolio")
+def get_dials_portfolio():
+    """Get shadow portfolio status."""
+    data = get_latest_dial("portfolio_nav_daily")
+    
+    if not data:
+        raise HTTPException(status_code=404, detail="No portfolio data available")
+    
+    return {
+        "date": data.get("date"),
+        "nav": data.get("nav"),
+        "daily_return": data.get("daily_return"),
+        "cumulative_return": data.get("cumulative_return"),
+        "equity_exposure": data.get("equity_exposure"),
+        "cash_pct": data.get("cash_pct"),
+        "spy_return": data.get("spy_return"),
+        "excess_return": data.get("excess_return"),
+        "position_count": data.get("position_count"),
+        "positions": data.get("positions"),
+        "pillar_weights": data.get("pillar_weights")
+    }
+
+
+# -----------------------------------------------------------------------------
+# ALERTS
+# -----------------------------------------------------------------------------
+
+@app.get("/dials/alerts")
+def get_dials_alerts():
+    """Get current active alerts."""
+    dashboard = get_latest_dial("dashboard_daily")
+    regime = get_latest_dial("regime_arbiter_daily")
+    
+    alerts = []
+    
+    # Dashboard alerts
+    if dashboard and dashboard.get("alerts"):
+        alerts.extend(dashboard["alerts"])
+    
+    # Regime alerts
+    if regime:
+        if regime.get("regime") in ["BREAK", "VETO_ALERT"]:
+            alerts.append({
+                "type": "CRITICAL",
+                "source": "regime",
+                "message": f"Regime: {regime.get('regime')} - {regime.get('driver')}"
+            })
+        
+        if regime.get("fragility_score", 0) >= 3:
+            alerts.append({
+                "type": "WARNING",
+                "source": "fragility",
+                "message": f"Fragility score: {regime.get('fragility_score')}"
+            })
+    
+    return {
+        "timestamp": datetime.utcnow().isoformat(),
+        "count": len(alerts),
+        "alerts": alerts
+    }    
 
 
 if __name__ == "__main__":
