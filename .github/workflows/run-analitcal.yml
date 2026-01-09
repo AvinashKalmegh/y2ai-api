@@ -1,0 +1,27 @@
+name: Test Analytical Only
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+
+    steps:
+      - uses: actions/checkout@v3
+      
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+      
+      - name: Install dependencies
+        run: pip install supabase python-dotenv numpy httpx
+
+      - name: Test ARGUS-1
+        run: |
+          python -c "from analytical import ARGUS1Calculator; c = ARGUS1Calculator(); r = c.run(); print(f'Regime: {r.regime.value}, AMRI: {r.amri.core_amri}')"
