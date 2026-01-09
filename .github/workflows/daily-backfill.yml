@@ -90,15 +90,7 @@ jobs:
       # Debug - check env vars
       - name: Debug Supabase Connection
         run: |
-          python -c "
-            import os
-            url = os.getenv('SUPABASE_URL')
-            key = os.getenv('SUPABASE_KEY')
-            print(f'URL exists: {url is not None}')
-            print(f'URL length: {len(url) if url else 0}')
-            print(f'KEY exists: {key is not None}')
-            print(f'KEY length: {len(key) if key else 0}')
-            "    
+          python -c "import os; url = os.getenv('SUPABASE_URL'); key = os.getenv('SUPABASE_KEY'); print(f'URL exists: {url is not None}, len={len(url) if url else 0}'); print(f'KEY exists: {key is not None}, len={len(key) if key else 0}')"    
 
       # 9️⃣ Run ARGUS-1 Analytical Calculator
       - name: Run ARGUS-1 Calculator
