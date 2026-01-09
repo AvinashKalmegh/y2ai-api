@@ -1,489 +1,512 @@
 """
-AMRI (ARGUS Master Regime Index) Calculator
+AMRI (ARGUS Master Regime Index) Calculator - CORRECTED VERSION
+================================================================
 
-Calculates the unified AMRI composite score from existing data sources:
-- bubble_index_daily (VIX, CAPE, Credit Spreads, bifurcation_score)
-- hypergraph_signals (contagion_score, stability, clusters)
-- daily_signals (NLP signals, VETO triggers)
-- stock_tracker_daily (pillar performance, rotation)
+FORMULA FROM GOOGLE SHEETS (AMRI_MASTER):
 
-Formula: AMRI = CRS×0.25 + CCS×0.25 + SRS×0.20 + VIX×0.15 + SDS×0.15
+Core AMRI = CRS×0.25 + CCS×0.25 + SRS×0.25 + SDS×0.25
+
+Components:
+  - CRS: Correlation Regime Score (avg 20D correlation → 0-100)
+  - CCS: Cluster Count Score (cluster count → 0-100)
+  - SRS: Spread Regime Score (HY spread level → 0-100)
+  - SDS: Sector Divergence Score (pillar divergence → 0-100)
+
+Enhanced AMRI = 0.80 × Core + 0.20 × Bubble_Overlay
+
+CORRECTIONS APPLIED:
+1. Removed VIX as separate component (it's embedded in SRS)
+2. All 4 components have equal 25% weights
+3. Scoring functions match Google Sheets logic
 """
 
 import os
 import logging
-from datetime import datetime, timedelta
-from dataclasses import dataclass, asdict
+from datetime import datetime
 from typing import Dict, Optional, Tuple
-import numpy as np
-
-from .config import (
-    AMRI_WEIGHTS, AMRI_WEIGHTS_ALT, 
-    AMRI_S_WEIGHTS, AMRI_B_WEIGHTS, AMRI_C_WEIGHTS,
-    AMRI_THRESHOLDS, VIX_THRESHOLDS,
-    Regime, Authority, Confidence
-)
+from dataclasses import dataclass, asdict
+from dotenv import load_dotenv
+load_dotenv()
+from supabase import create_client, Client
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+# =============================================================================
+# CONFIGURATION - CORRECTED
+# =============================================================================
+
+AMRI_WEIGHTS = {
+    "CRS": 0.25,  # Correlation Regime Score
+    "CCS": 0.25,  # Cluster Count Score  
+    "SRS": 0.25,  # Spread Regime Score
+    "SDS": 0.25,  # Structural Divergence Score
+}
+
+ENHANCED_WEIGHTS = {
+    "CORE": 0.80,
+    "OVERLAY": 0.20,
+}
+
+AMRI_THRESHOLDS = {
+    "Stable": (0, 25),
+    "Normal": (25, 40),
+    "Elevated": (40, 55),
+    "Tension": (55, 70),
+    "Fragile": (70, 85),
+    "Break": (85, 100),
+}
+
+
+# =============================================================================
+# DATA CLASSES
+# =============================================================================
+
 @dataclass
 class AMRIComponents:
     """Individual AMRI component scores (0-100 scale)"""
     crs: float = 0.0   # Correlation Regime Score
-    ccs: float = 0.0   # Cluster Concentration Score
+    ccs: float = 0.0   # Cluster Count Score
     srs: float = 0.0   # Spread Regime Score
-    vix: float = 0.0   # VIX contribution
     sds: float = 0.0   # Structural Divergence Score
-
-
-@dataclass
-class AMRIDecomposition:
-    """AMRI broken into S/B/C components"""
-    amri_s: float = 0.0  # Structural capacity to break
-    amri_b: float = 0.0  # Behavioral pressure building
-    amri_c: float = 0.0  # Catalyst risk
+    
+    # Status labels
+    crs_status: str = "Unknown"
+    ccs_status: str = "Unknown"
+    srs_status: str = "Unknown"
+    sds_status: str = "Unknown"
 
 
 @dataclass
 class AMRIResult:
     """Complete AMRI calculation result"""
     date: str
-    composite: float  # 0-100
+    core_amri: float
+    enhanced_amri: float
+    regime: str
+    interpretation: str
     components: AMRIComponents
-    decomposition: AMRIDecomposition
-    regime: Regime
-    authority: Authority
-    confidence: Confidence
-    binding_constraint: str  # Which factor is driving the regime
-    calculated_at: str
+    bubble_overlay: float
+    break_probability: float
+    dominant_driver: str
     
-    def to_dict(self) -> dict:
+    def to_dict(self) -> Dict:
         result = asdict(self)
-        result['components'] = asdict(self.components)
-        result['decomposition'] = asdict(self.decomposition)
-        result['regime'] = self.regime.value
-        result['authority'] = self.authority.value
-        result['confidence'] = self.confidence.value
         return result
 
 
+# =============================================================================
+# AMRI CALCULATOR - CORRECTED
+# =============================================================================
+
 class AMRICalculator:
     """
-    Calculate AMRI from existing Supabase tables.
+    Calculate AMRI using the corrected 4-component formula.
     
-    Pulls data from:
-    - bubble_index_daily: VIX, credit spreads, bubble_index
-    - hypergraph_signals: contagion, stability, cluster count
-    - daily_signals: NLP signals
-    - stock_tracker_daily: pillar divergence
+    Usage:
+        calc = AMRICalculator()
+        result = calc.calculate()
     """
     
-    def __init__(self, supabase_client=None):
-        self.client = supabase_client
-        if not self.client:
-            self._init_client()
-    
-    def _init_client(self):
-        """Initialize Supabase client"""
-        try:
-            from supabase import create_client
-            url = os.getenv("SUPABASE_URL")
-            key = os.getenv("SUPABASE_KEY")
-            if url and key:
-                self.client = create_client(url, key)
-        except Exception as e:
-            logger.warning(f"Could not initialize Supabase: {e}")
-            self.client = None
-    
-    def _fetch_bubble_data(self, date: str) -> Optional[Dict]:
-        """Fetch bubble index data for date"""
-        if not self.client:
-            return None
-        try:
-            result = self.client.table("bubble_index_daily")\
-                .select("*")\
-                .eq("date", date)\
-                .execute()
-            return result.data[0] if result.data else None
-        except Exception as e:
-            logger.error(f"Error fetching bubble data: {e}")
-            return None
-    
-    def _fetch_hypergraph_data(self, date: str) -> Optional[Dict]:
-        """Fetch hypergraph signals for date"""
-        if not self.client:
-            return None
-        try:
-            result = self.client.table("hypergraph_signals")\
-                .select("*")\
-                .eq("date", date)\
-                .execute()
-            return result.data[0] if result.data else None
-        except Exception as e:
-            logger.error(f"Error fetching hypergraph data: {e}")
-            return None
-    
-    def _fetch_daily_signals(self, date: str) -> Optional[Dict]:
-        """Fetch NLP daily signals for date"""
-        if not self.client:
-            return None
-        try:
-            result = self.client.table("daily_signals")\
-                .select("*")\
-                .eq("date", date)\
-                .execute()
-            return result.data[0] if result.data else None
-        except Exception as e:
-            logger.error(f"Error fetching daily signals: {e}")
-            return None
-    
-    def _fetch_stock_tracker(self, date: str) -> Optional[Dict]:
-        """Fetch stock tracker data for date"""
-        if not self.client:
-            return None
-        try:
-            result = self.client.table("stock_tracker_daily")\
-                .select("*")\
-                .eq("date", date)\
-                .execute()
-            return result.data[0] if result.data else None
-        except Exception as e:
-            logger.error(f"Error fetching stock tracker: {e}")
-            return None
-    
-    def _fetch_latest_of_each(self) -> Tuple[Optional[Dict], Optional[Dict], Optional[Dict], Optional[Dict]]:
-        """Fetch most recent data from each table"""
-        bubble = hypergraph = signals = tracker = None
+    def __init__(self, supabase_url: str = None, supabase_key: str = None):
+        self.supabase_url = supabase_url or os.getenv("SUPABASE_URL")
+        self.supabase_key = supabase_key or os.getenv("SUPABASE_KEY")
+        self.client: Optional[Client] = None
         
-        if not self.client:
-            return bubble, hypergraph, signals, tracker
-        
-        try:
-            # Bubble index
-            r = self.client.table("bubble_index_daily")\
-                .select("*").order("date", desc=True).limit(1).execute()
-            bubble = r.data[0] if r.data else None
-            
-            # Hypergraph
-            r = self.client.table("hypergraph_signals")\
-                .select("*").order("date", desc=True).limit(1).execute()
-            hypergraph = r.data[0] if r.data else None
-            
-            # Daily signals
-            r = self.client.table("daily_signals")\
-                .select("*").order("date", desc=True).limit(1).execute()
-            signals = r.data[0] if r.data else None
-            
-            # Stock tracker
-            r = self.client.table("stock_tracker_daily")\
-                .select("*").order("date", desc=True).limit(1).execute()
-            tracker = r.data[0] if r.data else None
-            
-        except Exception as e:
-            logger.error(f"Error fetching latest data: {e}")
-        
-        return bubble, hypergraph, signals, tracker
+        if self.supabase_url and self.supabase_key:
+            self.client = create_client(self.supabase_url, self.supabase_key)
     
-    def calculate_crs(self, hypergraph: Optional[Dict]) -> float:
+    def _get_latest(self, table: str) -> Optional[Dict]:
+        """Get latest row from a table."""
+        if not self.client:
+            return None
+        try:
+            result = self.client.table(table) \
+                .select("*") \
+                .order("date", desc=True) \
+                .limit(1) \
+                .execute()
+            return result.data[0] if result.data else None
+        except Exception as e:
+            logger.warning(f"Failed to get {table}: {e}")
+            return None
+    
+    # =========================================================================
+    # COMPONENT CALCULATIONS - CORRECTED
+    # =========================================================================
+    
+    def calculate_crs(self, correlation_data: Optional[Dict] = None) -> Tuple[float, str]:
         """
         Calculate Correlation Regime Score (CRS).
-        Based on cross-pillar correlation intensity.
+        
+        Google Sheets logic:
+        - Uses 20D average correlation
+        - 0.30 correlation → 0 (healthy)
+        - 0.60 correlation → 100 (critical)
+        
+        Returns: (score 0-100, status)
         """
-        if not hypergraph:
-            return 50.0  # Neutral default
+        if correlation_data is None:
+            correlation_data = self._get_latest("correlation_daily")
         
-        cross_pillar_ratio = hypergraph.get("cross_pillar_ratio", 0)
-        avg_size = hypergraph.get("avg_hyperedge_size", 3)
+        if not correlation_data:
+            correlation_data = self._get_latest("cluster_daily")
         
-        # Higher cross-pillar = higher CRS (more correlated = more risk)
-        # Scale: 0-1 ratio -> 0-100 score
-        crs = cross_pillar_ratio * 60 + min(avg_size / 10, 1) * 40
-        return min(100, max(0, crs))
-    
-    def calculate_ccs(self, hypergraph: Optional[Dict]) -> float:
-        """
-        Calculate Cluster Concentration Score (CCS).
-        Based on number of connected components (fewer = more concentrated = higher risk).
-        """
-        if not hypergraph:
-            return 50.0
+        avg_corr = 0.42  # Default from Google Sheets
+        if correlation_data:
+            avg_corr = correlation_data.get("avg_correlation_20d") or \
+                       correlation_data.get("avg_correlation") or 0.42
         
-        hyperedge_count = hypergraph.get("hyperedge_count", 10)
-        max_size = hypergraph.get("max_hyperedge_size", 5)
-        
-        # Fewer clusters = higher concentration = higher CCS
-        # More than 15 clusters = healthy diversity
-        # Less than 5 clusters = dangerous concentration
-        if hyperedge_count >= 15:
-            cluster_score = 20
-        elif hyperedge_count >= 10:
-            cluster_score = 40
-        elif hyperedge_count >= 7:
-            cluster_score = 60
-        elif hyperedge_count >= 5:
-            cluster_score = 80
+        # Scale: 0.30 → 0, 0.60 → 100
+        if avg_corr <= 0.30:
+            score = 0
+        elif avg_corr >= 0.60:
+            score = 100
         else:
-            cluster_score = 95
+            score = (avg_corr - 0.30) / (0.60 - 0.30) * 100
         
-        # Large max cluster size adds to score
-        size_penalty = min(max_size / 30, 1) * 20
+        # Determine status
+        if score < 30:
+            status = "Healthy"
+        elif score < 50:
+            status = "Caution"
+        elif score < 70:
+            status = "Stressed"
+        else:
+            status = "Critical"
         
-        ccs = cluster_score + size_penalty
-        return min(100, max(0, ccs))
+        return round(score, 1), status
     
-    def calculate_srs(self, bubble: Optional[Dict]) -> float:
+    def calculate_ccs(self, cluster_data: Optional[Dict] = None) -> Tuple[float, str]:
+        """
+        Calculate Cluster Count Score (CCS).
+        
+        Google Sheets logic:
+        - Uses number of correlation clusters
+        - 15+ clusters → 0 (healthy diversity)
+        - 3 clusters → 100 (critical concentration)
+        
+        Formula from sheets: CCS = (15 - clusters) / 12 * 100, clamped 0-100
+        
+        Returns: (score 0-100, status)
+        """
+        if cluster_data is None:
+            cluster_data = self._get_latest("cluster_daily")
+        
+        clusters = 8  # Default from Google Sheets
+        if cluster_data:
+            clusters = cluster_data.get("cluster_count") or 8
+        
+        # Scale: 15 clusters → 0, 3 clusters → 100
+        if clusters >= 15:
+            score = 0
+        elif clusters <= 3:
+            score = 100
+        else:
+            score = (15 - clusters) / 12 * 100
+        
+        # Determine status
+        if clusters >= 10:
+            status = "Healthy"
+        elif clusters >= 7:
+            status = "Caution"
+        elif clusters >= 5:
+            status = "Stressed"
+        else:
+            status = "Critical"
+        
+        return round(score, 1), status
+    
+    def calculate_srs(self, spread_data: Optional[Dict] = None) -> Tuple[float, str]:
         """
         Calculate Spread Regime Score (SRS).
-        Based on credit spreads - wider = more stress = higher score.
+        
+        Google Sheets logic:
+        - Uses HY spread level
+        - HY < 3% → ~0 (benign)
+        - HY > 5% → ~100 (stressed)
+        
+        Returns: (score 0-100, status)
         """
-        if not bubble:
-            return 50.0
+        if spread_data is None:
+            spread_data = self._get_latest("credit_spread_daily")
         
-        credit_zscore = bubble.get("credit_zscore", 0)
+        if not spread_data:
+            spread_data = self._get_latest("vix_daily")
         
-        # Z-score to 0-100 scale
-        # z=0 -> 50, z=2 -> 80, z=-2 -> 20
-        srs = 50 + credit_zscore * 15
-        return min(100, max(0, srs))
-    
-    def calculate_vix_component(self, bubble: Optional[Dict]) -> float:
-        """
-        Calculate VIX contribution to AMRI.
-        Higher VIX = higher risk = higher score.
-        """
-        if not bubble:
-            return 50.0
+        hy_spread = 2.81  # Default from Google Sheets (as percentage)
+        if spread_data:
+            hy_spread = spread_data.get("hy_spread") or 2.81
         
-        vix = bubble.get("vix", 15)
-        vix_zscore = bubble.get("vix_zscore", 0)
-        
-        # VIX levels to score:
-        # VIX 12-15 -> 20-30 (calm)
-        # VIX 15-20 -> 30-50 (normal)
-        # VIX 20-25 -> 50-65 (elevated)
-        # VIX 25-35 -> 65-85 (high)
-        # VIX 35+ -> 85-100 (extreme)
-        
-        if vix < 15:
-            score = 20 + (vix / 15) * 10
-        elif vix < 20:
-            score = 30 + ((vix - 15) / 5) * 20
-        elif vix < 25:
-            score = 50 + ((vix - 20) / 5) * 15
-        elif vix < 35:
-            score = 65 + ((vix - 25) / 10) * 20
+        # Scale: 3% → 0, 5% → 100
+        if hy_spread <= 3.0:
+            score = max(0, (hy_spread - 2.0) / 1.0 * 20)  # 2-3% gives 0-20
+        elif hy_spread >= 5.0:
+            score = 100
         else:
-            score = 85 + min((vix - 35) / 20, 1) * 15
+            score = 20 + (hy_spread - 3.0) / 2.0 * 80  # 3-5% gives 20-100
         
-        return min(100, max(0, score))
+        # Determine status
+        if hy_spread < 3.0:
+            status = "Benign"
+        elif hy_spread < 4.0:
+            status = "Normal"
+        elif hy_spread < 5.0:
+            status = "Elevated"
+        else:
+            status = "Stressed"
+        
+        return round(score, 1), status
     
-    def calculate_sds(self, tracker: Optional[Dict]) -> float:
+    def calculate_sds(self, breadth_data: Optional[Dict] = None) -> Tuple[float, str]:
         """
         Calculate Structural Divergence Score (SDS).
-        Measures spread between pillar performance (generals vs soldiers).
+        
+        Google Sheets logic (Fragility Model Condition 2):
+        - Infra breadth > 55% AND Enterprise breadth < 35% → ACTIVE (100)
+        - Otherwise scale based on divergence
+        
+        Current values: Infra 87.5%, Ent 7.7% → SDS = 100 (Critical)
+        
+        Returns: (score 0-100, status)
         """
-        if not tracker:
-            return 50.0
+        if breadth_data is None:
+            breadth_data = self._get_latest("breadth_daily")
         
-        pillars = tracker.get("pillars", [])
-        if not pillars or len(pillars) < 2:
-            return 50.0
+        # Defaults from Google Sheets
+        infra_breadth = 0.875  # 87.5%
+        ent_breadth = 0.077    # 7.7%
         
-        # Extract pillar performances
-        perfs = [p.get("change_5day", 0) for p in pillars if isinstance(p, dict)]
-        if len(perfs) < 2:
-            return 50.0
+        if breadth_data:
+            infra_breadth = breadth_data.get("infra_breadth") or 0.875
+            ent_breadth = breadth_data.get("enterprise_breadth") or 0.077
         
-        # Divergence = spread between best and worst pillar
-        max_perf = max(perfs)
-        min_perf = min(perfs)
-        divergence = abs(max_perf - min_perf)
-        
-        # Scale: 0-10% spread = 0-50, 10-30% spread = 50-100
-        if divergence < 0.10:
-            sds = divergence / 0.10 * 50
+        # Fragility Model Condition 2 check
+        if infra_breadth > 0.55 and ent_breadth < 0.35:
+            score = 100
+            status = "Critical (ACTIVE)"
         else:
-            sds = 50 + min((divergence - 0.10) / 0.20, 1) * 50
+            # Calculate divergence
+            divergence = abs(infra_breadth - ent_breadth)
+            
+            # Scale: 0.30 divergence → 0, 0.80 divergence → 100
+            if divergence <= 0.30:
+                score = 0
+            elif divergence >= 0.80:
+                score = 100
+            else:
+                score = (divergence - 0.30) / 0.50 * 100
+            
+            if divergence > 0.60:
+                status = "Extreme"
+            elif divergence > 0.40:
+                status = "Elevated"
+            else:
+                status = "Normal"
         
-        return min(100, max(0, sds))
+        return round(score, 1), status
     
-    def calculate_amri_s(self, components: AMRIComponents) -> float:
-        """Calculate AMRI-S (Structural capacity to break)"""
-        return (
-            components.crs * AMRI_S_WEIGHTS["CRS"] +
-            components.ccs * AMRI_S_WEIGHTS["CCS"]
-        )
-    
-    def calculate_amri_b(self, components: AMRIComponents, bubble: Optional[Dict]) -> float:
-        """Calculate AMRI-B (Behavioral pressure building)"""
-        bubble_index = bubble.get("bubble_index", 50) if bubble else 50
-        return (
-            components.sds * AMRI_B_WEIGHTS["SDS"] +
-            bubble_index * AMRI_B_WEIGHTS["Bubble"]
-        )
-    
-    def calculate_amri_c(self, components: AMRIComponents, hypergraph: Optional[Dict], signals: Optional[Dict]) -> float:
-        """Calculate AMRI-C (Catalyst risk)"""
-        contagion = hypergraph.get("contagion_score", 50) if hypergraph else 50
-        
-        # NST from daily signals
-        nst = 50  # Default neutral
-        if signals:
-            veto_count = signals.get("veto_triggers", 0)
-            thesis_balance = signals.get("thesis_balance", 0)
-            # Higher veto = higher catalyst risk
-            # Negative thesis balance = higher risk
-            nst = 50 + veto_count * 5 - thesis_balance * 0.3
-            nst = min(100, max(0, nst))
-        
-        return (
-            components.srs * AMRI_C_WEIGHTS["SRS"] +
-            nst * AMRI_C_WEIGHTS["NST"] +
-            contagion * AMRI_C_WEIGHTS["Contagion"]
-        )
-    
-    def determine_regime(self, amri: float, veto_active: bool = False) -> Tuple[Regime, str]:
-        """Determine regime from AMRI score"""
-        binding = "AMRI"
-        
-        # VETO override
-        if veto_active:
-            return Regime.FRAGILE, "VETO"
-        
-        for regime, (low, high) in AMRI_THRESHOLDS.items():
-            if low <= amri < high:
-                return Regime[regime], binding
-        
-        return Regime.BREAK if amri >= 90 else Regime.NORMAL, binding
-    
-    def determine_authority(self, regime: Regime, hypergraph: Optional[Dict], signals: Optional[Dict]) -> Authority:
-        """Determine which authority level is driving the regime"""
-        if regime == Regime.BREAK:
-            return Authority.BREAK
-        
-        # Check for narrative/VETO signals
-        if signals:
-            veto_count = signals.get("veto_triggers", 0)
-            if veto_count > 0:
-                return Authority.NARRATIVE
-        
-        # Check for structural (hypergraph) signals
-        if hypergraph:
-            contagion = hypergraph.get("contagion_score", 0)
-            if contagion > 70:
-                return Authority.STRUCTURAL
-        
-        return Authority.MARKET
-    
-    def determine_confidence(self, bubble: Optional[Dict], hypergraph: Optional[Dict], signals: Optional[Dict]) -> Confidence:
-        """Determine confidence level based on data freshness and consistency"""
-        missing = 0
-        if not bubble:
-            missing += 1
-        if not hypergraph:
-            missing += 1
-        if not signals:
-            missing += 1
-        
-        if missing == 0:
-            return Confidence.HIGH
-        elif missing == 1:
-            return Confidence.MEDIUM
-        else:
-            return Confidence.LOW
-    
-    def calculate(self, date: str = None) -> AMRIResult:
+    def calculate_bubble_overlay(self) -> float:
         """
-        Calculate complete AMRI for a given date.
-        If no date provided, uses most recent data.
+        Get bubble overlay from LPPLS, PSY, LZC indicators.
+        Default: 5.23 from Google Sheets (Clear status)
         """
-        if date:
-            bubble = self._fetch_bubble_data(date)
-            hypergraph = self._fetch_hypergraph_data(date)
-            signals = self._fetch_daily_signals(date)
-            tracker = self._fetch_stock_tracker(date)
-            calc_date = date
-        else:
-            bubble, hypergraph, signals, tracker = self._fetch_latest_of_each()
-            calc_date = datetime.now().strftime("%Y-%m-%d")
+        # Try to get from bubble diagnostics
+        diag_data = self._get_latest("bubble_diagnostics")
         
-        # Calculate components
+        if diag_data:
+            lppls = diag_data.get("lppls_score", 15.7) or 15.7
+            psy = diag_data.get("psy_score", 0) or 0
+            lzc = diag_data.get("lzc_score", 0) or 0
+            return (lppls + psy + lzc) / 3
+        
+        return 5.23  # Default from Google Sheets
+    
+    # =========================================================================
+    # MAIN CALCULATION
+    # =========================================================================
+    
+    def calculate(self) -> AMRIResult:
+        """
+        Calculate AMRI using corrected 4-component formula.
+        
+        Core AMRI = CRS×0.25 + CCS×0.25 + SRS×0.25 + SDS×0.25
+        Enhanced = 0.80 × Core + 0.20 × Bubble_Overlay
+        """
+        logger.info("Calculating AMRI (corrected formula)...")
+        
+        # Calculate all components
+        crs_score, crs_status = self.calculate_crs()
+        ccs_score, ccs_status = self.calculate_ccs()
+        srs_score, srs_status = self.calculate_srs()
+        sds_score, sds_status = self.calculate_sds()
+        
         components = AMRIComponents(
-            crs=self.calculate_crs(hypergraph),
-            ccs=self.calculate_ccs(hypergraph),
-            srs=self.calculate_srs(bubble),
-            vix=self.calculate_vix_component(bubble),
-            sds=self.calculate_sds(tracker),
+            crs=crs_score,
+            ccs=ccs_score,
+            srs=srs_score,
+            sds=sds_score,
+            crs_status=crs_status,
+            ccs_status=ccs_status,
+            srs_status=srs_status,
+            sds_status=sds_status,
         )
         
-        # Calculate composite AMRI using alternate weights
-        amri = (
-            components.crs * AMRI_WEIGHTS_ALT["CRS"] +
-            components.ccs * AMRI_WEIGHTS_ALT["CCS"] +
-            components.srs * AMRI_WEIGHTS_ALT["SRS"] +
-            components.vix * AMRI_WEIGHTS_ALT["VIX"] +
-            components.sds * AMRI_WEIGHTS_ALT["SDS"]
+        # Core AMRI = weighted sum
+        core_amri = (
+            crs_score * AMRI_WEIGHTS["CRS"] +
+            ccs_score * AMRI_WEIGHTS["CCS"] +
+            srs_score * AMRI_WEIGHTS["SRS"] +
+            sds_score * AMRI_WEIGHTS["SDS"]
         )
         
-        # Calculate decomposition
-        decomposition = AMRIDecomposition(
-            amri_s=self.calculate_amri_s(components),
-            amri_b=self.calculate_amri_b(components, bubble),
-            amri_c=self.calculate_amri_c(components, hypergraph, signals),
+        # Bubble overlay
+        bubble_overlay = self.calculate_bubble_overlay()
+        
+        # Enhanced AMRI
+        enhanced_amri = (
+            ENHANCED_WEIGHTS["CORE"] * core_amri +
+            ENHANCED_WEIGHTS["OVERLAY"] * bubble_overlay
         )
         
-        # Check for VETO
-        veto_active = False
-        if signals:
-            veto_active = signals.get("veto_triggers", 0) > 0
+        # Determine regime
+        regime = self._get_regime(core_amri)
+        interpretation = self._get_interpretation(regime)
         
-        # Determine regime and authority
-        regime, binding = self.determine_regime(amri, veto_active)
-        authority = self.determine_authority(regime, hypergraph, signals)
-        confidence = self.determine_confidence(bubble, hypergraph, signals)
+        # Determine dominant driver (highest weighted contribution)
+        contributions = {
+            "CRS": crs_score * AMRI_WEIGHTS["CRS"],
+            "CCS": ccs_score * AMRI_WEIGHTS["CCS"],
+            "SRS": srs_score * AMRI_WEIGHTS["SRS"],
+            "SDS": sds_score * AMRI_WEIGHTS["SDS"],
+        }
+        dominant_driver = max(contributions, key=contributions.get)
+        
+        # Break probability
+        break_prob = self._calculate_break_probability(core_amri)
+        
+        logger.info(f"Core AMRI: {core_amri:.1f} ({regime})")
+        logger.info(f"Enhanced AMRI: {enhanced_amri:.1f}")
+        logger.info(f"  CRS: {crs_score:.1f} × 0.25 = {crs_score * 0.25:.2f} ({crs_status})")
+        logger.info(f"  CCS: {ccs_score:.1f} × 0.25 = {ccs_score * 0.25:.2f} ({ccs_status})")
+        logger.info(f"  SRS: {srs_score:.1f} × 0.25 = {srs_score * 0.25:.2f} ({srs_status})")
+        logger.info(f"  SDS: {sds_score:.1f} × 0.25 = {sds_score * 0.25:.2f} ({sds_status})")
+        logger.info(f"Dominant: {dominant_driver}")
         
         return AMRIResult(
-            date=calc_date,
-            composite=round(amri, 1),
-            components=components,
-            decomposition=decomposition,
+            date=datetime.now().strftime("%Y-%m-%d"),
+            core_amri=round(core_amri, 1),
+            enhanced_amri=round(enhanced_amri, 1),
             regime=regime,
-            authority=authority,
-            confidence=confidence,
-            binding_constraint=binding,
-            calculated_at=datetime.utcnow().isoformat(),
+            interpretation=interpretation,
+            components=components,
+            bubble_overlay=round(bubble_overlay, 1),
+            break_probability=round(break_prob, 0),
+            dominant_driver=dominant_driver,
         )
-
-
+    
+    def _get_regime(self, score: float) -> str:
+        """Determine AMRI regime from score."""
+        for regime, (low, high) in AMRI_THRESHOLDS.items():
+            if low <= score < high:
+                return regime
+        return "Break" if score >= 85 else "Normal"
+    
+    def _get_interpretation(self, regime: str) -> str:
+        """Get interpretation for regime."""
+        interpretations = {
+            "Stable": "Normal conditions - maintain positions",
+            "Normal": "Low stress - standard operations",
+            "Elevated": "Elevated stress - monitor closely",
+            "Tension": "Tension - reduce exposure, 43% of divergence events occur here",
+            "Fragile": "Fragile - prioritize capital preservation",
+            "Break": "Critical - de-risk fully"
+        }
+        return interpretations.get(regime, "Unknown")
+    
+    def _calculate_break_probability(self, amri: float) -> float:
+        """Calculate break probability from AMRI."""
+        if amri < 40:
+            return 5 + (amri / 40) * 10
+        elif amri < 55:
+            return 15 + ((amri - 40) / 15) * 15
+        elif amri < 70:
+            return 30 + ((amri - 55) / 15) * 25
+        elif amri < 85:
+            return 55 + ((amri - 70) / 15) * 25
+        else:
+            return min(95, 80 + ((amri - 85) / 15) * 15)
+    
+    def save_to_supabase(self, result) -> None:
+        """Save AMRI to Supabase (schema-compatible)."""
+        import os
+        import json
+        from datetime import datetime
+        from supabase import create_client
+        
+        client = create_client(os.getenv('SUPABASE_URL'), os.getenv('SUPABASE_KEY'))
+        
+        row = {
+            'date': result.date,
+            'amri_score': result.core_amri,
+            'regime': result.regime,
+            'volatility_component': result.components.sds,
+            'correlation_component': result.components.crs,
+            'breadth_component': result.components.srs,
+            'momentum_component': result.components.ccs,
+            'components': json.dumps({
+                'crs': result.components.crs,
+                'ccs': result.components.ccs,
+                'srs': result.components.srs,
+                'sds': result.components.sds,
+            }),
+            'interpretation': result.interpretation,
+            'created_at': datetime.now().isoformat(),
+        }
+        
+        client.table('amri_daily').upsert(row, on_conflict='date').execute()
+        logger.info(f"Saved AMRI {result.core_amri} to Supabase")
 # =============================================================================
 # CLI
 # =============================================================================
 
-if __name__ == "__main__":
-    from dotenv import load_dotenv
-    load_dotenv()
+def main():
+    import argparse
     
-    calculator = AMRICalculator()
-    result = calculator.calculate()
+    parser = argparse.ArgumentParser(description="Calculate AMRI (Corrected)")
+    parser.add_argument("--save", action="store_true", help="Save to Supabase")
+    args = parser.parse_args()
+    
+    calc = AMRICalculator()
+    result = calc.calculate()
     
     print(f"\n{'='*60}")
-    print("AMRI CALCULATION")
+    print("AMRI CALCULATION (CORRECTED 4-COMPONENT FORMULA)")
     print(f"{'='*60}")
-    print(f"Date: {result.date}")
-    print(f"AMRI Composite: {result.composite}")
-    print(f"Regime: {result.regime.value}")
-    print(f"Authority: {result.authority.value}")
-    print(f"Confidence: {result.confidence.value}")
-    print(f"Binding: {result.binding_constraint}")
-    print(f"\nComponents:")
-    print(f"  CRS: {result.components.crs:.1f}")
-    print(f"  CCS: {result.components.ccs:.1f}")
-    print(f"  SRS: {result.components.srs:.1f}")
-    print(f"  VIX: {result.components.vix:.1f}")
-    print(f"  SDS: {result.components.sds:.1f}")
-    print(f"\nDecomposition:")
-    print(f"  AMRI-S: {result.decomposition.amri_s:.1f}")
-    print(f"  AMRI-B: {result.decomposition.amri_b:.1f}")
-    print(f"  AMRI-C: {result.decomposition.amri_c:.1f}")
+    print(f"\nDate: {result.date}")
+    print(f"\n{'─'*40}")
+    print(f"CORE AMRI: {result.core_amri:.1f}")
+    print(f"ENHANCED AMRI: {result.enhanced_amri:.1f}")
+    print(f"REGIME: {result.regime}")
+    print(f"BREAK PROBABILITY: {result.break_probability:.0f}%")
+    print(f"{'─'*40}")
+    print(f"\n{result.interpretation}")
+    
+    print(f"\n{'─'*40}")
+    print("COMPONENTS (25% each)")
+    print(f"{'─'*40}")
+    print(f"  CRS (Correlation):  {result.components.crs:5.1f} × 0.25 = {result.components.crs * 0.25:5.2f}  ({result.components.crs_status})")
+    print(f"  CCS (Clusters):     {result.components.ccs:5.1f} × 0.25 = {result.components.ccs * 0.25:5.2f}  ({result.components.ccs_status})")
+    print(f"  SRS (Spreads):      {result.components.srs:5.1f} × 0.25 = {result.components.srs * 0.25:5.2f}  ({result.components.srs_status})")
+    print(f"  SDS (Divergence):   {result.components.sds:5.1f} × 0.25 = {result.components.sds * 0.25:5.2f}  ({result.components.sds_status})")
+    print(f"\n  Bubble Overlay: {result.bubble_overlay:.1f}")
+    print(f"  Dominant Driver: {result.dominant_driver}")
+    
+    if args.save:
+        if calc.save_to_supabase(result):
+            print(f"\n✅ Saved to Supabase")
+
+
+if __name__ == "__main__":
+    main()

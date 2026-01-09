@@ -58,7 +58,6 @@ from .amri import (
     AMRICalculator,
     AMRIResult,
     AMRIComponents,
-    AMRIDecomposition,
 )
 
 from .tti import (

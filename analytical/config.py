@@ -1,8 +1,14 @@
 """
-ARGUS-1 Analytical Configuration
+ARGUS-1 Analytical Configuration - CORRECTED
+=============================================
 All thresholds, weights, and constants for regime detection
 
-Based on handoff documentation and vik.py formulas.
+FIXES APPLIED:
+1. AMRI uses 4 components with equal 25% weights (not 5 components)
+2. VIX is NOT a separate AMRI component
+3. SRS and SDS weights corrected to 25% each
+
+Based on Google Sheets AMRI_MASTER sheet formulas.
 """
 
 from enum import Enum
@@ -42,41 +48,45 @@ class Confidence(str, Enum):
 
 
 # =============================================================================
-# AMRI WEIGHTS (from vik.py documentation)
+# AMRI WEIGHTS - CORRECTED TO MATCH GOOGLE SHEETS
 # =============================================================================
 
-# AMRI Composite: AMRI = 0.23*CRS + 0.31*CCS + 0.15*SRS + 0.31*SDS
+# CORE AMRI: Equal weights across 4 components
+# Formula: AMRI = CRS×0.25 + CCS×0.25 + SRS×0.25 + SDS×0.25
 AMRI_WEIGHTS = {
-    "CRS": 0.23,  # Correlation Regime Score (coincident)
-    "CCS": 0.31,  # Cluster Concentration Score (leading)
-    "SRS": 0.15,  # Spread Regime Score (lagging)
-    "SDS": 0.31,  # Structural Divergence Score (leading)
+    "CRS": 0.25,  # Correlation Regime Score
+    "CCS": 0.25,  # Cluster Concentration Score
+    "SRS": 0.25,  # Spread Regime Score
+    "SDS": 0.25,  # Structural Divergence Score
 }
 
-# Alternative weights from handoff doc
-# AMRI = CRS×0.25 + CCS×0.25 + SRS×0.20 + VIX×0.15 + SDS×0.15
-AMRI_WEIGHTS_ALT = {
+# DEPRECATED - Do not use this anymore
+# This was the old incorrect version with VIX as separate component
+AMRI_WEIGHTS_ALT_DEPRECATED = {
     "CRS": 0.25,
     "CCS": 0.25,
-    "SRS": 0.20,
-    "VIX": 0.15,
-    "SDS": 0.15,
+    "SRS": 0.20,  # WRONG
+    "VIX": 0.15,  # WRONG - VIX is not a component
+    "SDS": 0.15,  # WRONG
 }
 
-# AMRI Decomposition Weights
-# AMRI-S (Structural capacity to break)
+# Enhanced AMRI weights (Core + Bubble Overlay)
+ENHANCED_AMRI_WEIGHTS = {
+    "CORE": 0.80,
+    "OVERLAY": 0.20,
+}
+
+# AMRI Decomposition Weights (for S/B/C breakdown)
 AMRI_S_WEIGHTS = {
     "CRS": 0.43,  # Correlation contribution
     "CCS": 0.57,  # Cluster contribution
 }
 
-# AMRI-B (Behavioral pressure building)
 AMRI_B_WEIGHTS = {
     "SDS": 0.55,  # Structural divergence
     "Bubble": 0.45,  # Bubble index component
 }
 
-# AMRI-C (Catalyst risk)
 AMRI_C_WEIGHTS = {
     "SRS": 0.15,  # Spread regime
     "NST": 0.35,  # News sentiment
@@ -85,29 +95,49 @@ AMRI_C_WEIGHTS = {
 
 
 # =============================================================================
-# CONTAGION FORMULA (from hypergraph docs)
+# MCI CONFIGURATION - CORRECTED
 # =============================================================================
 
-# Contagion = (cross_pillar_ratio × 50) + (1 - stability) × 30 + (1 - 1/avg_size) × 20
-CONTAGION_WEIGHTS = {
-    "cross_pillar": 50,
-    "instability": 30,
-    "size_factor": 20,
+MCI_CONFIG = {
+    # Lookback periods (trading days)
+    "BREADTH_LOOKBACK": 5,
+    "VIX_LOOKBACK": 10,
+    "CREDIT_LOOKBACK": 10,
+    "PILLAR_LOOKBACK": 5,
+    
+    # Component weights (must sum to 100)
+    "WEIGHT_BREADTH": 25,
+    "WEIGHT_VIX": 25,
+    "WEIGHT_CREDIT": 25,
+    "WEIGHT_PILLAR": 25,
+    
+    # CORRECTED Thresholds
+    "BREADTH_THRESHOLD": 10,  # +/- 10% breadth change = max score
+    "VIX_THRESHOLD": 6,       # CORRECTED: +/- 6 VIX points = max score
+    "CREDIT_THRESHOLD": 20,   # +/- 20 bps spread change = max score  
+    "PILLAR_THRESHOLD": 3,    # +/- 3% pillar return = max score
 }
 
 
 # =============================================================================
-# SAC (Shock Absorption Capacity) WEIGHTS
+# BUBBLE INDEX CONFIGURATION - CORRECTED
 # =============================================================================
 
-# SAC = AMRI_buffer×0.30 + Bubble_buffer×0.20 + Contagion_buffer×0.25 + 
-#       Correlations_buffer×0.15 + Breadth_buffer×0.10
-SAC_WEIGHTS = {
-    "AMRI_buffer": 0.30,
-    "Bubble_buffer": 0.20,
-    "Contagion_buffer": 0.25,
-    "Correlations_buffer": 0.15,
-    "Breadth_buffer": 0.10,
+# 6-component Bubble Index formula from Google Sheets
+BUBBLE_INDEX_WEIGHTS = {
+    "VALUATION_EXTREME": 0.25,
+    "GROWTH_DISCONNECT": 0.20,
+    "MOMENTUM_MANIA": 0.20,
+    "VOLATILITY_STRESS": 0.15,
+    "CONCENTRATION_RISK": 0.10,
+    "VIX_COMPLACENCY": 0.10,
+}
+
+# Volatility Stress sub-components
+VOLATILITY_STRESS_WEIGHTS = {
+    "BETA": 0.40,
+    "CORRELATION": 0.30,
+    "CREDIT_MOMENTUM": 0.30,
 }
 
 
@@ -115,16 +145,30 @@ SAC_WEIGHTS = {
 # REGIME THRESHOLDS
 # =============================================================================
 
-# AMRI thresholds for regime determination
 AMRI_THRESHOLDS = {
     "NORMAL": (0, 40),      # Safe zone
-    "ELEVATED": (40, 60),   # Watchful
-    "TENSION": (60, 75),    # Caution
-    "FRAGILE": (75, 90),    # Danger
-    "BREAK": (90, 100),     # Critical
+    "ELEVATED": (40, 55),   # CORRECTED: Changed from 60
+    "TENSION": (55, 70),    # CORRECTED: Changed from 75
+    "FRAGILE": (70, 85),    # CORRECTED: Changed from 90
+    "BREAK": (85, 100),     # Critical
 }
 
-# Contagion score thresholds (0-100)
+BUBBLE_INDEX_THRESHOLDS = {
+    "NORMAL": (0, 30),
+    "ELEVATED": (30, 45),
+    "CAUTION": (45, 60),
+    "HIGH": (60, 75),
+    "CRITICAL": (75, 100),
+}
+
+MCI_THRESHOLDS = {
+    "MELT_UP": (40, 101),
+    "EXTENSION": (10, 40),
+    "KNIFE_EDGE": (-10, 10),
+    "COLLAPSE_BIAS": (-40, -10),
+    "BREAK_PATH": (-101, -40),
+}
+
 CONTAGION_THRESHOLDS = {
     "STABLE": (0, 30),
     "TRANSITIONING": (30, 50),
@@ -132,7 +176,6 @@ CONTAGION_THRESHOLDS = {
     "CONTAGION": (70, 100),
 }
 
-# VIX thresholds
 VIX_THRESHOLDS = {
     "LOW": (0, 15),
     "NORMAL": (15, 20),
@@ -141,7 +184,6 @@ VIX_THRESHOLDS = {
     "EXTREME": (35, 100),
 }
 
-# Credit spread thresholds (basis points)
 CREDIT_SPREAD_THRESHOLDS = {
     "TIGHT": (0, 100),
     "NORMAL": (100, 150),
@@ -152,189 +194,56 @@ CREDIT_SPREAD_THRESHOLDS = {
 
 
 # =============================================================================
-# FRAGILITY MODEL (Boolean Logic Gates from vik.py)
+# FRAGILITY MODEL (Boolean Logic Gates)
 # =============================================================================
 
-# Condition 1: Structural Homogeneity - clusters < threshold
-FRAGILITY_CLUSTER_THRESHOLD = 7
-
-# Condition 2: Divergence Trap - divergence > threshold
-FRAGILITY_DIVERGENCE_THRESHOLD = 0.20
-
-# Condition 3: Volatility Ignition - VIX delta > threshold
-FRAGILITY_VIX_DELTA_THRESHOLD = 2.0
-
-# Combined logic:
-# C1 AND C2 AND C3 → CRITICAL_BREAK
-# C1 AND C2 → TENSION
-# Otherwise → CLEAR
-
-
-# =============================================================================
-# TTI (Time-to-Instability) THRESHOLDS
-# =============================================================================
-
-TTI_THRESHOLDS = {
-    "IMMINENT": (1, 2),      # 1-2 days
-    "DAYS": (3, 7),          # 3-7 days
-    "WEEKS": (8, 30),        # 8-30 days
-    "MONTHS": (31, 90),      # 1-3 months
-    "DISTANT": (91, 365),    # 3+ months
-}
-
-# Rate of change window for TTI calculation
-TTI_LOOKBACK_DAYS = 10
-
-
-# =============================================================================
-# NST (News Sentiment Tracking) THRESHOLDS
-# =============================================================================
-
-# VETO trigger thresholds
-VETO_THRESHOLDS = {
-    "burst_count": 20,
-    "veto_triggers": 25,
-    "evi_score": 85,
-    "thesis_swing": 15,  # Absolute change from previous day
-}
-
-# NCI (Narrative Coherence Index) interpretation
-NCI_THRESHOLDS = {
-    "COHERENT": (70, 100),
-    "MIXED": (40, 70),
-    "FRACTURED": (0, 40),
+FRAGILITY_THRESHOLDS = {
+    # Condition 1: Cluster Consolidation
+    "CLUSTER_THRESHOLD": 7,  # clusters < 7 = ACTIVE
+    
+    # Condition 2: Pillar Divergence  
+    "INFRA_BREADTH_HIGH": 0.55,  # Infra > 55%
+    "ENT_BREADTH_LOW": 0.35,     # Ent < 35%
+    
+    # Condition 3: VIX Spike
+    "VIX_SPIKE_THRESHOLD": 2.0,  # VIX 5D change > 2 pts
 }
 
 
 # =============================================================================
-# HISTORICAL EPISODES FOR FINGERPRINT MATCHING
-# =============================================================================
-
-@dataclass
-class HistoricalEpisode:
-    """Historical market episode for fingerprint matching"""
-    name: str
-    start_date: str
-    end_date: str
-    peak_amri: float
-    peak_contagion: float
-    peak_vix: float
-    days_to_break: int
-    pattern_type: str  # "FAST_BREAK", "SLOW_GRIND", "V_RECOVERY"
-    characteristics: Dict[str, float]
-
-
-HISTORICAL_EPISODES = [
-    HistoricalEpisode(
-        name="COVID_CRASH_2020",
-        start_date="2020-02-19",
-        end_date="2020-03-23",
-        peak_amri=95,
-        peak_contagion=92,
-        peak_vix=82.69,
-        days_to_break=23,
-        pattern_type="FAST_BREAK",
-        characteristics={
-            "cluster_collapse_speed": 0.95,
-            "cross_pillar_surge": 0.88,
-            "vix_acceleration": 0.92,
-        }
-    ),
-    HistoricalEpisode(
-        name="TECH_CRASH_2022",
-        start_date="2021-11-19",
-        end_date="2022-10-12",
-        peak_amri=78,
-        peak_contagion=65,
-        peak_vix=36.45,
-        days_to_break=327,
-        pattern_type="SLOW_GRIND",
-        characteristics={
-            "cluster_collapse_speed": 0.35,
-            "cross_pillar_surge": 0.45,
-            "vix_acceleration": 0.40,
-        }
-    ),
-    HistoricalEpisode(
-        name="SVB_CRISIS_2023",
-        start_date="2023-03-08",
-        end_date="2023-03-15",
-        peak_amri=72,
-        peak_contagion=78,
-        peak_vix=26.52,
-        days_to_break=5,
-        pattern_type="FAST_BREAK",
-        characteristics={
-            "cluster_collapse_speed": 0.82,
-            "cross_pillar_surge": 0.75,
-            "vix_acceleration": 0.65,
-        }
-    ),
-    HistoricalEpisode(
-        name="AUG_2024_UNWIND",
-        start_date="2024-07-31",
-        end_date="2024-08-05",
-        peak_amri=68,
-        peak_contagion=71,
-        peak_vix=65.73,
-        days_to_break=3,
-        pattern_type="FAST_BREAK",
-        characteristics={
-            "cluster_collapse_speed": 0.88,
-            "cross_pillar_surge": 0.70,
-            "vix_acceleration": 0.95,
-        }
-    ),
-    HistoricalEpisode(
-        name="DOT_COM_2000",
-        start_date="2000-03-10",
-        end_date="2002-10-09",
-        peak_amri=88,
-        peak_contagion=72,
-        peak_vix=45.74,
-        days_to_break=944,
-        pattern_type="SLOW_GRIND",
-        characteristics={
-            "cluster_collapse_speed": 0.25,
-            "cross_pillar_surge": 0.55,
-            "vix_acceleration": 0.45,
-        }
-    ),
-]
-
-
-# =============================================================================
-# PILLAR DEFINITIONS (6 Pillars)
+# PILLAR DEFINITIONS (6 Pillars from Google Sheets)
 # =============================================================================
 
 PILLARS = {
-    "COMPUTE": {
-        "description": "GPU/Chip makers",
-        "tickers": ["NVDA", "AMD", "AVGO", "QCOM", "INTC", "MU", "MRVL"],
+    "Infrastructure": {
+        "description": "Infrastructure & Energy",
+        "tickers": ["NVDA", "AMD", "AVGO", "TSM", "INTC", "MRVL", "ANET", 
+                    "ARM", "SMCI", "VRT", "DELL", "HPE", "EQIX", "DLR", "AMT", "CEG"],
     },
-    "INFRASTRUCTURE": {
-        "description": "Data centers, cooling, power",
-        "tickers": ["EQIX", "DLR", "VRT", "ANET", "KEYS"],
+    "Enterprise": {
+        "description": "Enterprise Adoption",
+        "tickers": ["MSFT", "AMZN", "GOOGL", "META", "CRM", "NOW", "PLTR", 
+                    "SNOW", "DDOG", "MDB", "PANW", "CRWD", "ZS"],
     },
-    "FOUNDATION_MODELS": {
-        "description": "AI model developers",
-        "tickers": ["GOOGL", "MSFT", "META", "AMZN", "ORCL"],
+    "Macro": {
+        "description": "Macro & Policy",
+        "tickers": ["GS", "MS", "JPM", "V"],
     },
-    "AI_NATIVE": {
-        "description": "Pure-play AI companies",
-        "tickers": ["PLTR", "AI", "PATH", "SNOW", "MDB"],
+    "Financial": {
+        "description": "Financial & Market",
+        "tickers": ["BLK", "CME", "ICE", "SCHW"],
     },
-    "PRODUCTIVITY": {
-        "description": "AI-enhanced enterprise",
-        "tickers": ["CRM", "NOW", "ADBE", "WDAY", "INTU"],
+    "Productivity": {
+        "description": "Productivity & Labor",
+        "tickers": ["ADBE", "INTU", "WDAY"],
     },
-    "DEMAND": {
-        "description": "End-user demand proxies",
-        "tickers": ["TSLA", "UBER", "ABNB", "SPOT", "ROKU"],
+    "Demand": {
+        "description": "Demand Dynamics",
+        "tickers": ["AAPL", "TSLA", "NFLX"],
     },
 }
 
-# Flatten to ticker -> pillar mapping
+# Flatten ticker to pillar mapping
 TICKER_TO_PILLAR = {}
 for pillar, info in PILLARS.items():
     for ticker in info["tickers"]:
@@ -342,10 +251,24 @@ for pillar, info in PILLARS.items():
 
 
 # =============================================================================
+# TTI (Time-to-Instability) THRESHOLDS
+# =============================================================================
+
+TTI_THRESHOLDS = {
+    "IMMINENT": (1, 2),
+    "DAYS": (3, 7),
+    "WEEKS": (8, 30),
+    "MONTHS": (31, 90),
+    "DISTANT": (91, 365),
+}
+
+TTI_LOOKBACK_DAYS = 10
+
+
+# =============================================================================
 # UPDATE SCHEDULING
 # =============================================================================
 
-# Update intervals in hours based on regime
 UPDATE_INTERVALS = {
     Regime.NORMAL: 24,
     Regime.ELEVATED: 12,
@@ -354,60 +277,77 @@ UPDATE_INTERVALS = {
     Regime.BREAK: 2,
 }
 
-# Staleness thresholds
 STALENESS_WARNING_HOURS = 24
 STALENESS_CRITICAL_HOURS = 48
 
 
-# =============================================================================
-# DASHBOARD CELL MAPPINGS (for Google Sheets compatibility)
-# =============================================================================
+# Historical episodes for validation (required by other modules)
+HISTORICAL_EPISODES = {
+    "Y2K_BUBBLE": {
+        "start": "1998-01-01",
+        "end": "2000-03-10",
+        "type": "bubble",
+    },
+    "DOTCOM_CRASH": {
+        "start": "2000-03-10",
+        "end": "2002-10-09",
+        "type": "crash",
+    },
+    "HOUSING_BUBBLE": {
+        "start": "2005-01-01",
+        "end": "2007-10-09",
+        "type": "bubble",
+    },
+    "GFC_CRASH": {
+        "start": "2007-10-09",
+        "end": "2009-03-09",
+        "type": "crash",
+    },
+    "COVID_CRASH": {
+        "start": "2020-02-19",
+        "end": "2020-03-23",
+        "type": "crash",
+    },
+    "AI_CYCLE": {
+        "start": "2023-01-01",
+        "end": None,
+        "type": "expansion",
+    },
+}
+
 
 DASHBOARD_CELLS = {
-    # AMRI section
-    "AMRI": "B59",
-    "REGIME": "B60",
-    "AUTHORITY": "B61",
-    "CONFIDENCE": "B62",
-    "AMRI_S": "B63",
-    "AMRI_B": "B64",
-    "TTI": "B65",
-    "TTI_BINDING": "B66",
-    "AMRI_C": "B67",
-    
-    # SAC section
-    "SAC": "B68",
-    "SAC_WEAKEST": "B69",
-    
-    # Bubble section
-    "BUBBLE": "B70",
-    "RECOVERY": "B71",
-    "ROTATION": "B72",
-    "LEADER": "B73",
-    "LAGGARD": "B74",
-    
-    # Contagion section
-    "CONTAGION": "B80",
-    "CONTAGION_REGIME": "B81",
-    "STABILITY": "B82",
-    "HYPEREDGE_COUNT": "B83",
-    "DATA_AGE": "B84",
-    
-    # NST section
-    "NST": "B85",
-    "VETO_ACTIVE": "B86",
-    "NCI": "B87",
-    "NPD": "B88",
-    "BURST": "B89",
-    
-    # Fingerprint section
-    "FINGERPRINT_EPISODE": "B90",
-    "FINGERPRINT_MATCH": "B91",
-    "FINGERPRINT_QUALITY": "B92",
-    "FINGERPRINT_PATTERN": "B93",
-    
-    # Events section
-    "EVENT_STATUS": "B95",
-    "NEXT_EVENT": "B96",
-    "DAYS_TO_EVENT": "B97",
+    "AMRI": "B2",
+    "BUBBLE_INDEX": "B3",
+    "MCI": "B4",
+    "VIX": "B5",
+    "REGIME": "B6",
+}
+
+
+# SAC (Systematic Allocation Calculator) weights
+SAC_WEIGHTS = {
+    "AMRI": 0.30,
+    "BUBBLE": 0.25,
+    "MCI": 0.25,
+    "VIX": 0.20,
+}
+
+# Dashboard cell references
+DASHBOARD_CELLS = {
+    "AMRI": "B2",
+    "BUBBLE_INDEX": "B3",
+    "MCI": "B4",
+    "VIX": "B5",
+    "REGIME": "B6",
+}
+
+# Historical episodes for validation
+HISTORICAL_EPISODES = {
+    "Y2K_BUBBLE": {"start": "1998-01-01", "end": "2000-03-10", "type": "bubble"},
+    "DOTCOM_CRASH": {"start": "2000-03-10", "end": "2002-10-09", "type": "crash"},
+    "HOUSING_BUBBLE": {"start": "2005-01-01", "end": "2007-10-09", "type": "bubble"},
+    "GFC_CRASH": {"start": "2007-10-09", "end": "2009-03-09", "type": "crash"},
+    "COVID_CRASH": {"start": "2020-02-19", "end": "2020-03-23", "type": "crash"},
+    "AI_CYCLE": {"start": "2023-01-01", "end": None, "type": "expansion"},
 }

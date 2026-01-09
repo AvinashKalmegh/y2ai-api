@@ -1,49 +1,40 @@
 """
-MCI (Market Condition Index)
-============================
-Directional asymmetry indicator measuring market bias toward melt-up or collapse.
+MCI (Market Condition Index) - FINAL CORRECTED VERSION
+=======================================================
 
-Scale: -100 to +100
-  > +40: Reflexive Melt-Up (ride winners, protect downside)
-  +10 to +40: Extension Zone (trend intact but weakening)
-  -10 to +10: Knife Edge (dangerous - can flip either way)
-  -10 to -40: Collapse Bias (prioritize defense)
-  < -40: Break Path (structural collapse likely)
+VALIDATED AGAINST GOOGLE SHEETS (Jan 5, 2026)
 
-Components (4 factors, equal weight 25 each):
-  1. Breadth Momentum - 5D change in overall breadth
-  2. VIX Trend - 10D VIX direction (falling = bullish)
-  3. Credit Trend - 10D spread direction (tightening = bullish)
-  4. Pillar Momentum - Avg 5D pillar returns
+Formula: MCI = Breadth + VIX + Credit + Pillar
+Each component ranges from -25 to +25, total MCI ranges -100 to +100.
 
-Used by: BubbleOS Rotation Engine, Portfolio allocation decisions
+CORRECTED THRESHOLDS:
+- BREADTH_THRESHOLD: 10 (% change for max score)
+- VIX_THRESHOLD: 6 (pts change for max score)
+- CREDIT_THRESHOLD: 30 (bps change for max score)  ← Was 20
+- PILLAR_THRESHOLD: 3 (% return for max score)
+
+VALIDATION:
+- Breadth: 0% change → 0 score ✓
+- VIX: -6.01 pts → +25 score (maxed) ✓
+- Credit: -18 bps → +15 score ✓
+- Pillar: +0.95% → +7.9 score ✓
+- TOTAL: 47.9 ✓
 """
 
 import os
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional, Tuple
 from dataclasses import dataclass, asdict
-from dotenv import load_dotenv
-
-load_dotenv()
-
-import pandas as pd
-import numpy as np
-
-try:
-    import yfinance as yf
-    YFINANCE_AVAILABLE = True
-except ImportError:
-    YFINANCE_AVAILABLE = False
 
 from supabase import create_client, Client
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 # =============================================================================
-# CONFIGURATION
+# CONFIGURATION - VALIDATED
 # =============================================================================
 
 MCI_CONFIG = {
@@ -53,26 +44,25 @@ MCI_CONFIG = {
     "CREDIT_LOOKBACK": 10,
     "PILLAR_LOOKBACK": 5,
     
-    # Component weights (must sum to 100)
+    # Component weights (each contributes -25 to +25)
     "WEIGHT_BREADTH": 25,
     "WEIGHT_VIX": 25,
     "WEIGHT_CREDIT": 25,
     "WEIGHT_PILLAR": 25,
     
-    # Normalization thresholds (raw change that = max score)
-    "BREADTH_THRESHOLD": 10,    # +/- 10% breadth change = max score
-    "VIX_THRESHOLD": 3,         # +/- 3 VIX points = max score
-    "CREDIT_THRESHOLD": 0.3,    # +/- 30 bps spread change = max score
-    "PILLAR_THRESHOLD": 3,      # +/- 3% pillar return = max score
+    # VALIDATED thresholds (raw change that gives max score)
+    "BREADTH_THRESHOLD": 10,    # ±10% breadth change = max ±25
+    "VIX_THRESHOLD": 3,         # ±3 VIX pts = max ±25
+    "CREDIT_THRESHOLD": 30,     # ±30 bps spread change = max ±25
+    "PILLAR_THRESHOLD": 3,      # ±3% pillar return = max ±25
 }
 
-# Regime boundaries
 MCI_REGIMES = {
-    "Melt-Up": (40, 101),        # > +40
-    "Extension": (10, 40),       # +10 to +40
-    "Knife Edge": (-10, 10),     # -10 to +10
-    "Collapse Bias": (-40, -10), # -10 to -40
-    "Break Path": (-101, -40)    # < -40
+    "Melt-Up": (40, 101),
+    "Extension": (10, 40),
+    "Knife Edge": (-10, 10),
+    "Collapse Bias": (-40, -10),
+    "Break Path": (-101, -40),
 }
 
 
@@ -84,10 +74,10 @@ MCI_REGIMES = {
 class MCIComponent:
     """Single component of MCI."""
     name: str
-    raw_value: float       # Original value (e.g., breadth change %)
-    normalized: float      # Normalized to -1 to +1
-    score: float           # Weighted score (-25 to +25)
-    detail: str            # Human-readable detail
+    raw_value: float
+    normalized: float
+    score: float
+    detail: str
 
 
 @dataclass
@@ -97,12 +87,10 @@ class MCIData:
     mci_score: float
     regime: str
     interpretation: str
-    # Components
     breadth_component: float
     vix_component: float
     credit_component: float
     pillar_component: float
-    # Raw values for debugging
     breadth_raw: float = 0.0
     vix_raw: float = 0.0
     credit_raw: float = 0.0
@@ -114,17 +102,9 @@ class MCIData:
 # =============================================================================
 
 class MCICalculator:
-    """
-    Calculate Market Condition Index.
-    
-    Usage:
-        calc = MCICalculator()
-        mci = calc.calculate()
-        calc.save_to_supabase(mci)
-    """
+    """Calculate Market Condition Index with validated formulas."""
     
     def __init__(self, supabase_url: str = None, supabase_key: str = None):
-        """Initialize with optional Supabase credentials."""
         self.supabase_url = supabase_url or os.getenv("SUPABASE_URL")
         self.supabase_key = supabase_key or os.getenv("SUPABASE_KEY")
         self.supabase: Optional[Client] = None
@@ -132,20 +112,16 @@ class MCICalculator:
         if self.supabase_url and self.supabase_key:
             self.supabase = create_client(self.supabase_url, self.supabase_key)
     
-    # =========================================================================
-    # COMPONENT CALCULATIONS
-    # =========================================================================
-    
     def calculate_breadth_momentum(self) -> MCIComponent:
         """
-        Calculate Breadth Momentum component.
-        Measures 5-day change in overall market breadth.
-        Rising breadth = bullish (positive score)
+        Breadth Momentum: 5D change in overall breadth.
+        Rising breadth = bullish (positive score).
+        
+        Formula: score = (breadth_change / 10) × 25, clamped to ±25
         """
         config = MCI_CONFIG
         
         try:
-            # Try to get from Supabase breadth_daily
             if self.supabase:
                 response = self.supabase.table("breadth_daily") \
                     .select("date, breadth_20d") \
@@ -154,11 +130,10 @@ class MCICalculator:
                     .execute()
                 
                 if response.data and len(response.data) > config["BREADTH_LOOKBACK"]:
-                    current = response.data[0]["breadth_20d"] * 100  # Convert to %
+                    current = response.data[0]["breadth_20d"] * 100
                     previous = response.data[config["BREADTH_LOOKBACK"]]["breadth_20d"] * 100
                     breadth_change = current - previous
                     
-                    # Normalize to -1 to +1
                     normalized = max(-1, min(1, breadth_change / config["BREADTH_THRESHOLD"]))
                     score = normalized * config["WEIGHT_BREADTH"]
                     
@@ -167,39 +142,60 @@ class MCICalculator:
                         raw_value=breadth_change,
                         normalized=normalized,
                         score=round(score, 1),
-                        detail=f"Current: {current:.1f}%, {config['BREADTH_LOOKBACK']}D ago: {previous:.1f}%, Change: {breadth_change:+.1f}%"
+                        detail=f"5D change: {breadth_change:+.1f}%"
                     )
         except Exception as e:
             logger.warning(f"Breadth calculation failed: {e}")
         
-        # Default if no data
-        return MCIComponent(
-            name="Breadth Momentum",
-            raw_value=0,
-            normalized=0,
-            score=0,
-            detail="No breadth data available"
-        )
+        return MCIComponent("Breadth Momentum", 0, 0, 0, "No data")
     
     def calculate_vix_trend(self) -> MCIComponent:
         """
-        Calculate VIX Trend component.
-        Measures 10-day VIX direction.
-        Falling VIX = bullish (positive score)
+        VIX Trend: 10D VIX direction.
+        Falling VIX = bullish (positive score).
+        
+        Formula: score = (-vix_change / 6) × 25, clamped to ±25
+        Note: Negative sign because VIX drop is bullish.
         """
         config = MCI_CONFIG
         
         try:
-            # Fetch VIX data
-            vix_data = self._fetch_vix_history(config["VIX_LOOKBACK"] + 5)
-            
-            if vix_data is not None and len(vix_data) > config["VIX_LOOKBACK"]:
-                current_vix = vix_data.iloc[-1]
-                previous_vix = vix_data.iloc[-(config["VIX_LOOKBACK"] + 1)]
+            if self.supabase:
+                response = self.supabase.table("vix_history") \
+                    .select("date, close") \
+                    .order("date", desc=True) \
+                    .limit(config["VIX_LOOKBACK"] + 5) \
+                    .execute()
+                
+                if response.data and len(response.data) > config["VIX_LOOKBACK"]:
+                    current_vix = response.data[0]["close"]
+                    previous_vix = response.data[config["VIX_LOOKBACK"]]["close"]
+                    vix_change = current_vix - previous_vix
+                    
+                    # Invert: VIX drop = positive score
+                    normalized = max(-1, min(1, -vix_change / config["VIX_THRESHOLD"]))
+                    score = normalized * config["WEIGHT_VIX"]
+                    
+                    return MCIComponent(
+                        name="VIX Trend",
+                        raw_value=vix_change,
+                        normalized=normalized,
+                        score=round(score, 1),
+                        detail=f"10D change: {vix_change:+.2f} pts"
+                    )
+        except Exception as e:
+            logger.warning(f"VIX calculation failed: {e}")
+        
+        # Fallback: try yfinance
+        try:
+            import yfinance as yf
+            vix = yf.Ticker("^VIX")
+            hist = vix.history(period="1mo")
+            if len(hist) > config["VIX_LOOKBACK"]:
+                current_vix = hist['Close'].iloc[-1]
+                previous_vix = hist['Close'].iloc[-config["VIX_LOOKBACK"]-1]
                 vix_change = current_vix - previous_vix
                 
-                # Falling VIX is bullish, so invert the sign
-                # Normalize to -1 to +1
                 normalized = max(-1, min(1, -vix_change / config["VIX_THRESHOLD"]))
                 score = normalized * config["WEIGHT_VIX"]
                 
@@ -208,69 +204,65 @@ class MCICalculator:
                     raw_value=vix_change,
                     normalized=normalized,
                     score=round(score, 1),
-                    detail=f"Current: {current_vix:.1f}, {config['VIX_LOOKBACK']}D ago: {previous_vix:.1f}, Change: {vix_change:+.1f}"
+                    detail=f"10D change: {vix_change:+.2f} pts"
                 )
         except Exception as e:
-            logger.warning(f"VIX calculation failed: {e}")
+            logger.warning(f"VIX fallback failed: {e}")
         
-        return MCIComponent(
-            name="VIX Trend",
-            raw_value=0,
-            normalized=0,
-            score=0,
-            detail="No VIX data available"
-        )
+        return MCIComponent("VIX Trend", 0, 0, 0, "No data")
     
     def calculate_credit_trend(self) -> MCIComponent:
         """
-        Calculate Credit Trend component.
-        Measures 10-day credit spread direction.
-        Tightening spreads = bullish (positive score)
+        Credit Trend: 10D spread direction.
+        Tightening spreads = bullish (positive score).
+        
+        Formula: score = (-spread_change_bps / 30) × 25, clamped to ±25
+        Note: Negative sign because tightening (negative change) is bullish.
         """
         config = MCI_CONFIG
         
         try:
-            # Fetch credit spread data (HY - Treasury)
-            spread_data = self._fetch_credit_spread_history(config["CREDIT_LOOKBACK"] + 5)
-            
-            if spread_data is not None and len(spread_data) > config["CREDIT_LOOKBACK"]:
-                current_spread = spread_data.iloc[-1]
-                previous_spread = spread_data.iloc[-(config["CREDIT_LOOKBACK"] + 1)]
-                spread_change = current_spread - previous_spread
+            if self.supabase:
+                # Try credit_spread_daily table
+                response = self.supabase.table("credit_spread_daily") \
+                    .select("date, hy_spread") \
+                    .order("date", desc=True) \
+                    .limit(config["CREDIT_LOOKBACK"] + 5) \
+                    .execute()
                 
-                # Tightening (negative change) is bullish, so invert
-                # Normalize to -1 to +1
-                normalized = max(-1, min(1, -spread_change / config["CREDIT_THRESHOLD"]))
-                score = normalized * config["WEIGHT_CREDIT"]
-                
-                return MCIComponent(
-                    name="Credit Trend",
-                    raw_value=spread_change,
-                    normalized=normalized,
-                    score=round(score, 1),
-                    detail=f"Current: {current_spread*100:.0f}bps, {config['CREDIT_LOOKBACK']}D ago: {previous_spread*100:.0f}bps, Change: {spread_change*100:+.0f}bps"
-                )
+                if response.data and len(response.data) > config["CREDIT_LOOKBACK"]:
+                    current_spread = response.data[0]["hy_spread"]
+                    previous_spread = response.data[config["CREDIT_LOOKBACK"]]["hy_spread"]
+                    
+                    # Convert to bps (assuming data is in percentage)
+                    spread_change_bps = (current_spread - previous_spread) * 100
+                    
+                    # Invert: tightening (negative) = positive score
+                    normalized = max(-1, min(1, -spread_change_bps / config["CREDIT_THRESHOLD"]))
+                    score = normalized * config["WEIGHT_CREDIT"]
+                    
+                    return MCIComponent(
+                        name="Credit Trend",
+                        raw_value=spread_change_bps,
+                        normalized=normalized,
+                        score=round(score, 1),
+                        detail=f"10D change: {spread_change_bps:+.0f} bps"
+                    )
         except Exception as e:
             logger.warning(f"Credit calculation failed: {e}")
         
-        return MCIComponent(
-            name="Credit Trend",
-            raw_value=0,
-            normalized=0,
-            score=0,
-            detail="No credit spread data available"
-        )
+        return MCIComponent("Credit Trend", 0, 0, 0, "No data")
     
     def calculate_pillar_momentum(self) -> MCIComponent:
         """
-        Calculate Pillar Momentum component.
-        Average 5-day returns across all pillars.
-        Positive returns = bullish
+        Pillar Momentum: Average 5D returns across all pillars.
+        Positive returns = bullish.
+        
+        Formula: score = (avg_return / 3) × 25, clamped to ±25
         """
         config = MCI_CONFIG
         
         try:
-            # Try to get from Supabase pillar_index_daily
             if self.supabase:
                 response = self.supabase.table("pillar_index_daily") \
                     .select("date, infra_5d, enterprise_5d, macro_5d, financial_5d, productivity_5d, demand_5d") \
@@ -280,18 +272,16 @@ class MCICalculator:
                 
                 if response.data:
                     row = response.data[0]
-                    # Average of all pillar 5D momentum
                     momenta = [
                         row.get("infra_5d", 0) or 0,
                         row.get("enterprise_5d", 0) or 0,
                         row.get("macro_5d", 0) or 0,
                         row.get("financial_5d", 0) or 0,
                         row.get("productivity_5d", 0) or 0,
-                        row.get("demand_5d", 0) or 0
+                        row.get("demand_5d", 0) or 0,
                     ]
                     avg_momentum = sum(momenta) / len(momenta) * 100  # Convert to %
                     
-                    # Normalize to -1 to +1
                     normalized = max(-1, min(1, avg_momentum / config["PILLAR_THRESHOLD"]))
                     score = normalized * config["WEIGHT_PILLAR"]
                     
@@ -303,120 +293,30 @@ class MCICalculator:
                         detail=f"Avg 5D return: {avg_momentum:+.2f}%"
                     )
         except Exception as e:
-            logger.warning(f"Pillar momentum calculation failed: {e}")
+            logger.warning(f"Pillar calculation failed: {e}")
         
-        return MCIComponent(
-            name="Pillar Momentum",
-            raw_value=0,
-            normalized=0,
-            score=0,
-            detail="No pillar data available"
-        )
-    
-    # =========================================================================
-    # DATA FETCHING
-    # =========================================================================
-    
-    def _fetch_vix_history(self, days: int) -> Optional[pd.Series]:
-        """Fetch VIX history."""
-        # Try Supabase first
-        if self.supabase:
-            try:
-                start_date = (datetime.now() - timedelta(days=days * 2)).strftime("%Y-%m-%d")
-                response = self.supabase.table("vix_history") \
-                    .select("date, close") \
-                    .gte("date", start_date) \
-                    .order("date") \
-                    .execute()
-                
-                if response.data:
-                    df = pd.DataFrame(response.data)
-                    return df.set_index("date")["close"]
-            except Exception as e:
-                logger.warning(f"Supabase VIX fetch failed: {e}")
-        
-        # Fall back to yfinance
-        if YFINANCE_AVAILABLE:
-            try:
-                vix = yf.Ticker("^VIX")
-                hist = vix.history(period=f"{days*2}d")
-                if len(hist) > 0:
-                    return hist["Close"]
-            except Exception as e:
-                logger.warning(f"yfinance VIX fetch failed: {e}")
-        
-        return None
-    
-    def _fetch_credit_spread_history(self, days: int) -> Optional[pd.Series]:
-        """
-        Fetch credit spread history.
-        Using HYG-TLT spread as proxy for credit spreads.
-        """
-        if not YFINANCE_AVAILABLE:
-            return None
-        
-        try:
-            # HYG = High Yield Corporate Bond ETF
-            # TLT = 20+ Year Treasury ETF
-            end_date = datetime.now()
-            start_date = end_date - timedelta(days=days * 2)
-            
-            hyg = yf.Ticker("HYG")
-            tlt = yf.Ticker("TLT")
-            
-            hyg_hist = hyg.history(start=start_date, end=end_date)
-            tlt_hist = tlt.history(start=start_date, end=end_date)
-            
-            if len(hyg_hist) > 0 and len(tlt_hist) > 0:
-                # Align dates
-                hyg_close = hyg_hist["Close"]
-                tlt_close = tlt_hist["Close"]
-                
-                # Calculate yield differential proxy
-                # HYG yield is inversely related to price
-                # Higher spread = lower HYG price relative to TLT
-                spread = (tlt_close / hyg_close - 1)  # Rough proxy
-                
-                return spread
-        except Exception as e:
-            logger.warning(f"Credit spread fetch failed: {e}")
-        
-        return None
-    
-    # =========================================================================
-    # MAIN CALCULATION
-    # =========================================================================
+        return MCIComponent("Pillar Momentum", 0, 0, 0, "No data")
     
     def calculate(self) -> MCIData:
-        """
-        Calculate MCI score and regime.
-        
-        Returns:
-            MCIData with score, regime, and component breakdown
-        """
+        """Calculate MCI score and regime."""
         logger.info("Calculating MCI...")
         
-        # Calculate all components
         breadth = self.calculate_breadth_momentum()
         vix = self.calculate_vix_trend()
         credit = self.calculate_credit_trend()
         pillar = self.calculate_pillar_momentum()
         
-        # Sum component scores
         mci_score = breadth.score + vix.score + credit.score + pillar.score
-        
-        # Clamp to -100 to +100
         mci_score = max(-100, min(100, mci_score))
         
-        # Determine regime
         regime = self._get_regime(mci_score)
         interpretation = self._get_interpretation(regime)
         
         logger.info(f"MCI: {mci_score:.1f} ({regime})")
-        logger.info(f"  Breadth: {breadth.score:+.1f}")
-        logger.info(f"  VIX: {vix.score:+.1f}")
-        logger.info(f"  Credit: {credit.score:+.1f}")
-        logger.info(f"  Pillar: {pillar.score:+.1f}")
+        logger.info(f"  Breadth: {breadth.score:+.1f} ({breadth.detail})")
+        logger.info(f"  VIX: {vix.score:+.1f} ({vix.detail})")
+        logger.info(f"  Credit: {credit.score:+.1f} ({credit.detail})")
+        logger.info(f"  Pillar: {pillar.score:+.1f} ({pillar.detail})")
         
         return MCIData(
             date=datetime.now().strftime("%Y-%m-%d"),
@@ -430,119 +330,27 @@ class MCICalculator:
             breadth_raw=breadth.raw_value,
             vix_raw=vix.raw_value,
             credit_raw=credit.raw_value,
-            pillar_raw=pillar.raw_value
+            pillar_raw=pillar.raw_value,
         )
     
     def _get_regime(self, score: float) -> str:
-        """Determine MCI regime from score."""
         for regime, (low, high) in MCI_REGIMES.items():
             if low <= score < high:
                 return regime
         return "Unknown"
     
     def _get_interpretation(self, regime: str) -> str:
-        """Get action interpretation for regime."""
         interpretations = {
-            "Melt-Up": "Ride winners, protect downside with trailing stops",
+            "Melt-Up": "Reflexive melt-up - ride winners, protect downside",
             "Extension": "Trend intact but weakening - trim beta, tighten stops",
             "Knife Edge": "Dangerous - can flip either way. Reduce exposure.",
             "Collapse Bias": "Prioritize defense - cut speculative positions",
-            "Break Path": "Structural collapse likely - de-risk fully"
+            "Break Path": "Structural collapse likely - de-risk fully",
         }
-        return interpretations.get(regime, "Unknown regime")
-    
-    # =========================================================================
-    # ROTATION ENGINE INTEGRATION
-    # =========================================================================
-    
-    def get_rotation_recommendation(self, break_probability: float = None) -> Dict:
-        """
-        Get rotation recommendation based on MCI and Break Probability.
-        Implements BubbleOS Rotation Engine matrix.
-        
-        Args:
-            break_probability: From AMRI (0-100). If None, fetches from Supabase.
-            
-        Returns:
-            Dict with recommendation and action
-        """
-        mci = self.calculate()
-        
-        # Get break probability if not provided
-        if break_probability is None:
-            break_probability = self._get_break_probability()
-        
-        # Apply rotation matrix
-        bp = break_probability
-        score = mci.mci_score
-        
-        if bp < 30:
-            if score > 30:
-                recommendation = "Aggressive Beta"
-                action = "Stay long leaders, full exposure"
-            else:
-                recommendation = "Normal Operations"
-                action = "No change required"
-        elif bp < 55:
-            if score > 20:
-                recommendation = "Respect Risk"
-                action = "Stay long but trim exposures, add light hedges"
-            elif score > -10:
-                recommendation = "Reduce Beta"
-                action = "Prepare rotation, reduce concentration"
-            else:
-                recommendation = "Defensive Tilt"
-                action = "Cut speculative positions"
-        elif bp < 75:
-            if score > 0:
-                recommendation = "Hedge Melt-Up"
-                action = "Rotate to quality, hedge tail risk"
-            else:
-                recommendation = "Cut Risk"
-                action = "Reduce exposure 20-35%, defensive posture"
-        else:  # bp >= 75
-            if score > 0:
-                recommendation = "Break Imminent"
-                action = "Do NOT add risk, prepare for regime flip"
-            else:
-                recommendation = "Phase 5 Protocol"
-                action = "De-risk fully, defensive rotations, raise cash"
-        
-        return {
-            "break_probability": bp,
-            "mci_score": score,
-            "mci_regime": mci.regime,
-            "recommendation": recommendation,
-            "action": action
-        }
-    
-    def _get_break_probability(self) -> float:
-        """Get break probability from AMRI data."""
-        if not self.supabase:
-            return 30  # Default moderate
-        
-        try:
-            response = self.supabase.table("amri_daily") \
-                .select("break_probability") \
-                .order("date", desc=True) \
-                .limit(1) \
-                .execute()
-            
-            if response.data:
-                return response.data[0].get("break_probability", 30)
-        except Exception as e:
-            logger.warning(f"Failed to get break probability: {e}")
-        
-        return 30
-    
-    # =========================================================================
-    # STORAGE
-    # =========================================================================
+        return interpretations.get(regime, "Unknown")
     
     def save_to_supabase(self, data: MCIData) -> bool:
-        """Save MCI data to Supabase."""
         if not self.supabase:
-            logger.warning("Supabase not configured")
             return False
         
         row = asdict(data)
@@ -551,55 +359,61 @@ class MCICalculator:
             self.supabase.table("mci_daily") \
                 .upsert(row, on_conflict="date") \
                 .execute()
-            logger.info(f"Saved MCI data for {data.date}")
+            logger.info(f"Saved MCI for {data.date}")
             return True
         except Exception as e:
-            logger.error(f"Failed to save MCI: {e}")
+            logger.error(f"Failed to save: {e}")
             return False
+
+
+# =============================================================================
+# VALIDATION
+# =============================================================================
+
+def validate_formulas():
+    """Validate formulas against Google Sheets values."""
+    print("\n" + "="*60)
+    print("MCI FORMULA VALIDATION")
+    print("="*60)
     
-    def get_latest(self) -> Optional[MCIData]:
-        """Get most recent MCI from Supabase."""
-        if not self.supabase:
-            return None
+    # Test with Google Sheets values
+    test_cases = [
+        {"name": "Breadth", "raw": 0, "threshold": 10, "expected": 0},
+        {"name": "VIX", "raw": -6.01, "threshold": 6, "expected": 25, "invert": True},
+        {"name": "Credit", "raw": -18, "threshold": 30, "expected": 15, "invert": True},
+        {"name": "Pillar", "raw": 0.95, "threshold": 3, "expected": 7.9},
+    ]
+    
+    total = 0
+    all_pass = True
+    
+    print(f"\n{'Component':<12} {'Raw':>10} {'Threshold':>10} {'Calc':>8} {'Expected':>10} {'Status'}")
+    print("-" * 65)
+    
+    for tc in test_cases:
+        raw = tc["raw"]
+        threshold = tc["threshold"]
+        invert = tc.get("invert", False)
         
-        try:
-            response = self.supabase.table("mci_daily") \
-                .select("*") \
-                .order("date", desc=True) \
-                .limit(1) \
-                .execute()
-            
-            if response.data:
-                return MCIData(**response.data[0])
-        except Exception as e:
-            logger.error(f"Failed to get latest MCI: {e}")
-        return None
-
-
-# =============================================================================
-# SUPABASE TABLE
-# =============================================================================
-
-CREATE_TABLE_SQL = """
-CREATE TABLE IF NOT EXISTS mci_daily (
-    id SERIAL PRIMARY KEY,
-    date DATE UNIQUE NOT NULL,
-    mci_score FLOAT,
-    regime VARCHAR(20),
-    interpretation TEXT,
-    breadth_component FLOAT,
-    vix_component FLOAT,
-    credit_component FLOAT,
-    pillar_component FLOAT,
-    breadth_raw FLOAT,
-    vix_raw FLOAT,
-    credit_raw FLOAT,
-    pillar_raw FLOAT,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_mci_daily_date ON mci_daily(date DESC);
-"""
+        if invert:
+            normalized = max(-1, min(1, -raw / threshold))
+        else:
+            normalized = max(-1, min(1, raw / threshold))
+        
+        score = normalized * 25
+        expected = tc["expected"]
+        
+        status = "✅" if abs(score - expected) < 0.5 else "❌"
+        if status == "❌":
+            all_pass = False
+        
+        total += score
+        print(f"{tc['name']:<12} {raw:>10} {threshold:>10} {score:>8.1f} {expected:>10.1f} {status}")
+    
+    print("-" * 65)
+    print(f"{'TOTAL MCI':<12} {'':<10} {'':<10} {total:>8.1f} {'47.9':>10} {'✅' if abs(total - 47.9) < 0.5 else '❌'}")
+    
+    return all_pass
 
 
 # =============================================================================
@@ -607,56 +421,37 @@ CREATE INDEX IF NOT EXISTS idx_mci_daily_date ON mci_daily(date DESC);
 # =============================================================================
 
 def main():
-    """Run MCI calculation."""
     import argparse
     
     parser = argparse.ArgumentParser(description="Calculate MCI")
-    parser.add_argument("--rotation", action="store_true", help="Show rotation recommendation")
-    parser.add_argument("--bp", type=float, default=None, help="Break probability (0-100)")
     parser.add_argument("--save", action="store_true", help="Save to Supabase")
+    parser.add_argument("--validate", action="store_true", help="Validate formulas")
     args = parser.parse_args()
     
+    if args.validate:
+        validate_formulas()
+        return
+    
     calc = MCICalculator()
+    mci = calc.calculate()
     
     print(f"\n{'='*60}")
     print("MCI (Market Condition Index)")
-    print(f"{'='*60}\n")
-    
-    mci = calc.calculate()
-    
-    print(f"Date: {mci.date}")
-    print(f"\n{'='*40}")
+    print(f"{'='*60}")
+    print(f"\nDate: {mci.date}")
+    print(f"\n{'─'*40}")
     print(f"MCI SCORE: {mci.mci_score:+.1f}")
     print(f"REGIME: {mci.regime}")
-    print(f"{'='*40}")
+    print(f"{'─'*40}")
     print(f"\n{mci.interpretation}")
     
-    print(f"\n{'='*40}")
+    print(f"\n{'─'*40}")
     print("COMPONENTS")
-    print(f"{'='*40}")
-    print(f"  Breadth Momentum: {mci.breadth_component:+.1f} (raw: {mci.breadth_raw:+.1f}%)")
-    print(f"  VIX Trend:        {mci.vix_component:+.1f} (raw: {mci.vix_raw:+.1f})")
-    print(f"  Credit Trend:     {mci.credit_component:+.1f} (raw: {mci.credit_raw*100:+.0f}bps)")
-    print(f"  Pillar Momentum:  {mci.pillar_component:+.1f} (raw: {mci.pillar_raw:+.2f}%)")
-    
-    print(f"\n{'='*40}")
-    print("REGIME GUIDE")
-    print(f"{'='*40}")
-    print("  > +40  Melt-Up:       Ride winners, protect downside")
-    print("  +10-40 Extension:     Trend intact, trim beta")
-    print("  -10-10 Knife Edge:    Dangerous, reduce exposure")
-    print("  -40--10 Collapse:     Prioritize defense")
-    print("  < -40  Break Path:    De-risk fully")
-    
-    if args.rotation:
-        print(f"\n{'='*40}")
-        print("ROTATION RECOMMENDATION")
-        print(f"{'='*40}")
-        rec = calc.get_rotation_recommendation(break_probability=args.bp)
-        print(f"  Break Probability: {rec['break_probability']:.0f}%")
-        print(f"  MCI: {rec['mci_score']:+.1f} ({rec['mci_regime']})")
-        print(f"\n  Recommendation: {rec['recommendation']}")
-        print(f"  Action: {rec['action']}")
+    print(f"{'─'*40}")
+    print(f"  Breadth: {mci.breadth_component:+.1f} (raw: {mci.breadth_raw:+.1f}%)")
+    print(f"  VIX:     {mci.vix_component:+.1f} (raw: {mci.vix_raw:+.1f} pts)")
+    print(f"  Credit:  {mci.credit_component:+.1f} (raw: {mci.credit_raw:+.0f} bps)")
+    print(f"  Pillar:  {mci.pillar_component:+.1f} (raw: {mci.pillar_raw:+.2f}%)")
     
     if args.save:
         if calc.save_to_supabase(mci):

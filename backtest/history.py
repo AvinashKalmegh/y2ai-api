@@ -63,17 +63,65 @@ class HistoricalDataBackfill:
             logger.error(f"Failed to initialize Supabase: {e}")
     
     def fetch_vix(self, start_date: str, end_date: str) -> bool:
-        """Fetch VIX data from Yahoo Finance"""
+        """Fetch VIX data - tries FRED first (preferred), falls back to Yahoo"""
+        
+        # Try FRED first (matches Google Sheets)
+        if self._fetch_vix_fred(start_date, end_date):
+            return True
+        
+        # Fallback to Yahoo if FRED fails
+        logger.warning("FRED failed, falling back to Yahoo Finance")
+        return self._fetch_vix_yahoo(start_date, end_date)
+    
+    def _fetch_vix_fred(self, start_date: str, end_date: str) -> bool:
+        """Fetch VIX from FRED API"""
+        try:
+            import requests
+            import os
+            
+            fred_api_key = os.getenv("FRED_API_KEY")
+            if not fred_api_key:
+                return False
+            
+            url = "https://api.stlouisfed.org/fred/series/observations"
+            params = {
+                "series_id": "VIXCLS",
+                "api_key": fred_api_key,
+                "file_type": "json",
+                "observation_start": start_date,
+                "observation_end": end_date,
+            }
+            
+            response = requests.get(url, params=params)
+            response.raise_for_status()
+            data = response.json()
+            
+            observations = data.get("observations", [])
+            if not observations:
+                return False
+            
+            rows = []
+            for obs in observations:
+                if obs["value"] != ".":
+                    rows.append({"date": obs["date"], "vix": float(obs["value"])})
+            
+            self.vix_df = pd.DataFrame(rows).set_index('date')
+            logger.info(f"Loaded {len(self.vix_df)} VIX records from FRED")
+            return True
+            
+        except Exception as e:
+            logger.warning(f"FRED VIX fetch failed: {e}")
+            return False
+    
+    def _fetch_vix_yahoo(self, start_date: str, end_date: str) -> bool:
+        """Fetch VIX from Yahoo Finance (fallback)"""
         try:
             import yfinance as yf
-            
-            logger.info(f"Fetching VIX from {start_date} to {end_date}...")
             
             vix = yf.Ticker("^VIX")
             df = vix.history(start=start_date, end=end_date)
             
             if df.empty:
-                logger.error("No VIX data returned")
                 return False
             
             self.vix_df = pd.DataFrame({
@@ -83,11 +131,11 @@ class HistoricalDataBackfill:
             self.vix_df['date'] = self.vix_df['date'].astype(str)
             self.vix_df = self.vix_df.set_index('date')
             
-            logger.info(f"Loaded {len(self.vix_df)} VIX records")
+            logger.info(f"Loaded {len(self.vix_df)} VIX records from Yahoo")
             return True
             
         except Exception as e:
-            logger.error(f"Error fetching VIX: {e}")
+            logger.error(f"Yahoo VIX fetch failed: {e}")
             return False
     
     def fetch_cape(self, start_date: str, end_date: str) -> bool:

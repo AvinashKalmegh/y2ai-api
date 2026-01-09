@@ -1,21 +1,24 @@
 """
-DIALS RUNNER
-============
+DIALS RUNNER - COMPLETE
+=======================
 Orchestrates all Y2AI dial modules in correct sequence.
 
 Run order (dependencies matter):
-1. Foundation: PillarIndex, VixDial, CreditSpreadDial
-2. Core: BreadthDial, MCI, MacroDial, SignalsDial
-3. Additional: ClusterDial, LiquidityDial, LaborDial, ETFDial, SentimentDial
-4. Flow: StockFlowDial, FlowDivergence
-5. Multipliers: MacroMultipliers
-6. Aggregation: RegimeArbiter, PortfolioTracker
-7. Output: Dashboard, MorningBrief
+Phase 1: Foundation - PillarIndex, VixDial, CreditSpreadDial
+Phase 2: Core - BreadthDial, MCI, MacroDial, SignalsDial, CorrelationDial
+Phase 3: Additional - ClusterDial, LiquidityDial, LaborDial, ETFDial, SentimentDial
+Phase 4: Flow - StockFlowDial, FlowDivergence
+Phase 5: Multipliers - MacroMultipliers, FinancialStressDial
+Phase 6: NST & Bubble - NSTDial, BubbleOverlayDial
+Phase 7: Analysis - HypergraphDial, FingerprintDial, TrendsHistoryDial
+Phase 8: Portfolio - ShadowPortfolioDial, RegimeArbiter, PortfolioTracker
+Phase 9: Output - Dashboard, MorningBrief
 
 Usage:
     python -m y2ai.dials_runner --all
     python -m y2ai.dials_runner --dials
     python -m y2ai.dials_runner --dashboard
+    python -m y2ai.dials_runner --phase 6
 """
 
 import os
@@ -38,6 +41,7 @@ logger = logging.getLogger(__name__)
 class DialsRunner:
     """
     Run all dial modules in sequence.
+    Total: 25 dial modules + 2 portfolio modules = 27 modules
     """
     
     def __init__(self, save_to_supabase: bool = True):
@@ -56,7 +60,7 @@ class DialsRunner:
                 calc.save_to_supabase(data)
                 logger.info(f"  ✅ {name} - saved")
             else:
-                logger.info(f"  ✅ {name} - calculated")
+                logger.info(f"  ✅ {name} - calculated (no save method)")
             
             self.results[name] = data
             return True
@@ -67,10 +71,10 @@ class DialsRunner:
             return False
     
     # =========================================================================
-    # PHASE 1: FOUNDATION
+    # PHASE 1: FOUNDATION (3 modules)
     # =========================================================================
     
-    def run_foundation(self) -> int:
+    def run_phase1_foundation(self) -> int:
         """Run foundation dials (price-based, no dependencies)."""
         logger.info("\n" + "="*60)
         logger.info("PHASE 1: FOUNDATION DIALS")
@@ -93,10 +97,10 @@ class DialsRunner:
         return success
     
     # =========================================================================
-    # PHASE 2: CORE DIALS
+    # PHASE 2: CORE DIALS (5 modules)
     # =========================================================================
     
-    def run_core(self) -> int:
+    def run_phase2_core(self) -> int:
         """Run core dials (depend on foundation)."""
         logger.info("\n" + "="*60)
         logger.info("PHASE 2: CORE DIALS")
@@ -120,13 +124,17 @@ class DialsRunner:
         if self.run_module("SignalsDial", SignalsDialCalculator):
             success += 1
         
+        from dials.correlation_dial import CorrelationDialCalculator
+        if self.run_module("CorrelationDial", CorrelationDialCalculator):
+            success += 1
+        
         return success
     
     # =========================================================================
-    # PHASE 3: ADDITIONAL DIALS
+    # PHASE 3: ADDITIONAL DIALS (5 modules)
     # =========================================================================
     
-    def run_additional(self) -> int:
+    def run_phase3_additional(self) -> int:
         """Run additional dials (independent of core)."""
         logger.info("\n" + "="*60)
         logger.info("PHASE 3: ADDITIONAL DIALS")
@@ -157,10 +165,10 @@ class DialsRunner:
         return success
     
     # =========================================================================
-    # PHASE 4: FLOW DIALS
+    # PHASE 4: FLOW DIALS (2 modules)
     # =========================================================================
     
-    def run_flow(self) -> int:
+    def run_phase4_flow(self) -> int:
         """Run flow dials (depend on price data)."""
         logger.info("\n" + "="*60)
         logger.info("PHASE 4: FLOW DIALS")
@@ -179,13 +187,13 @@ class DialsRunner:
         return success
     
     # =========================================================================
-    # PHASE 5: MULTIPLIERS
+    # PHASE 5: MULTIPLIERS & STRESS (2 modules)
     # =========================================================================
     
-    def run_multipliers(self) -> int:
-        """Run macro multipliers (depend on multiple dials)."""
+    def run_phase5_multipliers(self) -> int:
+        """Run macro multipliers and stress indicators."""
         logger.info("\n" + "="*60)
-        logger.info("PHASE 5: MULTIPLIERS")
+        logger.info("PHASE 5: MULTIPLIERS & STRESS")
         logger.info("="*60)
         
         success = 0
@@ -194,19 +202,76 @@ class DialsRunner:
         if self.run_module("MacroMultipliers", MacroMultiplierCalculator):
             success += 1
         
+        from dials.financial_stress_dial import FinancialStressCalculator
+        if self.run_module("FinancialStress", FinancialStressCalculator):
+            success += 1
+        
         return success
     
     # =========================================================================
-    # PHASE 6: AGGREGATION
+    # PHASE 6: NST & BUBBLE OVERLAY (2 modules)
     # =========================================================================
     
-    def run_aggregation(self) -> int:
-        """Run aggregation modules (depend on all dials)."""
+    def run_phase6_nst_bubble(self) -> int:
+        """Run NST composite and bubble overlay detection."""
         logger.info("\n" + "="*60)
-        logger.info("PHASE 6: AGGREGATION")
+        logger.info("PHASE 6: NST & BUBBLE OVERLAY")
         logger.info("="*60)
         
         success = 0
+        
+        from dials.nst_dial import NSTDialCalculator
+        if self.run_module("NSTDial", NSTDialCalculator):
+            success += 1
+        
+        from dials.bubble_overlay_dial import BubbleOverlayCalculator
+        if self.run_module("BubbleOverlay", BubbleOverlayCalculator):
+            success += 1
+        
+        return success
+    
+    # =========================================================================
+    # PHASE 7: ANALYSIS (3 modules)
+    # =========================================================================
+    
+    def run_phase7_analysis(self) -> int:
+        """Run analysis modules (depend on multiple inputs)."""
+        logger.info("\n" + "="*60)
+        logger.info("PHASE 7: ANALYSIS")
+        logger.info("="*60)
+        
+        success = 0
+        
+        from dials.hypergraph_dial import HypergraphDialCalculator
+        if self.run_module("HypergraphDial", HypergraphDialCalculator):
+            success += 1
+        
+        from dials.fingerprint_dial import FingerprintLibraryCalculator
+        if self.run_module("FingerprintDial", FingerprintLibraryCalculator):
+            success += 1
+        
+        from dials.trends_history_dial import TrendsHistoryCalculator
+        if self.run_module("TrendsHistory", TrendsHistoryCalculator):
+            success += 1
+        
+        return success
+    
+    # =========================================================================
+    # PHASE 8: PORTFOLIO (3 modules)
+    # =========================================================================
+    
+    def run_phase8_portfolio(self) -> int:
+        """Run portfolio modules (depend on all dials)."""
+        logger.info("\n" + "="*60)
+        logger.info("PHASE 8: PORTFOLIO")
+        logger.info("="*60)
+        
+        success = 0
+        
+        # ShadowPortfolio dial
+        from dials.shadow_portfolio_dial import ShadowPortfolioCalculator
+        if self.run_module("ShadowPortfolio", ShadowPortfolioCalculator):
+            success += 1
         
         # RegimeArbiter uses arbitrate() not calculate()
         try:
@@ -245,13 +310,13 @@ class DialsRunner:
         return success
     
     # =========================================================================
-    # PHASE 7: OUTPUT
+    # PHASE 9: OUTPUT (2 modules)
     # =========================================================================
     
-    def run_output(self) -> int:
+    def run_phase9_output(self) -> int:
         """Run output generators."""
         logger.info("\n" + "="*60)
-        logger.info("PHASE 7: OUTPUT")
+        logger.info("PHASE 9: OUTPUT")
         logger.info("="*60)
         
         success = 0
@@ -271,51 +336,65 @@ class DialsRunner:
     # =========================================================================
     
     def run_all_dials(self) -> Dict:
-        """Run all dial modules in sequence."""
+        """Run all 27 modules in sequence across 9 phases."""
         start_time = datetime.now()
         
         logger.info("\n" + "="*60)
-        logger.info("Y2AI DIALS RUNNER")
+        logger.info("Y2AI DIALS RUNNER - COMPLETE")
         logger.info(f"Started: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        logger.info("Total modules: 27 (25 dials + 2 portfolio)")
         logger.info("="*60)
         
         total_success = 0
         total_modules = 0
         
+        # Module counts per phase
+        phase_counts = [3, 5, 5, 2, 2, 2, 3, 3, 2]  # = 27
+        
         # Phase 1: Foundation
-        count = self.run_foundation()
+        count = self.run_phase1_foundation()
         total_success += count
-        total_modules += 3
+        total_modules += phase_counts[0]
         
         # Phase 2: Core
-        count = self.run_core()
+        count = self.run_phase2_core()
         total_success += count
-        total_modules += 4
+        total_modules += phase_counts[1]
         
         # Phase 3: Additional
-        count = self.run_additional()
+        count = self.run_phase3_additional()
         total_success += count
-        total_modules += 5
+        total_modules += phase_counts[2]
         
         # Phase 4: Flow
-        count = self.run_flow()
+        count = self.run_phase4_flow()
         total_success += count
-        total_modules += 2
+        total_modules += phase_counts[3]
         
-        # Phase 5: Multipliers
-        count = self.run_multipliers()
+        # Phase 5: Multipliers & Stress
+        count = self.run_phase5_multipliers()
         total_success += count
-        total_modules += 1
+        total_modules += phase_counts[4]
         
-        # Phase 6: Aggregation
-        count = self.run_aggregation()
+        # Phase 6: NST & Bubble
+        count = self.run_phase6_nst_bubble()
         total_success += count
-        total_modules += 2
+        total_modules += phase_counts[5]
         
-        # Phase 7: Output
-        count = self.run_output()
+        # Phase 7: Analysis
+        count = self.run_phase7_analysis()
         total_success += count
-        total_modules += 2
+        total_modules += phase_counts[6]
+        
+        # Phase 8: Portfolio
+        count = self.run_phase8_portfolio()
+        total_success += count
+        total_modules += phase_counts[7]
+        
+        # Phase 9: Output
+        count = self.run_phase9_output()
+        total_success += count
+        total_modules += phase_counts[8]
         
         # Summary
         end_time = datetime.now()
@@ -340,33 +419,41 @@ class DialsRunner:
         }
     
     def run_dials_only(self) -> Dict:
-        """Run only dial modules (no output generators)."""
+        """Run dial modules only (phases 1-7, no portfolio or output)."""
         start_time = datetime.now()
+        
+        logger.info("\n" + "="*60)
+        logger.info("Y2AI DIALS RUNNER - DIALS ONLY")
+        logger.info("="*60)
         
         total_success = 0
         total_modules = 0
         
-        # Phases 1-5
-        total_success += self.run_foundation()
+        # Phases 1-7 (22 modules)
+        total_success += self.run_phase1_foundation()
         total_modules += 3
         
-        total_success += self.run_core()
-        total_modules += 4
-        
-        total_success += self.run_additional()
+        total_success += self.run_phase2_core()
         total_modules += 5
         
-        total_success += self.run_flow()
+        total_success += self.run_phase3_additional()
+        total_modules += 5
+        
+        total_success += self.run_phase4_flow()
         total_modules += 2
         
-        total_success += self.run_multipliers()
-        total_modules += 1
-        
-        # Phase 6: Aggregation
-        total_success += self.run_aggregation()
+        total_success += self.run_phase5_multipliers()
         total_modules += 2
+        
+        total_success += self.run_phase6_nst_bubble()
+        total_modules += 2
+        
+        total_success += self.run_phase7_analysis()
+        total_modules += 3
         
         duration = (datetime.now() - start_time).total_seconds()
+        
+        logger.info(f"\n✅ Dials complete: {total_success}/{total_modules} in {duration:.1f}s")
         
         return {
             "success": total_success,
@@ -375,9 +462,19 @@ class DialsRunner:
             "duration": duration
         }
     
+    def run_portfolio_only(self) -> Dict:
+        """Run portfolio modules only (phase 8)."""
+        total_success = self.run_phase8_portfolio()
+        
+        return {
+            "success": total_success,
+            "total": 3,
+            "errors": self.errors
+        }
+    
     def run_dashboard_only(self) -> Dict:
-        """Run only dashboard and morning brief."""
-        total_success = self.run_output()
+        """Run dashboard and morning brief only (phase 9)."""
+        total_success = self.run_phase9_output()
         
         return {
             "success": total_success,
@@ -415,12 +512,13 @@ def run_dashboard(save: bool = True) -> Dict:
 def main():
     import argparse
     
-    parser = argparse.ArgumentParser(description="Y2AI Dials Runner")
-    parser.add_argument('--all', action='store_true', help='Run all dials + outputs')
-    parser.add_argument('--dials', action='store_true', help='Run dials only (no outputs)')
-    parser.add_argument('--dashboard', action='store_true', help='Run dashboard + brief only')
-    parser.add_argument('--no-save', action='store_true', help='Calculate only, do not save')
-    parser.add_argument('--phase', type=int, choices=[1,2,3,4,5,6,7], help='Run specific phase only')
+    parser = argparse.ArgumentParser(description="Y2AI Dials Runner - All 27 Modules")
+    parser.add_argument('--all', action='store_true', help='Run all dials + portfolio + outputs (27 modules)')
+    parser.add_argument('--dials', action='store_true', help='Run dials only, phases 1-7 (22 modules)')
+    parser.add_argument('--portfolio', action='store_true', help='Run portfolio modules only (3 modules)')
+    parser.add_argument('--dashboard', action='store_true', help='Run dashboard + brief only (2 modules)')
+    parser.add_argument('--no-save', action='store_true', help='Calculate only, do not save to Supabase')
+    parser.add_argument('--phase', type=int, choices=[1,2,3,4,5,6,7,8,9], help='Run specific phase only')
     
     args = parser.parse_args()
     
@@ -429,31 +527,53 @@ def main():
     
     if args.phase:
         phases = {
-            1: runner.run_foundation,
-            2: runner.run_core,
-            3: runner.run_additional,
-            4: runner.run_flow,
-            5: runner.run_multipliers,
-            6: runner.run_aggregation,
-            7: runner.run_output
+            1: runner.run_phase1_foundation,
+            2: runner.run_phase2_core,
+            3: runner.run_phase3_additional,
+            4: runner.run_phase4_flow,
+            5: runner.run_phase5_multipliers,
+            6: runner.run_phase6_nst_bubble,
+            7: runner.run_phase7_analysis,
+            8: runner.run_phase8_portfolio,
+            9: runner.run_phase9_output
         }
-        phases[args.phase]()
+        count = phases[args.phase]()
+        print(f"\n✅ Phase {args.phase} complete: {count} modules")
     elif args.all:
         result = runner.run_all_dials()
         print(f"\n✅ Complete: {result['success']}/{result['total']} in {result['duration']:.1f}s")
+        if result['errors']:
+            print(f"⚠️  {len(result['errors'])} errors occurred")
     elif args.dials:
         result = runner.run_dials_only()
         print(f"\n✅ Complete: {result['success']}/{result['total']} in {result['duration']:.1f}s")
+    elif args.portfolio:
+        result = runner.run_portfolio_only()
+        print(f"\n✅ Complete: {result['success']}/{result['total']}")
     elif args.dashboard:
         result = runner.run_dashboard_only()
         print(f"\n✅ Complete: {result['success']}/{result['total']}")
     else:
         parser.print_help()
-        print("\nExamples:")
-        print("  python dials_runner.py --all       # Run everything")
-        print("  python dials_runner.py --dials     # Run dials only")
-        print("  python dials_runner.py --dashboard # Run outputs only")
-        print("  python dials_runner.py --phase 1   # Run foundation only")
+        print("\n" + "="*60)
+        print("MODULE SUMMARY: 27 total (25 dials + 2 portfolio)")
+        print("="*60)
+        print("""
+Phase 1 - Foundation (3):  PillarIndex, VixDial, CreditSpreadDial
+Phase 2 - Core (5):        BreadthDial, MCI, MacroDial, SignalsDial, CorrelationDial
+Phase 3 - Additional (5):  ClusterDial, LiquidityDial, LaborDial, ETFDial, SentimentDial
+Phase 4 - Flow (2):        StockFlowDial, FlowDivergence
+Phase 5 - Multipliers (2): MacroMultipliers, FinancialStress
+Phase 6 - NST/Bubble (2):  NSTDial, BubbleOverlay
+Phase 7 - Analysis (3):    HypergraphDial, FingerprintDial, TrendsHistory
+Phase 8 - Portfolio (3):   ShadowPortfolio, RegimeArbiter, PortfolioTracker
+Phase 9 - Output (2):      Dashboard, MorningBrief
+""")
+        print("Examples:")
+        print("  python dials_runner.py --all       # Run everything (27 modules)")
+        print("  python dials_runner.py --dials     # Run dials only (22 modules)")
+        print("  python dials_runner.py --phase 6   # Run NST & Bubble only")
+        print("  python dials_runner.py --no-save   # Dry run, no Supabase writes")
 
 
 if __name__ == "__main__":

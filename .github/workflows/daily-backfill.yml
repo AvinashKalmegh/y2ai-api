@@ -12,7 +12,7 @@ on:
 jobs:
   run-backfill:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60  # Increased from 45 to accommodate dials
 
     env:
       TZ: America/New_York
@@ -20,6 +20,8 @@ jobs:
       SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
+      FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+      ALPHA_VANTAGE_KEY: ${{ secrets.ALPHA_VANTAGE_KEY }}
 
     steps:
       # 1️⃣ Checkout code
@@ -91,3 +93,23 @@ jobs:
         run: |
           echo "Running ARGUS-1 analytical module"
           python -c "from analytical import ARGUS1Calculator; c = ARGUS1Calculator(); r = c.run(); c.store_result(r); print(f'Stored: {r.regime.value} AMRI={r.amri.composite}')"
+
+      # 🔟 RUN ALL DIALS (27 modules)
+      # This is the critical step that was missing!
+      - name: Run All Dial Modules
+        if: success()
+        run: |
+          export PYTHONPATH=$PYTHONPATH:.
+          echo "========================================"
+          echo "RUNNING Y2AI DIALS (27 modules)"
+          echo "========================================"
+          python dials_runner.py --all
+        continue-on-error: true  # Don't fail entire workflow if some dials fail
+
+      # 1️⃣1️⃣ Summary logging
+      - name: Log completion
+        if: always()
+        run: |
+          echo "========================================"
+          echo "Daily backfill completed at $(date)"
+          echo "========================================"
