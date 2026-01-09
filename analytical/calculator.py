@@ -451,7 +451,7 @@ class ARGUS1Calculator:
                 "veto_active": result.nst.veto_active,
                 "contagion_score": result.contagion.score,
                 "fingerprint_episode": result.fingerprint.episode,
-                "fingerprint_match": result.fingerprint.match_score,
+                "fingerprint_match": 100 - result.fingerprint.distance,
                 "rotation_leader": result.rotation.leader,
                 "rotation_laggard": result.rotation.laggard,
                 "next_event": result.events.next_event.name if result.events.next_event else None,

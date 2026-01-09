@@ -97,7 +97,7 @@ jobs:
         if: success()
         run: |
           echo "Running ARGUS-1 analytical module"
-          python -c "from analytical import ARGUS1Calculator; c = ARGUS1Calculator(); r = c.run(); c.store_result(r); print(f'Stored: {r.regime.value} AMRI={r.amri.composite}')"
+          python -c "from analytical import ARGUS1Calculator; c = ARGUS1Calculator(); r = c.run(); c.store_result(r); print(f'Regime: {r.regime.value} AMRI={r.amri.core_amri}')"
 
       # 🔟 RUN ALL DIALS (27 modules)
       # This is the critical step that was missing!
