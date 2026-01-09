@@ -327,10 +327,11 @@ DASHBOARD_CELLS = {
 
 # SAC (Systematic Allocation Calculator) weights
 SAC_WEIGHTS = {
-    "AMRI": 0.30,
-    "BUBBLE": 0.25,
-    "MCI": 0.25,
-    "VIX": 0.20,
+    "AMRI_buffer": 0.30,
+    "Bubble_buffer": 0.25,
+    "Contagion_buffer": 0.20,
+    "Correlations_buffer": 0.15,
+    "Breadth_buffer": 0.10,
 }
 
 # Dashboard cell references
