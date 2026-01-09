@@ -11,7 +11,7 @@ Usage:
     result = calc.run()
     
     print(result.regime)           # NORMAL, ELEVATED, TENSION, FRAGILE, BREAK
-    print(result.amri.composite)   # 0-100
+    print(result.amri.core_amri)   # 0-100
     print(result.tti.display)      # "3D to FRAGILE"
     print(result.format_summary()) # Full text summary
 """
@@ -66,6 +66,19 @@ class ContagionResult:
         return asdict(self)
 
 
+def _regime_from_string(regime_str: str) -> Regime:
+    """Convert regime string to Regime enum safely."""
+    regime_map = {
+        "Stable": Regime.NORMAL,
+        "Normal": Regime.NORMAL,
+        "Elevated": Regime.ELEVATED,
+        "Tension": Regime.TENSION,
+        "Fragile": Regime.FRAGILE,
+        "Break": Regime.BREAK,
+    }
+    return regime_map.get(regime_str, Regime.NORMAL)
+
+
 @dataclass
 class ARGUS1Result:
     """Complete ARGUS-1 calculation result"""
@@ -114,6 +127,7 @@ class ARGUS1Result:
     
     def format_summary(self) -> str:
         """Format human-readable summary"""
+        # Use core_amri from AMRIResult (not composite)
         lines = [
             "=" * 60,
             "ARGUS-1 REGIME ASSESSMENT",
@@ -124,11 +138,16 @@ class ARGUS1Result:
             f"Confidence: {self.confidence.value}",
             "",
             "AMRI (Master Index)",
-            f"  Composite: {self.amri.composite}",
-            f"  Binding: {self.amri.binding_constraint}",
-            f"  AMRI-S: {self.amri.decomposition.amri_s:.1f}",
-            f"  AMRI-B: {self.amri.decomposition.amri_b:.1f}",
-            f"  AMRI-C: {self.amri.decomposition.amri_c:.1f}",
+            f"  Core AMRI: {self.amri.core_amri}",
+            f"  Enhanced AMRI: {self.amri.enhanced_amri}",
+            f"  Break Probability: {self.amri.break_probability}%",
+            f"  Dominant Driver: {self.amri.dominant_driver}",
+            "",
+            "Components (25% each)",
+            f"  CRS (Correlation): {self.amri.components.crs:.1f} ({self.amri.components.crs_status})",
+            f"  CCS (Clusters): {self.amri.components.ccs:.1f} ({self.amri.components.ccs_status})",
+            f"  SRS (Spreads): {self.amri.components.srs:.1f} ({self.amri.components.srs_status})",
+            f"  SDS (Divergence): {self.amri.components.sds:.1f} ({self.amri.components.sds_status})",
             "",
             "TTI (Time-to-Instability)",
             f"  {self.tti.display}",
@@ -165,13 +184,13 @@ class ARGUS1Result:
     def format_dashboard_cells(self) -> Dict[str, str]:
         """Format for Google Sheets dashboard compatibility"""
         return {
-            DASHBOARD_CELLS["AMRI"]: str(self.amri.composite),
+            DASHBOARD_CELLS["AMRI"]: str(self.amri.core_amri),
             DASHBOARD_CELLS["REGIME"]: self.regime.value,
             DASHBOARD_CELLS["AUTHORITY"]: self.authority.value,
             DASHBOARD_CELLS["CONFIDENCE"]: self.confidence.value,
-            DASHBOARD_CELLS["AMRI_S"]: f"{self.amri.decomposition.amri_s:.1f}",
-            DASHBOARD_CELLS["AMRI_B"]: f"{self.amri.decomposition.amri_b:.1f}",
-            DASHBOARD_CELLS["AMRI_C"]: f"{self.amri.decomposition.amri_c:.1f}",
+            DASHBOARD_CELLS["AMRI_S"]: f"{self.amri.components.sds:.1f}",
+            DASHBOARD_CELLS["AMRI_B"]: f"{self.amri.bubble_overlay:.1f}",
+            DASHBOARD_CELLS["AMRI_C"]: f"{self.amri.components.crs:.1f}",
             DASHBOARD_CELLS["TTI"]: self.tti.display,
             DASHBOARD_CELLS["TTI_BINDING"]: self.tti.binding_threshold,
             DASHBOARD_CELLS["SAC"]: self.sac.display,
@@ -210,7 +229,7 @@ class ARGUS1Calculator:
         if not self.client:
             self._init_client()
         
-        # Initialize sub-calculators
+        # Initialize sub-calculators (let each handle its own client)
         self.amri_calc = AMRICalculator()
         self.tti_calc = TTICalculator()
         self.sac_calc = SACCalculator()
@@ -323,6 +342,20 @@ class ARGUS1Calculator:
         
         return ContagionResult()
     
+    def _fetch_vix(self) -> float:
+        """Fetch current VIX from bubble_index_daily"""
+        if not self.client:
+            return 18.0
+        
+        try:
+            r = self.client.table("bubble_index_daily")\
+                .select("vix").order("date", desc=True).limit(1).execute()
+            if r.data:
+                return r.data[0].get("vix", 18.0)
+        except:
+            pass
+        return 18.0
+    
     def run(self, date: str = None) -> ARGUS1Result:
         """
         Run complete ARGUS-1 calculation.
@@ -338,34 +371,24 @@ class ARGUS1Calculator:
         logger.info(f"Running ARGUS-1 calculation for {calc_date}")
         
         # Calculate AMRI first (other calcs depend on it)
-        amri = self.amri_calc.calculate(date)
+        amri = self.amri_calc.calculate()
         
         # Fetch raw data for dependent calculations
         nst = self._fetch_nst_data()
         contagion = self._fetch_contagion_data()
         
-        # Calculate TTI with current AMRI
-        tti = self.tti_calc.calculate(amri.composite)
+        # Calculate TTI with current AMRI (use core_amri)
+        tti = self.tti_calc.calculate(amri.core_amri)
         
-        # Calculate SAC
-        sac = self.sac_calc.calculate(amri.composite)
+        # Calculate SAC (use core_amri)
+        sac = self.sac_calc.calculate(amri.core_amri)
         
-        # Fingerprint matching
-        bubble_data = self.amri_calc._fetch_bubble_data(calc_date) if date else None
-        current_vix = 18.0
-        if bubble_data:
-            current_vix = bubble_data.get("vix", 18.0)
-        elif self.amri_calc.client:
-            try:
-                r = self.amri_calc.client.table("bubble_index_daily")\
-                    .select("vix").order("date", desc=True).limit(1).execute()
-                if r.data:
-                    current_vix = r.data[0].get("vix", 18.0)
-            except:
-                pass
+        # Get VIX for fingerprint
+        current_vix = self._fetch_vix()
         
+        # Fingerprint matching (use core_amri)
         fingerprint = self.fingerprint_calc.calculate(
-            amri.composite,
+            amri.core_amri,
             contagion.score,
             current_vix
         )
@@ -373,9 +396,9 @@ class ARGUS1Calculator:
         # Rotation analysis
         rotation = self.rotation_calc.calculate()
         
-        # Recovery detection
+        # Recovery detection (use core_amri)
         recovery = self.recovery_calc.calculate(
-            current_amri=amri.composite,
+            current_amri=amri.core_amri,
             amri_rate=tti.rate_of_change,
             current_vix=current_vix,
             veto_active=nst.veto_active
@@ -384,12 +407,15 @@ class ARGUS1Calculator:
         # Events calendar
         events = self.events_calc.calculate()
         
+        # Convert regime string to enum
+        regime_enum = _regime_from_string(amri.regime)
+        
         return ARGUS1Result(
             date=calc_date,
             calculated_at=datetime.utcnow().isoformat(),
-            regime=amri.regime,
-            authority=amri.authority,
-            confidence=amri.confidence,
+            regime=regime_enum,
+            authority=Authority.AMRI,  # Default authority
+            confidence=Confidence.HIGH,  # Default confidence
             amri=amri,
             tti=tti,
             sac=sac,
@@ -414,10 +440,10 @@ class ARGUS1Calculator:
                 "regime": result.regime.value,
                 "authority": result.authority.value,
                 "confidence": result.confidence.value,
-                "amri_composite": result.amri.composite,
-                "amri_s": result.amri.decomposition.amri_s,
-                "amri_b": result.amri.decomposition.amri_b,
-                "amri_c": result.amri.decomposition.amri_c,
+                "amri_composite": result.amri.core_amri,
+                "amri_s": result.amri.components.sds,
+                "amri_b": result.amri.bubble_overlay,
+                "amri_c": result.amri.components.crs,
                 "tti_display": result.tti.display,
                 "tti_rate": result.tti.rate_of_change,
                 "sac_composite": result.sac.composite,
