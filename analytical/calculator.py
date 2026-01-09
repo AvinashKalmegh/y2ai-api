@@ -211,12 +211,12 @@ class ARGUS1Calculator:
             self._init_client()
         
         # Initialize sub-calculators
-        self.amri_calc = AMRICalculator(self.client)
-        self.tti_calc = TTICalculator(self.client)
-        self.sac_calc = SACCalculator(self.client)
+        self.amri_calc = AMRICalculator()
+        self.tti_calc = TTICalculator()
+        self.sac_calc = SACCalculator()
         self.fingerprint_calc = FingerprintMatcher()
-        self.rotation_calc = RotationTracker(self.client)
-        self.recovery_calc = RecoveryDetector(self.client)
+        self.rotation_calc = RotationTracker()
+        self.recovery_calc = RecoveryDetector()
         self.events_calc = EventsTracker()
     
     def _init_client(self):
