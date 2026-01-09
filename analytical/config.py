@@ -60,16 +60,6 @@ AMRI_WEIGHTS = {
     "SDS": 0.25,  # Structural Divergence Score
 }
 
-# DEPRECATED - Do not use this anymore
-# This was the old incorrect version with VIX as separate component
-AMRI_WEIGHTS_ALT_DEPRECATED = {
-    "CRS": 0.25,
-    "CCS": 0.25,
-    "SRS": 0.20,  # WRONG
-    "VIX": 0.15,  # WRONG - VIX is not a component
-    "SDS": 0.15,  # WRONG
-}
-
 # Enhanced AMRI weights (Core + Bubble Overlay)
 ENHANCED_AMRI_WEIGHTS = {
     "CORE": 0.80,
@@ -281,51 +271,10 @@ STALENESS_WARNING_HOURS = 24
 STALENESS_CRITICAL_HOURS = 48
 
 
-# Historical episodes for validation (required by other modules)
-HISTORICAL_EPISODES = {
-    "Y2K_BUBBLE": {
-        "start": "1998-01-01",
-        "end": "2000-03-10",
-        "type": "bubble",
-    },
-    "DOTCOM_CRASH": {
-        "start": "2000-03-10",
-        "end": "2002-10-09",
-        "type": "crash",
-    },
-    "HOUSING_BUBBLE": {
-        "start": "2005-01-01",
-        "end": "2007-10-09",
-        "type": "bubble",
-    },
-    "GFC_CRASH": {
-        "start": "2007-10-09",
-        "end": "2009-03-09",
-        "type": "crash",
-    },
-    "COVID_CRASH": {
-        "start": "2020-02-19",
-        "end": "2020-03-23",
-        "type": "crash",
-    },
-    "AI_CYCLE": {
-        "start": "2023-01-01",
-        "end": None,
-        "type": "expansion",
-    },
-}
+# =============================================================================
+# SAC (Shock Absorption Capacity) weights
+# =============================================================================
 
-
-DASHBOARD_CELLS = {
-    "AMRI": "B2",
-    "BUBBLE_INDEX": "B3",
-    "MCI": "B4",
-    "VIX": "B5",
-    "REGIME": "B6",
-}
-
-
-# SAC (Systematic Allocation Calculator) weights
 SAC_WEIGHTS = {
     "AMRI_buffer": 0.30,
     "Bubble_buffer": 0.25,
@@ -334,16 +283,73 @@ SAC_WEIGHTS = {
     "Breadth_buffer": 0.10,
 }
 
-# Dashboard cell references
+
+# =============================================================================
+# DASHBOARD CELL REFERENCES - COMPLETE
+# =============================================================================
+
 DASHBOARD_CELLS = {
+    # Core metrics
     "AMRI": "B2",
     "BUBBLE_INDEX": "B3",
     "MCI": "B4",
     "VIX": "B5",
     "REGIME": "B6",
+    "AUTHORITY": "B7",
+    "CONFIDENCE": "B8",
+    
+    # AMRI decomposition
+    "AMRI_S": "C2",
+    "AMRI_B": "C3",
+    "AMRI_C": "C4",
+    
+    # TTI
+    "TTI": "D2",
+    "TTI_BINDING": "D3",
+    
+    # SAC
+    "SAC": "E2",
+    "SAC_WEAKEST": "E3",
+    
+    # Contagion
+    "CONTAGION": "F2",
+    "CONTAGION_REGIME": "F3",
+    "STABILITY": "F4",
+    "HYPEREDGE_COUNT": "F5",
+    "DATA_AGE": "F6",
+    
+    # NST
+    "NST": "G2",
+    "VETO_ACTIVE": "G3",
+    "NCI": "G4",
+    "NPD": "G5",
+    "BURST": "G6",
+    
+    # Fingerprint
+    "FINGERPRINT_EPISODE": "H2",
+    "FINGERPRINT_MATCH": "H3",
+    "FINGERPRINT_QUALITY": "H4",
+    "FINGERPRINT_PATTERN": "H5",
+    
+    # Rotation
+    "ROTATION": "I2",
+    "LEADER": "I3",
+    "LAGGARD": "I4",
+    
+    # Events
+    "EVENT_STATUS": "J2",
+    "NEXT_EVENT": "J3",
+    "DAYS_TO_EVENT": "J4",
+    
+    # Recovery
+    "RECOVERY": "K2",
 }
 
-# Historical episodes for validation
+
+# =============================================================================
+# HISTORICAL EPISODES
+# =============================================================================
+
 HISTORICAL_EPISODES = {
     "Y2K_BUBBLE": {"start": "1998-01-01", "end": "2000-03-10", "type": "bubble"},
     "DOTCOM_CRASH": {"start": "2000-03-10", "end": "2002-10-09", "type": "crash"},

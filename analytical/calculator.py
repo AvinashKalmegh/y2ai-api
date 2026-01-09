@@ -414,7 +414,7 @@ class ARGUS1Calculator:
             date=calc_date,
             calculated_at=datetime.utcnow().isoformat(),
             regime=regime_enum,
-            authority=Authority.AMRI,  # Default authority
+            authority=Authority.MARKET,  # Default authority
             confidence=Confidence.HIGH,  # Default confidence
             amri=amri,
             tti=tti,
