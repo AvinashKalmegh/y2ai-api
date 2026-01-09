@@ -25,10 +25,10 @@ import logging
 from datetime import datetime
 from typing import Dict, Optional, Tuple
 from dataclasses import dataclass, asdict
+
+from supabase import create_client, Client
 from dotenv import load_dotenv
 load_dotenv()
-from supabase import create_client, Client
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
