@@ -52,13 +52,13 @@ TOTAL: 25 dial modules + 2 portfolio modules = 27 modules
 
 # Phase 1 - Foundation
 from .pillar_index import PillarIndexCalculator, PillarDayData, PillarSignal, PILLAR_STOCKS
-from .vix_dial import VixDialCalculator, VixDialData
+from .vix_dial import VixDialCalculator, VixData  # FIXED: was VixDialData
 from .credit_spread_dial import CreditSpreadCalculator, CreditSpreadData
 
 # Phase 2 - Core
 from .breadth_dial import BreadthCalculator, BreadthData, PillarBreadth
 from .mci import MCICalculator, MCIData, MCIComponent
-from .macro_dial import MacroDialCalculator, MacroDialData
+from .macro_dial import MacroDialCalculator, MacroData  # FIXED: was MacroDialData
 from .signals_dial import SignalsDialCalculator, SignalsData
 from .correlation_dial import CorrelationDialCalculator, CorrelationDialData
 
@@ -97,13 +97,13 @@ from .morning_brief import MorningBriefGenerator, MorningBrief
 __all__ = [
     # Phase 1 - Foundation
     "PillarIndexCalculator", "PillarDayData", "PillarSignal", "PILLAR_STOCKS",
-    "VixDialCalculator", "VixDialData",
+    "VixDialCalculator", "VixData",  # FIXED
     "CreditSpreadCalculator", "CreditSpreadData",
     
     # Phase 2 - Core
     "BreadthCalculator", "BreadthData", "PillarBreadth",
     "MCICalculator", "MCIData", "MCIComponent",
-    "MacroDialCalculator", "MacroDialData",
+    "MacroDialCalculator", "MacroData",  # FIXED
     "SignalsDialCalculator", "SignalsData",
     "CorrelationDialCalculator", "CorrelationDialData",
     
