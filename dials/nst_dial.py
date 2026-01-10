@@ -43,6 +43,38 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # =============================================================================
+
+# =============================================================================
+# SAFE DATETIME PARSER
+# =============================================================================
+
+def safe_parse_datetime(dt_string: str) -> datetime:
+    """
+    Safely parse datetime strings with variable microsecond precision.
+    Handles: '2026-01-10T13:47:55.62942', '2026-01-10T13:47:55Z', etc.
+    """
+    if not dt_string:
+        return datetime.utcnow()
+    
+    # Remove Z suffix
+    dt_string = dt_string.replace("Z", "")
+    
+    # Handle microseconds - pad or truncate to 6 digits
+    if "." in dt_string:
+        main_part, micro_part = dt_string.rsplit(".", 1)
+        # Pad to 6 digits or truncate
+        micro_part = micro_part[:6].ljust(6, "0")
+        dt_string = f"{main_part}.{micro_part}"
+    
+    try:
+        return datetime.fromisoformat(dt_string)
+    except ValueError:
+        # Fallback: try without microseconds
+        try:
+            return datetime.fromisoformat(dt_string.split(".")[0])
+        except ValueError:
+            return datetime.utcnow()
+
 # CONFIGURATION
 # =============================================================================
 
@@ -260,7 +292,7 @@ class NSTDialCalculator:
         today = datetime.utcnow().date()
         today_articles = [
             a for a in articles 
-            if datetime.fromisoformat(a["processed_at"].replace("Z", "")).date() == today
+            if safe_parse_datetime(a["processed_at"]).date() == today
         ]
         
         if not today_articles:
@@ -339,7 +371,7 @@ class NSTDialCalculator:
         # Group by date and calculate daily sentiment
         daily_sentiment = {}
         for article in articles:
-            date = datetime.fromisoformat(article["processed_at"].replace("Z", "")).date()
+            date = safe_parse_datetime(article["processed_at"]).date()
             sentiment = article.get("sentiment", "neutral")
             
             # Convert to score
@@ -403,7 +435,7 @@ class NSTDialCalculator:
         baseline_articles = []
         
         for article in articles:
-            date = datetime.fromisoformat(article["processed_at"].replace("Z", "")).date()
+            date = safe_parse_datetime(article["processed_at"]).date()
             if date == today:
                 today_articles.append(article)
             else:
@@ -419,7 +451,7 @@ class NSTDialCalculator:
         
         # Velocity component (articles per hour in last 24h)
         if today_articles:
-            times = [datetime.fromisoformat(a["processed_at"].replace("Z", "")) for a in today_articles]
+            times = [safe_parse_datetime(a["processed_at"]) for a in today_articles]
             time_span = (max(times) - min(times)).total_seconds() / 3600 if len(times) > 1 else 24
             velocity = len(today_articles) / max(time_span, 1)
             velocity_component = min(100, velocity * 10)
@@ -482,7 +514,7 @@ class NSTDialCalculator:
         baseline_articles = []
         
         for article in articles:
-            date = datetime.fromisoformat(article["processed_at"].replace("Z", "")).date()
+            date = safe_parse_datetime(article["processed_at"]).date()
             if date == today:
                 today_articles.append(article)
             else:
@@ -750,4 +782,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main()  

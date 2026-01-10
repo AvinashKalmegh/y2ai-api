@@ -416,10 +416,17 @@ class MacroDialCalculator:
     
     def save_to_supabase(self, data: MacroData) -> bool:
         """Save macro data to Supabase."""
+        import math
+        
         if not self.supabase:
             return False
         
         row = asdict(data)
+        
+        # Replace NaN/inf with None for JSON compatibility
+        for key, value in row.items():
+            if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
+                row[key] = None
         
         try:
             self.supabase.table("macro_dial_daily") \
