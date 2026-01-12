@@ -417,16 +417,22 @@ class MacroDialCalculator:
     def save_to_supabase(self, data: MacroData) -> bool:
         """Save macro data to Supabase."""
         import math
+        import numpy as np
         
         if not self.supabase:
             return False
         
         row = asdict(data)
         
-        # Replace NaN/inf with None for JSON compatibility
+        # Convert numpy/NaN/inf values for JSON compatibility
         for key, value in row.items():
-            if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
+            if isinstance(value, (np.bool_, np.integer, np.floating)):
+                # Convert numpy types to Python native types
+                row[key] = value.item() if hasattr(value, 'item') else bool(value) if isinstance(value, np.bool_) else float(value)
+            elif isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
                 row[key] = None
+            elif isinstance(value, bool):
+                row[key] = bool(value)  # Ensure Python bool
         
         try:
             self.supabase.table("macro_dial_daily") \

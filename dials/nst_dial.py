@@ -48,13 +48,16 @@ logger = logging.getLogger(__name__)
 # SAFE DATETIME PARSER
 # =============================================================================
 
-def safe_parse_datetime(dt_string: str) -> datetime:
+def safe_parse_datetime(dt_string) -> datetime:
     """
     Safely parse datetime strings with variable microsecond precision.
-    Handles: '2026-01-10T13:47:55.62942', '2026-01-10T13:47:55Z', etc.
+    Handles: '2026-01-10T13:47:55.62942', '2026-01-10T13:47:55Z', None, etc.
     """
-    if not dt_string:
+    if dt_string is None or dt_string == "":
         return datetime.utcnow()
+    
+    # Convert to string if needed
+    dt_string = str(dt_string)
     
     # Remove Z suffix
     dt_string = dt_string.replace("Z", "")
@@ -782,4 +785,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()  
+    main()
