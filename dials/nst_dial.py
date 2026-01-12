@@ -42,7 +42,6 @@ from supabase import create_client, Client
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# =============================================================================
 
 # =============================================================================
 # SAFE DATETIME PARSER
@@ -54,7 +53,7 @@ def safe_parse_datetime(dt_string) -> datetime:
     Handles: '2026-01-10T13:47:55.62942', '2026-01-10T13:47:55Z', None, etc.
     """
     if dt_string is None or dt_string == "":
-        return datetime.utcnow()
+        return datetime(1970, 1, 1)  # Return old date so it won't match today
     
     # Convert to string if needed
     dt_string = str(dt_string)
@@ -76,8 +75,10 @@ def safe_parse_datetime(dt_string) -> datetime:
         try:
             return datetime.fromisoformat(dt_string.split(".")[0])
         except ValueError:
-            return datetime.utcnow()
+            return datetime(1970, 1, 1)
 
+
+# =============================================================================
 # CONFIGURATION
 # =============================================================================
 
@@ -295,7 +296,7 @@ class NSTDialCalculator:
         today = datetime.utcnow().date()
         today_articles = [
             a for a in articles 
-            if safe_parse_datetime(a["processed_at"]).date() == today
+            if a.get("processed_at") and safe_parse_datetime(a["processed_at"]).date() == today
         ]
         
         if not today_articles:
@@ -374,6 +375,8 @@ class NSTDialCalculator:
         # Group by date and calculate daily sentiment
         daily_sentiment = {}
         for article in articles:
+            if not article.get("processed_at"):
+                continue
             date = safe_parse_datetime(article["processed_at"]).date()
             sentiment = article.get("sentiment", "neutral")
             
@@ -438,6 +441,8 @@ class NSTDialCalculator:
         baseline_articles = []
         
         for article in articles:
+            if not article.get("processed_at"):
+                continue
             date = safe_parse_datetime(article["processed_at"]).date()
             if date == today:
                 today_articles.append(article)
@@ -454,7 +459,7 @@ class NSTDialCalculator:
         
         # Velocity component (articles per hour in last 24h)
         if today_articles:
-            times = [safe_parse_datetime(a["processed_at"]) for a in today_articles]
+            times = [safe_parse_datetime(a["processed_at"]) for a in today_articles if a.get("processed_at")]
             time_span = (max(times) - min(times)).total_seconds() / 3600 if len(times) > 1 else 24
             velocity = len(today_articles) / max(time_span, 1)
             velocity_component = min(100, velocity * 10)
@@ -517,6 +522,8 @@ class NSTDialCalculator:
         baseline_articles = []
         
         for article in articles:
+            if not article.get("processed_at"):
+                continue
             date = safe_parse_datetime(article["processed_at"]).date()
             if date == today:
                 today_articles.append(article)
