@@ -154,22 +154,23 @@ class MCICalculator:
         VIX Trend: 10D VIX direction.
         Falling VIX = bullish (positive score).
         
-        Formula: score = (-vix_change / 6) × 25, clamped to ±25
+        Formula: score = (-vix_change / 3) × 25, clamped to ±25
         Note: Negative sign because VIX drop is bullish.
         """
         config = MCI_CONFIG
         
         try:
             if self.supabase:
-                response = self.supabase.table("vix_history") \
-                    .select("date, close") \
+                # Read from vix_dial_daily (populated by VixDial)
+                response = self.supabase.table("vix_dial_daily") \
+                    .select("date, vix") \
                     .order("date", desc=True) \
                     .limit(config["VIX_LOOKBACK"] + 5) \
                     .execute()
                 
                 if response.data and len(response.data) > config["VIX_LOOKBACK"]:
-                    current_vix = response.data[0]["close"]
-                    previous_vix = response.data[config["VIX_LOOKBACK"]]["close"]
+                    current_vix = response.data[0]["vix"]
+                    previous_vix = response.data[config["VIX_LOOKBACK"]]["vix"]
                     vix_change = current_vix - previous_vix
                     
                     # Invert: VIX drop = positive score
