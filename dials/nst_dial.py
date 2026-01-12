@@ -309,7 +309,7 @@ class NSTDialCalculator:
         # Keyword extraction from titles
         all_words = []
         for article in today_articles:
-            title = article.get("title", "")
+            title = article.get("title") or ""
             words = re.findall(r'\b[a-z]{4,}\b', title.lower())
             all_words.extend([w for w in words if w not in STOP_WORDS])
         
@@ -378,11 +378,11 @@ class NSTDialCalculator:
             if not article.get("processed_at"):
                 continue
             date = safe_parse_datetime(article["processed_at"]).date()
-            sentiment = article.get("sentiment", "neutral")
+            sentiment = article.get("sentiment") or "neutral"
             
             # Convert to score
             score_map = {"bullish": 1.0, "neutral": 0.0, "bearish": -1.0}
-            score = score_map.get(sentiment.lower() if sentiment else "", 0.0)
+            score = score_map.get(sentiment.lower(), 0.0)
             
             if date not in daily_sentiment:
                 daily_sentiment[date] = []
@@ -469,7 +469,7 @@ class NSTDialCalculator:
         # Urgency component (urgent keywords in titles)
         urgency_count = 0
         for article in today_articles:
-            title = article.get("title", "").lower()
+            title = (article.get("title") or "").lower()
             for keyword in URGENCY_KEYWORDS:
                 if keyword in title:
                     urgency_count += 1
@@ -534,7 +534,9 @@ class NSTDialCalculator:
         def count_keywords(article_list):
             counts = Counter()
             for article in article_list:
-                text = (article.get("title", "") + " " + article.get("one_line_summary", "")).lower()
+                title = article.get("title") or ""
+                summary = article.get("one_line_summary") or ""
+                text = (title + " " + summary).lower()
                 for keyword in TRACKED_KEYWORDS:
                     if keyword in text:
                         counts[keyword] += 1
