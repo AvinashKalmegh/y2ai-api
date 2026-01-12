@@ -161,6 +161,10 @@ class StockFlowCalculator:
     
     def fetch_stock_data(self, ticker: str, days: int = 25) -> Optional[Dict]:
         """Fetch stock price and volume data."""
+        # Check if we have cached batch data
+        if hasattr(self, '_batch_data') and ticker in self._batch_data:
+            return self._batch_data[ticker]
+        
         if not YFINANCE_AVAILABLE:
             return None
         

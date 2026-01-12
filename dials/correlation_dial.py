@@ -198,13 +198,13 @@ class CorrelationDialCalculator:
         """Calculate pillar returns from individual stock prices."""
         logger.info("Calculating pillar returns from stock prices...")
         
-        # Try yfinance
+        all_tickers = []
+        for stocks in PILLAR_STOCKS.values():
+            all_tickers.extend(stocks)
+        
+        # Fallback to yfinance (Supabase pillar data should be used first via pillar_index_daily)
         try:
             import yfinance as yf
-            
-            all_tickers = []
-            for stocks in PILLAR_STOCKS.values():
-                all_tickers.extend(stocks)
             
             end_date = datetime.now()
             start_date = end_date - timedelta(days=days + 10)

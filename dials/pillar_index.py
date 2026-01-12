@@ -204,6 +204,8 @@ class PillarIndexCalculator:
         """
         Fetch price history for all tickers.
         
+        Data flow: Supabase (updated by price_sync.py) → yfinance fallback
+        
         Args:
             days: Number of trading days to fetch
             
@@ -213,18 +215,47 @@ class PillarIndexCalculator:
         tickers = self.get_all_tickers()
         logger.info(f"Fetching price history for {len(tickers)} tickers, {days} days")
         
-        # First try Supabase
+        # Primary: Supabase (should have fresh data from price_sync.py)
         if self.supabase:
             df = self._fetch_from_supabase(tickers, days)
             if df is not None and len(df) > 0:
-                logger.info(f"Loaded {len(df)} rows from Supabase")
-                return df
+                # Check if data is recent (within 3 trading days)
+                latest_date = df["date"].max()
+                days_old = (datetime.now() - pd.to_datetime(latest_date)).days
+                if days_old <= 4:  # Allow for weekends
+                    logger.info(f"Loaded {len(df)} rows from Supabase (latest: {latest_date.strftime('%Y-%m-%d')})")
+                    return df
+                else:
+                    logger.warning(f"Supabase data is {days_old} days old - run price_sync.py first!")
         
-        # Fall back to yfinance
+        # Fallback: yfinance (if Supabase empty or stale)
+        logger.warning("Supabase data unavailable, falling back to yfinance")
         if YFINANCE_AVAILABLE:
             return self._fetch_from_yfinance(tickers, days)
         
-        raise RuntimeError("No price data source available")
+        raise RuntimeError("No price data source available. Run price_sync.py first!")
+    
+    def _fetch_from_twelvedata(self, tickers: List[str], days: int) -> Optional[pd.DataFrame]:
+        """Fetch from TwelveData API (same source as Google Sheets)."""
+        try:
+            from .twelvedata_client import TwelveDataClient
+            
+            client = TwelveDataClient()
+            if not client.api_key:
+                logger.info("TwelveData API key not set, skipping")
+                return None
+            
+            logger.info("Fetching from TwelveData...")
+            df = client.fetch_batch_time_series(tickers, outputsize=days)
+            
+            if not df.empty:
+                logger.info(f"Fetched {len(df)} rows from TwelveData")
+                return df
+                
+        except Exception as e:
+            logger.warning(f"TwelveData fetch failed: {e}")
+        
+        return None
     
     def _fetch_from_supabase(self, tickers: List[str], days: int) -> Optional[pd.DataFrame]:
         """Fetch from Supabase price_history table."""

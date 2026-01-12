@@ -139,7 +139,7 @@ class ClusterDialCalculator:
         
         tickers = self.get_all_tickers()
         
-        # Try Supabase
+        # Primary: Supabase
         if self.supabase:
             try:
                 start_date = (datetime.now() - timedelta(days=days * 2)).strftime("%Y-%m-%d")
@@ -154,11 +154,13 @@ class ClusterDialCalculator:
                 if response.data:
                     df = pd.DataFrame(response.data)
                     df["date"] = pd.to_datetime(df["date"])
+                    logger.info(f"Loaded {len(df)} rows from Supabase")
                     return df
             except Exception as e:
                 logger.warning(f"Supabase fetch failed: {e}")
         
-        # Fall back to yfinance
+        # Fallback: yfinance
+        logger.warning("Falling back to yfinance")
         try:
             import yfinance as yf
             

@@ -1,0 +1,53 @@
+name: Daily Dials Run
+
+on:
+  schedule:
+    # Run at 10:00 PM UTC (5:30 AM IST next day, after US market close)
+    - cron: '0 22 * * 1-5'
+  workflow_dispatch:  # Allow manual trigger
+
+env:
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+  TWELVE_API_KEY: ${{ secrets.TWELVE_API_KEY }}
+  FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+
+jobs:
+  run-dials:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Sync prices from TwelveData
+        run: |
+          echo "Starting price sync..."
+          python price_sync.py
+          echo "Price sync complete"
+
+      - name: Run all dials
+        run: |
+          echo "Starting dials runner..."
+          python dials_runner.py --all
+          echo "Dials runner complete"
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Daily Dials Run Complete" >> $GITHUB_STEP_SUMMARY
+          echo "- Date: $(date -u '+%Y-%m-%d %H:%M UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "- Price sync: ✅" >> $GITHUB_STEP_SUMMARY
+          echo "- Dials: ✅" >> $GITHUB_STEP_SUMMARY

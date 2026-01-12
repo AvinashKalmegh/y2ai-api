@@ -173,6 +173,7 @@ class BubbleOverlayCalculator:
                     df = pd.DataFrame(response.data)
                     df["date"] = pd.to_datetime(df["date"])
                     df.set_index("date", inplace=True)
+                    logger.info(f"Loaded {len(df)} rows for {ticker} from Supabase")
                     return df["close"]
             except Exception as e:
                 logger.warning(f"Supabase fetch failed: {e}")

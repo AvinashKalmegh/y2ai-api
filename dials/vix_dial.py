@@ -207,7 +207,7 @@ class VixDialCalculator:
         return pd.DataFrame()
     
     def fetch_history(self, days: int = 400) -> pd.DataFrame:
-        """Fetch VIX history (tries FRED first, then Supabase)."""
+        """Fetch VIX history (FRED → Supabase fallback)."""
         df = self.fetch_from_fred(days)
         
         if df.empty:
