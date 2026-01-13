@@ -151,7 +151,7 @@ class AMRICalculator:
             correlation_data = self._get_latest("correlation_daily")
         
         if not correlation_data:
-            correlation_data = self._get_latest("cluster_daily")
+            correlation_data = self._get_latest("cluster_dial_daily")
         
         avg_corr = 0.42  # Default from Google Sheets
         if correlation_data:
@@ -192,7 +192,7 @@ class AMRICalculator:
         Returns: (score 0-100, status)
         """
         if cluster_data is None:
-            cluster_data = self._get_latest("cluster_daily")
+            cluster_data = self._get_latest("cluster_dial_daily")
         
         clusters = 8  # Default from Google Sheets
         if cluster_data:
@@ -312,8 +312,8 @@ class AMRICalculator:
         Get bubble overlay from LPPLS, PSY, LZC indicators.
         Default: 5.23 from Google Sheets (Clear status)
         """
-        # Try to get from bubble diagnostics
-        diag_data = self._get_latest("bubble_diagnostics")
+        # Try to get from bubble overlay dial
+        diag_data = self._get_latest("bubble_overlay_daily")
         
         if diag_data:
             lppls = diag_data.get("lppls_score", 15.7) or 15.7
