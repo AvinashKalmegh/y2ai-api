@@ -9,10 +9,15 @@ Phase 2: Core - BreadthDial, MCI, MacroDial, SignalsDial, CorrelationDial
 Phase 3: Additional - ClusterDial, LiquidityDial, LaborDial, ETFDial, SentimentDial
 Phase 4: Flow - StockFlowDial, FlowDivergence
 Phase 5: Multipliers - MacroMultipliers, FinancialStressDial
-Phase 6: NST & Bubble - NSTDial, BubbleOverlayDial
+Phase 6: NST & Bubble - NSTDial, BubbleIndex, BubbleOverlayDial  <-- ADDED BubbleIndex
 Phase 7: Analysis - HypergraphDial, FingerprintDial, TrendsHistoryDial
 Phase 8: Portfolio - ShadowPortfolioDial, RegimeArbiter, PortfolioTracker
 Phase 9: Output - Dashboard, MorningBrief
+
+CHANGE LOG:
+- 2026-01-13: Added BubbleIndex to Phase 6 to fix data corruption issue.
+  The old orchestrator.py was writing garbage data (cape=181.77, credit=10000).
+  Now BubbleIndex uses the correct 6-component formula.
 
 Usage:
     python -m y2ai.dials_runner --all
@@ -41,7 +46,7 @@ logger = logging.getLogger(__name__)
 class DialsRunner:
     """
     Run all dial modules in sequence.
-    Total: 25 dial modules + 2 portfolio modules = 27 modules
+    Total: 26 dial modules + 2 portfolio modules = 28 modules
     """
     
     def __init__(self, save_to_supabase: bool = True):
@@ -209,21 +214,51 @@ class DialsRunner:
         return success
     
     # =========================================================================
-    # PHASE 6: NST & BUBBLE OVERLAY (2 modules)
+    # PHASE 6: NST & BUBBLE (3 modules) - UPDATED
     # =========================================================================
     
     def run_phase6_nst_bubble(self) -> int:
-        """Run NST composite and bubble overlay detection."""
+        """
+        Run NST composite, Bubble Index, and bubble overlay detection.
+        
+        NOTE: BubbleIndex added 2026-01-13 to fix data corruption.
+        Uses 6-component formula (valuation, growth, momentum, volatility,
+        concentration, vix complacency) instead of old 3-indicator version.
+        """
         logger.info("\n" + "="*60)
-        logger.info("PHASE 6: NST & BUBBLE OVERLAY")
+        logger.info("PHASE 6: NST & BUBBLE")
         logger.info("="*60)
         
         success = 0
         
+        # NST Dial (Narrative Sentiment Tracker)
         from dials.nst_dial import NSTDialCalculator
         if self.run_module("NSTDial", NSTDialCalculator):
             success += 1
         
+        # Bubble Index (6-component formula)
+        # This is the CORRECT calculator - not the old 3-indicator version
+        # that was writing garbage data (cape=181.77, credit=10000)
+        try:
+            logger.info("Running BubbleIndex...")
+            from bubble_index import BubbleIndexCalculator
+            calc = BubbleIndexCalculator()
+            data = calc.calculate()
+            
+            if self.save:
+                calc.save_to_supabase(data)
+                logger.info(f"  ✅ BubbleIndex - saved (score={data.bubble_index:.1f}, regime={data.regime})")
+            else:
+                logger.info(f"  ✅ BubbleIndex - calculated (score={data.bubble_index:.1f})")
+            
+            self.results["BubbleIndex"] = data
+            success += 1
+            
+        except Exception as e:
+            logger.error(f"  ❌ BubbleIndex - {e}")
+            self.errors.append(f"BubbleIndex: {e}")
+        
+        # Bubble Overlay (LPPLS, PSY, LZC detection)
         from dials.bubble_overlay_dial import BubbleOverlayCalculator
         if self.run_module("BubbleOverlay", BubbleOverlayCalculator):
             success += 1
@@ -336,20 +371,20 @@ class DialsRunner:
     # =========================================================================
     
     def run_all_dials(self) -> Dict:
-        """Run all 27 modules in sequence across 9 phases."""
+        """Run all 28 modules in sequence across 9 phases."""
         start_time = datetime.now()
         
         logger.info("\n" + "="*60)
         logger.info("Y2AI DIALS RUNNER - COMPLETE")
         logger.info(f"Started: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
-        logger.info("Total modules: 27 (25 dials + 2 portfolio)")
+        logger.info("Total modules: 28 (26 dials + 2 portfolio)")
         logger.info("="*60)
         
         total_success = 0
         total_modules = 0
         
-        # Module counts per phase
-        phase_counts = [3, 5, 5, 2, 2, 2, 3, 3, 2]  # = 27
+        # Module counts per phase (updated: phase 6 now has 3)
+        phase_counts = [3, 5, 5, 2, 2, 3, 3, 3, 2]  # = 28
         
         # Phase 1: Foundation
         count = self.run_phase1_foundation()
@@ -376,7 +411,7 @@ class DialsRunner:
         total_success += count
         total_modules += phase_counts[4]
         
-        # Phase 6: NST & Bubble
+        # Phase 6: NST & Bubble (now includes BubbleIndex)
         count = self.run_phase6_nst_bubble()
         total_success += count
         total_modules += phase_counts[5]
@@ -429,7 +464,7 @@ class DialsRunner:
         total_success = 0
         total_modules = 0
         
-        # Phases 1-7 (22 modules)
+        # Phases 1-7 (23 modules now, was 22)
         total_success += self.run_phase1_foundation()
         total_modules += 3
         
@@ -446,7 +481,7 @@ class DialsRunner:
         total_modules += 2
         
         total_success += self.run_phase6_nst_bubble()
-        total_modules += 2
+        total_modules += 3  # Was 2, now 3 with BubbleIndex
         
         total_success += self.run_phase7_analysis()
         total_modules += 3
@@ -512,9 +547,9 @@ def run_dashboard(save: bool = True) -> Dict:
 def main():
     import argparse
     
-    parser = argparse.ArgumentParser(description="Y2AI Dials Runner - All 27 Modules")
-    parser.add_argument('--all', action='store_true', help='Run all dials + portfolio + outputs (27 modules)')
-    parser.add_argument('--dials', action='store_true', help='Run dials only, phases 1-7 (22 modules)')
+    parser = argparse.ArgumentParser(description="Y2AI Dials Runner - All 28 Modules")
+    parser.add_argument('--all', action='store_true', help='Run all dials + portfolio + outputs (28 modules)')
+    parser.add_argument('--dials', action='store_true', help='Run dials only, phases 1-7 (23 modules)')
     parser.add_argument('--portfolio', action='store_true', help='Run portfolio modules only (3 modules)')
     parser.add_argument('--dashboard', action='store_true', help='Run dashboard + brief only (2 modules)')
     parser.add_argument('--no-save', action='store_true', help='Calculate only, do not save to Supabase')
@@ -556,7 +591,7 @@ def main():
     else:
         parser.print_help()
         print("\n" + "="*60)
-        print("MODULE SUMMARY: 27 total (25 dials + 2 portfolio)")
+        print("MODULE SUMMARY: 28 total (26 dials + 2 portfolio)")
         print("="*60)
         print("""
 Phase 1 - Foundation (3):  PillarIndex, VixDial, CreditSpreadDial
@@ -564,14 +599,14 @@ Phase 2 - Core (5):        BreadthDial, MCI, MacroDial, SignalsDial, Correlation
 Phase 3 - Additional (5):  ClusterDial, LiquidityDial, LaborDial, ETFDial, SentimentDial
 Phase 4 - Flow (2):        StockFlowDial, FlowDivergence
 Phase 5 - Multipliers (2): MacroMultipliers, FinancialStress
-Phase 6 - NST/Bubble (2):  NSTDial, BubbleOverlay
+Phase 6 - NST/Bubble (3):  NSTDial, BubbleIndex, BubbleOverlay  <-- BubbleIndex added
 Phase 7 - Analysis (3):    HypergraphDial, FingerprintDial, TrendsHistory
 Phase 8 - Portfolio (3):   ShadowPortfolio, RegimeArbiter, PortfolioTracker
 Phase 9 - Output (2):      Dashboard, MorningBrief
 """)
         print("Examples:")
-        print("  python dials_runner.py --all       # Run everything (27 modules)")
-        print("  python dials_runner.py --dials     # Run dials only (22 modules)")
+        print("  python dials_runner.py --all       # Run everything (28 modules)")
+        print("  python dials_runner.py --dials     # Run dials only (23 modules)")
         print("  python dials_runner.py --phase 6   # Run NST & Bubble only")
         print("  python dials_runner.py --no-save   # Dry run, no Supabase writes")
 

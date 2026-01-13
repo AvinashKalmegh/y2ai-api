@@ -3,7 +3,7 @@ Y2AI ORCHESTRATOR
 Main scheduler that coordinates all Y2AI services
 
 Schedule:
-- 4:30 PM ET: Daily bubble index and stock tracker update
+- 4:30 PM ET: Daily stock tracker update (bubble index now handled by dials)
 - 4:35 PM ET: Daily dials update (all market condition indicators)
 - 4:45 PM ET: Social media daily update post
 - 6:00 AM, 12:00 PM, 6:00 PM, 10:00 PM ET: ARGUS-1 news collection (weekdays)
@@ -13,11 +13,15 @@ Schedule:
 
 This ties together:
 - ARGUS-1 (news collection)
-- Bubble Index Service
 - Stock Tracker Service
-- Dials (all market condition modules)
+- Dials (all market condition modules including Bubble Index)
 - Social Publisher
 - Supabase Storage
+
+CHANGE LOG:
+- 2026-01-13: Removed BubbleIndexCalculator from run_daily_indicators()
+  to fix data corruption issue. Bubble Index now handled by dials_runner.py
+  which uses the correct 6-component formula.
 """
 
 import os
@@ -48,54 +52,7 @@ from datetime import datetime, timedelta
 import logging
 logger = logging.getLogger(__name__)
 
-# def backfill_news_and_generate_newsletter(start_date_str: str, end_date_str: str, process_limit: int = 500):
-#     """
-#     Backfill ARGUS-1 articles between start_date and end_date (inclusive)
-#     and then run newsletter generation.
 
-#     start_date_str, end_date_str: 'YYYY-MM-DD'
-#     """
-#     # parse dates (explicit)
-#     start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
-#     end_date = datetime.strptime(end_date_str, "%Y-%m-%d")
-
-#     if end_date < start_date:
-#         raise ValueError("end_date must be >= start_date")
-
-#     # import argus1 backfill API
-#     sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-#     try:
-#         from argus1.scheduler import backfill
-#     except Exception as e:
-#         logger.error(f"argus1 backfill API not available: {e}")
-#         raise
-
-#     logger.info(f"Starting backfill: {start_date_str} -> {end_date_str}")
-#     # Ensure we pass datetime objects covering the entire day
-#     start_dt = datetime.combine(start_date, datetime.min.time())
-#     end_dt = datetime.combine(end_date, datetime.max.time())
-
-#     status = backfill(start_date=start_dt, end_date=end_dt, process_limit=process_limit)
-#     if not status.get("status") == "completed":
-#         logger.warning(f"Backfill reported non-completed status: {status}")
-#     else:
-#         logger.info(f"Backfill complete: raw={status.get('raw_count')}, processed={status.get('processed_count')}")
-
-#     # Now generate newsletter from that data
-#     from .storage import get_storage
-#     storage = get_storage()
-
-#     # Use newsletter generation (this uses storage.get_newsletter_ready_articles(days_back=...))
-#     # but we'll pass days_back = number of days between inclusive range
-#     days_back = (end_date - start_date).days + 1
-#     articles = storage.get_newsletter_ready_articles(days_back=days_back)
-
-#     if not articles:
-#         logger.warning("No articles found for newsletter after backfill")
-#         return False
-
-#     # run existing generator
-#     return run_newsletter_generation()
 
 
 def backfill_news_and_generate_newsletter(start_date_str: str, end_date_str: str, process_limit: int = 500):
@@ -167,30 +124,40 @@ def run_daily_indicators():
     Run at 4:30 PM ET daily after market close.
     
     Updates:
-    - Bubble Index (VIX, CAPE, Credit Spreads)
     - Stock Tracker (18 stocks, 3 pillars)
+    
+    NOTE: Bubble Index calculation REMOVED as of 2026-01-13.
+    It is now handled by dials_runner.py which uses the correct
+    6-component formula. The old BubbleIndexCalculator here was
+    writing garbage data (credit_spread_ig=10000, cape=181.77).
     """
     logger.info("=" * 60)
     logger.info("RUNNING DAILY INDICATORS UPDATE")
     logger.info("=" * 60)
     
-    from bubble_index import BubbleIndexCalculator
     from stock_tracker import StockTracker
     from storage import get_storage
     
     storage = get_storage()
     
-    # 1. Calculate Bubble Index
+    # =========================================================================
+    # BUBBLE INDEX - REMOVED (2026-01-13)
+    # =========================================================================
+    # The old BubbleIndexCalculator was writing garbage data:
+    # - credit_spread_ig: 10000 (should be ~78 bps)
+    # - credit_spread_hy: 35000 (should be ~274 bps)
+    # - cape: 181.77 (should be ~36)
+    # - bubble_index: stuck at 100
+    #
+    # Bubble Index is now calculated by dials_runner.py using the correct
+    # 6-component formula (valuation, growth, momentum, volatility, 
+    # concentration, vix complacency).
+    #
+    # DO NOT RE-ENABLE THIS without fixing the BubbleIndexCalculator!
+    # =========================================================================
+    
     logger.info("\n--- BUBBLE INDEX ---")
-    try:
-        calculator = BubbleIndexCalculator()
-        reading = calculator.calculate()
-        
-        # Store in database
-        storage.store_bubble_reading(reading.to_dict())
-        logger.info(f"✅ Bubble Index: {reading.bubble_index} | Regime: {reading.regime}")
-    except Exception as e:
-        logger.error(f"❌ Bubble Index error: {e}")
+    logger.info("⚠️  Skipped - now handled by dials_runner.py (6-component formula)")
     
     # 2. Calculate Stock Tracker
     logger.info("\n--- STOCK TRACKER ---")
@@ -225,6 +192,8 @@ def run_dials(save: bool = True):
     5. Multipliers: MacroMultipliers
     6. Aggregation: RegimeArbiter, PortfolioTracker
     7. Output: Dashboard, MorningBrief
+    
+    NOTE: This includes BubbleIndex calculation using the correct 6-component formula.
     """
     logger.info("=" * 60)
     logger.info("RUNNING ALL DIALS")
@@ -658,8 +627,8 @@ def start_scheduler():
     Start the APScheduler background scheduler.
     
     Schedule:
-    - 4:30 PM ET: Daily indicators
-    - 4:35 PM ET: Daily dials (all market condition modules)
+    - 4:30 PM ET: Daily indicators (Stock Tracker only - bubble handled by dials)
+    - 4:35 PM ET: Daily dials (all market condition modules including Bubble Index)
     - 4:45 PM ET: Daily social post
     - 6:00, 12:00, 18:00, 22:00 ET: News collection (weekdays)
     - 10:00 ET: News collection (weekends)
@@ -675,20 +644,20 @@ def start_scheduler():
     
     scheduler = BackgroundScheduler(timezone='US/Eastern')
     
-    # Daily indicators (4:30 PM ET)
+    # Daily indicators (4:30 PM ET) - Stock Tracker only, bubble handled by dials
     scheduler.add_job(
         run_daily_indicators,
         CronTrigger(day_of_week='mon-fri', hour=16, minute=30),
         id='daily_indicators',
-        name='Daily Indicators Update'
+        name='Daily Indicators Update (Stock Tracker)'
     )
     
-    # Daily dials (4:35 PM ET) - NEW
+    # Daily dials (4:35 PM ET) - includes Bubble Index with correct formula
     scheduler.add_job(
         run_dials,
         CronTrigger(day_of_week='mon-fri', hour=16, minute=35),
         id='daily_dials',
-        name='Daily Dials Update'
+        name='Daily Dials Update (includes Bubble Index)'
     )
     
     # Daily social post (4:45 PM ET)
@@ -753,8 +722,8 @@ def run_all_now():
     logger.info("Running all tasks now...")
     
     run_news_collection(hours_back=24, process_limit=50)
-    run_daily_indicators()
-    run_dials()  # NEW: Run all dial modules
+    run_daily_indicators()  # Stock Tracker only
+    run_dials()  # All dials including Bubble Index
     run_daily_social_post()
     
     
@@ -776,8 +745,8 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description="Y2AI Orchestrator")
     parser.add_argument('--daemon', action='store_true', help='Run as background scheduler')
-    parser.add_argument('--indicators', action='store_true', help='Run daily indicators now')
-    parser.add_argument('--dials', action='store_true', help='Run all dial modules now')
+    parser.add_argument('--indicators', action='store_true', help='Run daily indicators now (Stock Tracker only)')
+    parser.add_argument('--dials', action='store_true', help='Run all dial modules now (includes Bubble Index)')
     parser.add_argument('--social', action='store_true', help='Run daily social post now')
     parser.add_argument('--news', action='store_true', help='Run news collection now')
     parser.add_argument('--newsletter', action='store_true', help='Run newsletter generation now')
@@ -829,7 +798,7 @@ if __name__ == "__main__":
         parser.print_help()
         print("\nExamples:")
         print("  python -m y2ai.orchestrator --daemon     # Run scheduler")
-        print("  python -m y2ai.orchestrator --indicators # Run bubble index + stocks")
-        print("  python -m y2ai.orchestrator --dials      # Run all dial modules")
+        print("  python -m y2ai.orchestrator --indicators # Run stock tracker only")
+        print("  python -m y2ai.orchestrator --dials      # Run all dials (includes Bubble Index)")
         print("  python -m y2ai.orchestrator --social     # Post to social media")
         print("  python -m y2ai.orchestrator --all        # Run everything now")
