@@ -65,6 +65,22 @@ from .scheduler import (
     manual_run
 )
 
+# NST Integration for FlowOS
+from .nst import (
+    NSTStorage,
+    NSTMention,
+    NSTDailySummary,
+    NST_KEYWORDS,
+    ATTRACTOR_TICKERS,
+    classify_mention,
+    classify_with_claude,
+    process_alert_for_nst,
+    infer_bubble_type_from_alert,
+    get_narrative_density,
+    get_nst_status,
+    run_daily_aggregation,
+)
+
 __all__ = [
     # Aggregator
     "NewsAggregator",
@@ -89,5 +105,19 @@ __all__ = [
     # Scheduler
     "run_collection",
     "start_scheduler",
-    "manual_run"
+    "manual_run",
+    
+    # NST Integration (FlowOS)
+    "NSTStorage",
+    "NSTMention",
+    "NSTDailySummary",
+    "NST_KEYWORDS",
+    "ATTRACTOR_TICKERS",
+    "classify_mention",
+    "classify_with_claude",
+    "process_alert_for_nst",
+    "infer_bubble_type_from_alert",
+    "get_narrative_density",
+    "get_nst_status",
+    "run_daily_aggregation",
 ]
