@@ -36,7 +36,25 @@ SUPABASE_KEY = os.getenv('SUPABASE_KEY')
 # Google Sheets config (matching NCI pattern)
 GOOGLE_SHEETS_CREDS_FILE = 'credentials.json'
 SPREADSHEET_NAME = 'Copy of Copy of Version 3.3 - Development Copy (Active)'
+SPREADSHEET_NAME_2 = 'Vikram-Develop-This'  # Secondary sheet for backup
 NPD_SHEET_NAME = 'NPD_Dial'
+
+def write_to_both_sheets(client, sheet_name, row_data, is_header=False):
+    """Write row to both spreadsheets."""
+    # Primary sheet
+    try:
+        sheet1 = client.open(SPREADSHEET_NAME).worksheet(sheet_name)
+        sheet1.append_row(row_data, value_input_option='USER_ENTERED')
+    except Exception as e:
+        print(f"Error writing to primary sheet: {e}")
+    
+    # Secondary sheet (Vikram-Develop-This)
+    try:
+        sheet2 = client.open(SPREADSHEET_NAME_2).worksheet(sheet_name)
+        sheet2.append_row(row_data, value_input_option='USER_ENTERED')
+    except Exception as e:
+        print(f"Error writing to secondary sheet: {e}")
+
 
 # NPD calculation parameters
 NPD_CONFIG = {
@@ -119,7 +137,7 @@ def write_npd_to_sheets(npd_data: dict):
                 'Date', 'NPD Score', 'Regime', 'Short Avg (3D)', 'Long Avg (7D)',
                 'Momentum', 'Article Count', 'Interpretation'
             ]
-            sheet.append_row(headers)
+            write_to_both_sheets(client, 'NPD_Dial', headers)
             
             # Format header row
             sheet.format('A1:H1', {
@@ -144,7 +162,7 @@ def write_npd_to_sheets(npd_data: dict):
         ]
         
         print("Appending row...")
-        sheet.append_row(row)
+        write_to_both_sheets(client, 'NPD_Dial', row)
         print(f"Wrote NPD to sheets: {npd_data['npd_score']} ({npd_data['regime']})")
         return True
         

@@ -1825,6 +1825,7 @@ def get_specific_dial(dial_name: str):
         "sentiment": "sentiment_dial_daily",
         "stock_flow": "stock_flow_dial_daily",
         "flow_divergence": "flow_divergence_daily",
+        "attractor_mass": "attractor_mass_daily",
         "macro_multipliers": "macro_multipliers_daily",
         "regime": "regime_arbiter_daily",
         "portfolio": "portfolio_nav_daily",
@@ -1872,6 +1873,7 @@ def get_dial_history_endpoint(
         "sentiment": "sentiment_dial_daily",
         "stock_flow": "stock_flow_dial_daily",
         "flow_divergence": "flow_divergence_daily",
+        "attractor_mass": "attractor_mass_daily",
         "macro_multipliers": "macro_multipliers_daily",
         "regime": "regime_arbiter_daily",
         "portfolio": "portfolio_nav_daily",
@@ -2031,6 +2033,239 @@ def get_dials_alerts():
         "count": len(alerts),
         "alerts": alerts
     }    
+
+
+# =============================================================================
+# FLOWOS ENDPOINTS
+# =============================================================================
+
+BUBBLE_TYPES = ["AI/Compute", "Energy/Grid", "Crypto", "Clean Energy"]
+
+
+@app.get("/flowos/attractor-mass")
+def get_all_attractor_mass():
+    """Get Attractor Mass for all bubble types."""
+    results = {}
+    
+    for bubble_type in BUBBLE_TYPES:
+        data = sb.table("attractor_mass_daily") \
+            .select("*") \
+            .eq("bubble_type", bubble_type) \
+            .order("date", desc=True) \
+            .limit(1) \
+            .execute()
+        
+        if data.data:
+            results[bubble_type] = data.data[0]
+        else:
+            results[bubble_type] = None
+    
+    return {
+        "timestamp": datetime.utcnow().isoformat(),
+        "bubble_types": BUBBLE_TYPES,
+        "data": results
+    }
+
+
+@app.get("/flowos/attractor-mass/{bubble_type}")
+def get_attractor_mass(bubble_type: str):
+    """Get Attractor Mass for a specific bubble type."""
+    if bubble_type not in BUBBLE_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid bubble_type. Must be one of: {BUBBLE_TYPES}"
+        )
+    
+    data = sb.table("attractor_mass_daily") \
+        .select("*") \
+        .eq("bubble_type", bubble_type) \
+        .order("date", desc=True) \
+        .limit(1) \
+        .execute()
+    
+    if not data.data:
+        raise HTTPException(status_code=404, detail=f"No data for {bubble_type}")
+    
+    return {
+        "bubble_type": bubble_type,
+        "data": data.data[0]
+    }
+
+
+@app.get("/flowos/attractor-mass/history/{bubble_type}")
+def get_attractor_mass_history(
+    bubble_type: str,
+    days: int = Query(default=30, ge=1, le=365)
+):
+    """Get historical Attractor Mass for a bubble type."""
+    if bubble_type not in BUBBLE_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid bubble_type. Must be one of: {BUBBLE_TYPES}"
+        )
+    
+    cutoff = (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%d")
+    
+    data = sb.table("attractor_mass_daily") \
+        .select("*") \
+        .eq("bubble_type", bubble_type) \
+        .gte("date", cutoff) \
+        .order("date", desc=True) \
+        .execute()
+    
+    return {
+        "bubble_type": bubble_type,
+        "days": days,
+        "count": len(data.data) if data.data else 0,
+        "data": data.data or []
+    }
+
+
+@app.get("/flowos/nst/status/{bubble_type}")
+def get_nst_status_endpoint(bubble_type: str):
+    """Get NST status for exit rule logic."""
+    if bubble_type not in BUBBLE_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid bubble_type. Must be one of: {BUBBLE_TYPES}"
+        )
+    
+    # Get today's summary
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    
+    summary = sb.table("nst_daily_summary") \
+        .select("*") \
+        .eq("bubble_type", bubble_type) \
+        .eq("date", today) \
+        .execute()
+    
+    if not summary.data:
+        return {
+            "bubble_type": bubble_type,
+            "date": today,
+            "density_level": "LOW",
+            "total_mentions": 0,
+            "catalyst_pending": False,
+            "catalyst_type": None
+        }
+    
+    s = summary.data[0]
+    
+    # Check for recent catalyst
+    catalyst_type = None
+    if s.get("catalyst_mentions", 0) > 0:
+        catalyst = sb.table("nst_mentions") \
+            .select("catalyst_type") \
+            .eq("bubble_type", bubble_type) \
+            .eq("alert_category", "catalyst") \
+            .order("published_at", desc=True) \
+            .limit(1) \
+            .execute()
+        
+        if catalyst.data and catalyst.data[0].get("catalyst_type"):
+            catalyst_type = catalyst.data[0]["catalyst_type"]
+    
+    return {
+        "bubble_type": bubble_type,
+        "date": today,
+        "density_level": s.get("density_level", "LOW"),
+        "total_mentions": s.get("total_mentions", 0),
+        "catalyst_pending": s.get("catalyst_mentions", 0) > 0,
+        "catalyst_type": catalyst_type
+    }
+
+
+@app.get("/flowos/nst/density/{bubble_type}")
+def get_narrative_density_endpoint(
+    bubble_type: str,
+    days: int = Query(default=7, ge=1, le=30)
+):
+    """Get NarrativeDensity for Attractor Mass calculation."""
+    if bubble_type not in BUBBLE_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid bubble_type. Must be one of: {BUBBLE_TYPES}"
+        )
+    
+    cutoff = (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%d")
+    
+    summaries = sb.table("nst_daily_summary") \
+        .select("*") \
+        .eq("bubble_type", bubble_type) \
+        .gte("date", cutoff) \
+        .order("date", desc=True) \
+        .execute()
+    
+    if not summaries.data:
+        return {
+            "bubble_type": bubble_type,
+            "days": days,
+            "status": "NO_DATA",
+            "narrative_density": 0,
+            "scaled": 50.0,
+            "total_mentions": 0,
+            "attractor_mentions": 0
+        }
+    
+    total_mentions = sum(s.get("total_mentions", 0) for s in summaries.data)
+    attractor_mentions = sum(s.get("attractor_mentions", 0) for s in summaries.data)
+    
+    density = attractor_mentions / total_mentions if total_mentions > 0 else 0
+    
+    return {
+        "bubble_type": bubble_type,
+        "days": days,
+        "status": "CALCULATED",
+        "narrative_density": round(density, 3),
+        "scaled": round(density * 100, 1),
+        "total_mentions": total_mentions,
+        "attractor_mentions": attractor_mentions
+    }
+
+
+@app.get("/flowos/summary")
+def get_flowos_summary():
+    """Get FlowOS summary across all bubbles."""
+    attractor_mass = {}
+    nst_status = {}
+    
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    
+    for bubble_type in BUBBLE_TYPES:
+        # Attractor Mass
+        am_data = sb.table("attractor_mass_daily") \
+            .select("attractor_mass,signal,attractor_ticker") \
+            .eq("bubble_type", bubble_type) \
+            .order("date", desc=True) \
+            .limit(1) \
+            .execute()
+        
+        if am_data.data:
+            attractor_mass[bubble_type] = {
+                "mass": am_data.data[0].get("attractor_mass"),
+                "signal": am_data.data[0].get("signal"),
+                "attractor": am_data.data[0].get("attractor_ticker")
+            }
+        
+        # NST Status
+        nst_data = sb.table("nst_daily_summary") \
+            .select("density_level,total_mentions,catalyst_mentions") \
+            .eq("bubble_type", bubble_type) \
+            .eq("date", today) \
+            .execute()
+        
+        if nst_data.data:
+            nst_status[bubble_type] = {
+                "density_level": nst_data.data[0].get("density_level"),
+                "mentions": nst_data.data[0].get("total_mentions"),
+                "catalyst_pending": nst_data.data[0].get("catalyst_mentions", 0) > 0
+            }
+    
+    return {
+        "timestamp": datetime.utcnow().isoformat(),
+        "attractor_mass": attractor_mass,
+        "nst_status": nst_status
+    }
 
 
 if __name__ == "__main__":

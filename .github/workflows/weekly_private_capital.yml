@@ -1,0 +1,60 @@
+name: Daily Private Capital Update (5x per day)
+
+on:
+  schedule:
+    # Same schedule as daily-backfill.yml
+    # 4:00 AM ET  -> 09:00 UTC  (Pre-market overnight)
+    # 8:00 AM ET  -> 13:00 UTC  (Pre-market buzz)
+    # 12:00 PM ET -> 17:00 UTC  (Midday)
+    # 5:00 PM ET  -> 22:00 UTC  (After close)
+    # 9:00 PM ET  -> 02:00 UTC  (After-hours)
+    - cron: "0 9 * * *"
+    - cron: "0 13 * * *"
+    - cron: "0 17 * * *"
+    - cron: "0 22 * * *"
+    - cron: "0 2 * * *"
+  workflow_dispatch:  # Allow manual trigger
+
+env:
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+  GOOGLE_SHEETS_CREDS: ${{ secrets.GOOGLE_SHEETS_CREDS }}
+
+jobs:
+  run-private-capital:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install feedparser
+
+      - name: Setup Google Sheets credentials
+        run: |
+          echo '${{ secrets.GOOGLE_SHEETS_CREDS }}' > credentials.json
+
+      - name: Run Private Capital Update
+        run: |
+          echo "Starting Private Capital update..."
+          python -m orchestrator --private-capital
+          echo "Private Capital update complete"
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Daily Private Capital Update Complete" >> $GITHUB_STEP_SUMMARY
+          echo "- Date: $(date -u '+%Y-%m-%d %H:%M UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "- Data sources: RSS feeds + Google Alerts" >> $GITHUB_STEP_SUMMARY
+          echo "- Storage: Supabase + Google Sheets" >> $GITHUB_STEP_SUMMARY

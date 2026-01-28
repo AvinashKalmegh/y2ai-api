@@ -39,8 +39,26 @@ SUPABASE_KEY = os.getenv('SUPABASE_KEY')
 
 # Google Sheets config
 GOOGLE_SHEETS_CREDS_FILE = 'credentials.json'  # Path to your service account JSON
-SPREADSHEET_NAME = 'Copy of Copy of Version 3.3 - Development Copy (Active)'  # Your spreadsheet name
+SPREADSHEET_NAME = 'Copy of Copy of Version 3.3 - Development Copy (Active)'
+SPREADSHEET_NAME_2 = 'Vikram-Develop-This'  # Secondary sheet for backup  # Your spreadsheet name
 NCI_SHEET_NAME = 'NCI_Dial'  # Sheet to write NCI results
+
+def write_to_both_sheets(client, sheet_name, row_data, is_header=False):
+    """Write row to both spreadsheets."""
+    # Primary sheet
+    try:
+        sheet1 = client.open(SPREADSHEET_NAME).worksheet(sheet_name)
+        sheet1.append_row(row_data, value_input_option='USER_ENTERED')
+    except Exception as e:
+        print(f"Error writing to primary sheet: {e}")
+    
+    # Secondary sheet (Vikram-Develop-This)
+    try:
+        sheet2 = client.open(SPREADSHEET_NAME_2).worksheet(sheet_name)
+        sheet2.append_row(row_data, value_input_option='USER_ENTERED')
+    except Exception as e:
+        print(f"Error writing to secondary sheet: {e}")
+
 
 # Stop words to ignore in title analysis
 STOP_WORDS = {
@@ -176,7 +194,7 @@ def ensure_nci_sheet_exists(client) -> gspread.Worksheet:
             'Title Similarity',
             'Interpretation'
         ]
-        sheet.append_row(headers)
+        write_to_both_sheets(client, 'NCI_Dial', headers)
         
         # Format header row
         sheet.format('A1:J1', {
@@ -207,13 +225,13 @@ def write_nci_to_sheets(nci_result: Dict[str, Any]):
             headers = ['Date', 'NCI Score', 'Regime', 'Top Category', 'Top Keyword', 
                       'Article Count', 'Cat Concentration', 'Keyword Coherence', 
                       'Title Similarity', 'Interpretation']
-            sheet.append_row(headers)
+            write_to_both_sheets(client, 'NCI_Dial', headers)
             print("Created NCI_Dial with headers")
         
         # Prepare row data
         breakdown = nci_result.get('breakdown', {})
         row = [
-            datetime.now().strftime('%Y-%m-%d'),
+            nci_result.get('date', datetime.now().strftime('%Y-%m-%d')),
             nci_result['score'],
             nci_result['regime'],
             nci_result['topClusters'][0]['category'] if nci_result.get('topClusters') else '',
@@ -226,7 +244,7 @@ def write_nci_to_sheets(nci_result: Dict[str, Any]):
         ]
         
         print("Appending row...")
-        sheet.append_row(row)
+        write_to_both_sheets(client, 'NCI_Dial', row)
         print(f"Wrote NCI to sheets: {nci_result['score']} ({nci_result['regime']})")
         return True
         

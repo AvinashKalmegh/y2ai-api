@@ -37,7 +37,25 @@ SUPABASE_KEY = os.getenv('SUPABASE_KEY')
 # Google Sheets config (matching NCI/NPD pattern)
 GOOGLE_SHEETS_CREDS_FILE = 'credentials.json'
 SPREADSHEET_NAME = 'Copy of Copy of Version 3.3 - Development Copy (Active)'
+SPREADSHEET_NAME_2 = 'Vikram-Develop-This'  # Secondary sheet for backup
 BURST_SHEET_NAME = 'Burst_Dial'
+
+def write_to_both_sheets(client, sheet_name, row_data, is_header=False):
+    """Write row to both spreadsheets."""
+    # Primary sheet
+    try:
+        sheet1 = client.open(SPREADSHEET_NAME).worksheet(sheet_name)
+        sheet1.append_row(row_data, value_input_option='USER_ENTERED')
+    except Exception as e:
+        print(f"Error writing to primary sheet: {e}")
+    
+    # Secondary sheet (Vikram-Develop-This)
+    try:
+        sheet2 = client.open(SPREADSHEET_NAME_2).worksheet(sheet_name)
+        sheet2.append_row(row_data, value_input_option='USER_ENTERED')
+    except Exception as e:
+        print(f"Error writing to secondary sheet: {e}")
+
 
 # Burst calculation parameters
 BURST_CONFIG = {
@@ -123,7 +141,7 @@ def write_burst_to_sheets(burst_data: dict):
                 'Date', 'Burst Count', 'Regime', 'Top Keyword', 'Top Burst Ratio',
                 'Article Count', 'Bursting Keywords', 'Interpretation'
             ]
-            sheet.append_row(headers)
+            write_to_both_sheets(client, 'Burst_Dial', headers)
             
             # Format header row
             sheet.format('A1:H1', {
@@ -145,7 +163,7 @@ def write_burst_to_sheets(burst_data: dict):
         ]
         
         print("Appending row...")
-        sheet.append_row(row)
+        write_to_both_sheets(client, 'Burst_Dial', row)
         print(f"Wrote Burst to sheets: {burst_data['burst_count']} ({burst_data['regime']})")
         return True
         

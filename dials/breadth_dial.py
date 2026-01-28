@@ -187,20 +187,30 @@ class BreadthCalculator:
         return None
     
     def _fetch_from_supabase(self, tickers: List[str], days: int) -> Optional[pd.DataFrame]:
-        """Fetch from Supabase."""
+        """Fetch from Supabase with pagination."""
         try:
             start_date = (datetime.now() - timedelta(days=days * 2)).strftime("%Y-%m-%d")
-            
-            response = self.supabase.table("price_history") \
-                .select("date, ticker, close") \
-                .in_("ticker", tickers) \
-                .gte("date", start_date) \
-                .order("date", desc=True) \
-                .execute()
-            
-            if response.data:
-                df = pd.DataFrame(response.data)
+            all_data = []
+            offset = 0
+            batch_size = 1000
+            while True:
+                response = self.supabase.table("price_history") \
+                    .select("date, ticker, close") \
+                    .in_("ticker", tickers) \
+                    .gte("date", start_date) \
+                    .order("date", desc=True) \
+                    .range(offset, offset + batch_size - 1) \
+                    .execute()
+                if not response.data:
+                    break
+                all_data.extend(response.data)
+                if len(response.data) < batch_size:
+                    break
+                offset += batch_size
+            if all_data:
+                df = pd.DataFrame(all_data)
                 df["date"] = pd.to_datetime(df["date"])
+                logger.info(f"Fetched {len(df)} rows via pagination")
                 return df
         except Exception as e:
             logger.warning(f"Supabase fetch failed: {e}")

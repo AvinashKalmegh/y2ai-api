@@ -61,16 +61,19 @@ CLUSTER_CONFIG = {
 
 # Pillar mapping
 PILLAR_STOCKS = {
-    "Infrastructure": ["TSM", "ASML", "NVDA", "AMD", "MU", "INTC", "AVGO", "VRT",
-                      "CEG", "NRG", "EQIX", "DLR", "KLAC", "LRCX", "AMAT", "QCOM"],
-    "Enterprise": ["MSFT", "AMZN", "GOOGL", "META", "CRM", "NOW", "SNOW", "PLTR",
-                  "ADBE", "ORCL", "MDB", "DDOG", "ZS"],
-    "Productivity": ["NET", "CRWD", "PANW"],
-    "Demand": ["TSLA", "SHOP", "UBER"],
-    "Macro": ["NXPI", "ON", "SMCI", "ARM"],
-    "Financial": ["GS", "MS", "JKS", "FSLR"],
+    "Infrastructure & Energy": [
+        "TSM", "ASML", "NVDA", "AMD", "MU", "AVGO", "VRT", 
+        "CEG", "NRG", "LRCX", "AMAT", "SMCI", "JKS", "RUN", "FSLR", "ENPH"
+    ],
+    "Enterprise Adoption": [
+        "MSFT", "AMZN", "GOOGL", "SNOW", "PLTR", "ADBE", "ORCL", 
+        "MDB", "DDOG", "ZS", "NET", "PANW", "CRWD"
+    ],
+    "Productivity & Labor": ["META", "CRM", "NOW"],
+    "Financial & Market": ["EQIX", "DLR", "GS", "MS"],
+    "Macro & Policy": ["INTC", "NXPI", "QCOM", "ON"],
+    "Demand Dynamics": ["TSLA", "SHOP", "UBER"],
 }
-
 
 # =============================================================================
 # DATA CLASSES
@@ -149,6 +152,7 @@ class ClusterDialCalculator:
                     .in_("ticker", tickers) \
                     .gte("date", start_date) \
                     .order("date", desc=True) \
+                    .limit(10000) \
                     .execute()
                 
                 if response.data:

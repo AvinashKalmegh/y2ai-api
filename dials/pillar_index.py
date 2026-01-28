@@ -58,19 +58,20 @@ PILLAR_MAP = {
 }
 
 # Full pillar definitions with tickers and weights
+# UPDATED 2026-01-14: Synced with Google Sheets Universe tab
 PILLAR_STOCKS = {
     "Infrastructure & Energy": {
-        "tickers": ["TSM", "ASML", "NVDA", "AMD", "MU", "INTC", "AVGO", "VRT", 
-                   "CEG", "NRG", "EQIX", "DLR", "KLAC", "LRCX", "AMAT", "QCOM"],
+        "tickers": ["TSM", "ASML", "NVDA", "AMD", "MU", "AVGO", "VRT", 
+                   "CEG", "NRG", "LRCX", "AMAT", "SMCI", "JKS", "RUN", "FSLR", "ENPH"],
         "weights": None  # Equal weight if None
     },
     "Enterprise Adoption": {
-        "tickers": ["MSFT", "AMZN", "GOOGL", "META", "CRM", "NOW", "SNOW", "PLTR",
-                   "ADBE", "ORCL", "MDB", "DDOG", "ZS"],
+        "tickers": ["MSFT", "AMZN", "GOOGL", "SNOW", "PLTR", "ADBE", "ORCL",
+                   "MDB", "DDOG", "ZS", "NET", "PANW", "CRWD"],
         "weights": None
     },
     "Productivity & Labor": {
-        "tickers": ["NET", "CRWD", "PANW"],
+        "tickers": ["META", "CRM", "NOW"],
         "weights": None
     },
     "Demand Dynamics": {
@@ -78,13 +79,61 @@ PILLAR_STOCKS = {
         "weights": None
     },
     "Macro & Policy": {
-        "tickers": ["NXPI", "ON", "SMCI", "ARM"],
+        "tickers": ["INTC", "NXPI", "QCOM", "ON"],
         "weights": None
     },
     "Financial & Market": {
-        "tickers": ["GS", "MS", "JKS", "FSLR"],
+        "tickers": ["EQIX", "DLR", "GS", "MS"],
         "weights": None
     }
+}
+
+# Ticker weights from Google Sheets Universe (inverse market-cap style)
+# UPDATED 2026-01-14: Synced with Google Sheets Universe Column L
+TICKER_WEIGHTS = {
+    "TSM": 0.023256,
+    "ASML": 0.023810,
+    "NVDA": 0.024390,
+    "AMD": 0.025000,
+    "MU": 0.025641,
+    "INTC": 0.026316,
+    "AVGO": 0.027027,
+    "VRT": 0.027778,
+    "CEG": 0.028571,
+    "NRG": 0.029412,
+    "EQIX": 0.030303,
+    "DLR": 0.031250,
+    "MSFT": 0.032258,
+    "AMZN": 0.033333,
+    "GOOGL": 0.034483,
+    "META": 0.035714,
+    "CRM": 0.037037,
+    "NOW": 0.038462,
+    "SNOW": 0.040000,
+    "PLTR": 0.041667,
+    "ADBE": 0.043478,
+    "ORCL": 0.045455,
+    "MDB": 0.047619,
+    "DDOG": 0.050000,
+    "ZS": 0.052632,
+    "NET": 0.055556,
+    "NXPI": 0.058824,
+    "QCOM": 0.062500,
+    "ON": 0.066667,
+    "LRCX": 0.071429,
+    "AMAT": 0.076923,
+    "TSLA": 0.083333,
+    "SHOP": 0.090909,
+    "UBER": 0.100000,
+    "PANW": 0.111111,
+    "CRWD": 0.125000,
+    "SMCI": 0.142857,
+    "JKS": 0.166667,
+    "RUN": 0.200000,
+    "FSLR": 0.250000,
+    "ENPH": 0.333333,
+    "GS": 0.500000,
+    "MS": 1.000000,
 }
 
 # Momentum periods (trading days)
@@ -258,19 +307,37 @@ class PillarIndexCalculator:
         return None
     
     def _fetch_from_supabase(self, tickers: List[str], days: int) -> Optional[pd.DataFrame]:
-        """Fetch from Supabase price_history table."""
+        """Fetch from Supabase price_history table with pagination."""
         try:
             start_date = (datetime.now() - timedelta(days=days * 2)).strftime("%Y-%m-%d")
             
-            response = self.supabase.table("price_history") \
-                .select("date, ticker, close") \
-                .in_("ticker", tickers) \
-                .gte("date", start_date) \
-                .order("date", desc=True) \
-                .execute()
+            # Paginate to handle Supabase 1000-row server limit
+            all_data = []
+            batch_size = 1000
+            offset = 0
             
-            if response.data:
-                df = pd.DataFrame(response.data)
+            while True:
+                response = self.supabase.table("price_history") \
+                    .select("date, ticker, close") \
+                    .in_("ticker", tickers) \
+                    .gte("date", start_date) \
+                    .order("date", desc=True) \
+                    .range(offset, offset + batch_size - 1) \
+                    .execute()
+                
+                if not response.data:
+                    break
+                    
+                all_data.extend(response.data)
+                
+                if len(response.data) < batch_size:
+                    break  # Last page
+                    
+                offset += batch_size
+            
+            if all_data:
+                logger.info(f"Fetched {len(all_data)} total rows via pagination")
+                df = pd.DataFrame(all_data)
                 df["date"] = pd.to_datetime(df["date"])
                 return df
         except Exception as e:
@@ -310,6 +377,7 @@ class PillarIndexCalculator:
     def calculate_pillar_returns(self, price_df: pd.DataFrame) -> Dict[str, pd.Series]:
         """
         Calculate daily weighted returns for each pillar.
+        Uses TICKER_WEIGHTS from Google Sheets Universe for weighted averaging.
         
         Args:
             price_df: DataFrame with Date, Ticker, Close columns
@@ -332,7 +400,6 @@ class PillarIndexCalculator:
         for pillar_full, pillar_data in PILLAR_STOCKS.items():
             pillar_short = PILLAR_MAP[pillar_full]
             tickers = pillar_data["tickers"]
-            weights = pillar_data["weights"]
             
             # Get returns for tickers in this pillar
             available = [t for t in tickers if t in returns.columns]
@@ -344,14 +411,12 @@ class PillarIndexCalculator:
             
             pillar_rets = returns[available]
             
-            if weights:
-                # Weighted average
-                w = np.array([weights.get(t, 1) for t in available])
-                w = w / w.sum()
-                pillar_returns[pillar_short] = (pillar_rets * w).sum(axis=1)
-            else:
-                # Equal weight
-                pillar_returns[pillar_short] = pillar_rets.mean(axis=1)
+            # Use TICKER_WEIGHTS for weighted average (matching Google Sheets)
+            weights = np.array([TICKER_WEIGHTS.get(t, 1.0) for t in available])
+            weights = weights / weights.sum()  # Normalize within pillar
+            pillar_returns[pillar_short] = (pillar_rets * weights).sum(axis=1)
+        
+        return pillar_returns
         
         return pillar_returns
     

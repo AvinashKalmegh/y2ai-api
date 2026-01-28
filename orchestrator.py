@@ -32,6 +32,14 @@ import logging
 import pprint
 from urgency_mode import get_system_mode, check_nlp_urgency_triggers, is_urgency_mode
 
+# Private Capital Tracker - weekly Monday update
+try:
+    from private_capital import run_monday_private_capital
+    PRIVATE_CAPITAL_AVAILABLE = True
+except ImportError:
+    PRIVATE_CAPITAL_AVAILABLE = False
+    logger.warning("Private Capital module not available")
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -567,6 +575,66 @@ def run_newsletter_generation():
         logger.error(f"Error saving newsletter files: {e}")
         return False
 
+def run_private_capital_update():
+    """
+    Run Monday morning Private Capital update.
+    
+    This runs weekly on Mondays to track AI funding activity.
+    Provides leading indicator for Infrastructure pillar.
+    Writes to both Supabase and Google Sheets.
+    """
+    if not PRIVATE_CAPITAL_AVAILABLE:
+        logger.warning("Private Capital module not available - skipping")
+        return False
+    
+    logger.info("=" * 60)
+    logger.info("RUNNING MONDAY PRIVATE CAPITAL UPDATE")
+    logger.info("=" * 60)
+    
+    try:
+        from storage import get_storage
+        storage = get_storage()
+        
+        # Get Bubble Index for cross-reference
+        bubble_index = None
+        try:
+            bubble_data = storage.client.table('bubble_index_daily')\
+                .select('bubble_index')\
+                .order('date', desc=True)\
+                .limit(1)\
+                .execute()
+            
+            if bubble_data.data:
+                bubble_index = bubble_data.data[0]['bubble_index']
+        except Exception as e:
+            logger.warning(f"Could not get Bubble Index: {e}")
+        
+        # Run private capital update with GS writing
+        result = run_monday_private_capital(
+            supabase_client=storage.client,
+            bubble_index=bubble_index
+        )
+        
+        intensity = result['intensity']
+        logger.info(f"✅ Private Capital Update Complete")
+        logger.info(f"   Intensity: {intensity.score} ({intensity.regime})")
+        logger.info(f"   30D Volume: ${intensity.vol_30d_m/1000:.1f}B")
+        logger.info(f"   Megarounds: {intensity.megarounds_30d}")
+        
+        if 'interpretation' in result:
+            interpretation = result['interpretation']
+            logger.info(f"\n=== BUBBLE INDEX CROSS-REFERENCE ===")
+            logger.info(f"   PC: {intensity.score} ({intensity.regime}) | Bubble: {bubble_index}")
+            logger.info(f"   Signal: {interpretation['signal']}")
+            logger.info(f"   Infra Bias: {interpretation['infra_bias']:+.2f}")
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ Private Capital error: {e}")
+        return False
+
+
 def run_newsletter_social():
     """
     Run Monday 8:30 AM ET to post newsletter announcement.
@@ -703,6 +771,15 @@ def start_scheduler():
         name='Newsletter Social Post'
     )
     
+    # Private Capital update (Monday 9:00am)
+    if PRIVATE_CAPITAL_AVAILABLE:
+        scheduler.add_job(
+            run_private_capital_update,
+            CronTrigger(day_of_week='mon', hour=9, minute=0),
+            id='private_capital',
+            name='Monday Private Capital Update'
+        )
+    
     scheduler.start()
     
     logger.info("Y2AI Scheduler started")
@@ -750,6 +827,7 @@ if __name__ == "__main__":
     parser.add_argument('--social', action='store_true', help='Run daily social post now')
     parser.add_argument('--news', action='store_true', help='Run news collection now')
     parser.add_argument('--newsletter', action='store_true', help='Run newsletter generation now')
+    parser.add_argument('--private-capital', action='store_true', help='Run Monday private capital update now')
     parser.add_argument('--all', action='store_true', help='Run all daily tasks now')
     parser.add_argument(
         '--backfill',
@@ -788,6 +866,8 @@ if __name__ == "__main__":
         run_news_collection()
     elif args.newsletter:
         run_newsletter_generation()
+    elif args.private_capital:
+        run_private_capital_update()
     elif args.all:
         run_all_now()
     elif args.backfill:

@@ -39,7 +39,25 @@ SUPABASE_KEY = os.getenv('SUPABASE_KEY')
 # Google Sheets config
 GOOGLE_SHEETS_CREDS_FILE = 'credentials.json'
 SPREADSHEET_NAME = 'Copy of Copy of Version 3.3 - Development Copy (Active)'
+SPREADSHEET_NAME_2 = 'Vikram-Develop-This'  # Secondary sheet for backup
 EVI_SHEET_NAME = 'EVI_Dial'
+
+def write_to_both_sheets(client, sheet_name, row_data, is_header=False):
+    """Write row to both spreadsheets."""
+    # Primary sheet
+    try:
+        sheet1 = client.open(SPREADSHEET_NAME).worksheet(sheet_name)
+        sheet1.append_row(row_data, value_input_option='USER_ENTERED')
+    except Exception as e:
+        print(f"Error writing to primary sheet: {e}")
+    
+    # Secondary sheet (Vikram-Develop-This)
+    try:
+        sheet2 = client.open(SPREADSHEET_NAME_2).worksheet(sheet_name)
+        sheet2.append_row(row_data, value_input_option='USER_ENTERED')
+    except Exception as e:
+        print(f"Error writing to secondary sheet: {e}")
+
 
 # EVI calculation parameters
 EVI_CONFIG = {
@@ -121,7 +139,7 @@ def write_evi_to_sheets(evi_data: dict):
                 'Date', 'EVI Score', 'Regime', 'Volume Score', 'Velocity Score',
                 'Urgency Score', 'Article Count', 'Interpretation'
             ]
-            sheet.append_row(headers)
+            write_to_both_sheets(client, 'EVI_Dial', headers)
             
             # Format header row
             sheet.format('A1:H1', {
@@ -143,7 +161,7 @@ def write_evi_to_sheets(evi_data: dict):
         ]
         
         print("Appending row...")
-        sheet.append_row(row)
+        write_to_both_sheets(client, 'EVI_Dial', row)
         print(f"Wrote EVI to sheets: {evi_data['evi_score']} ({evi_data['regime']})")
         return True
         

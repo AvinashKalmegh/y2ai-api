@@ -117,6 +117,7 @@ __all__ = [
     # Phase 4 - Flow
     "StockFlowCalculator", "StockFlowDialData",
     "FlowDivergenceCalculator", "FlowDivergenceData",
+    "AttractorMassCalculator", "AttractorMassResult",
     
     # Phase 5 - Multipliers
     "MacroMultiplierCalculator", "MultiplierData",

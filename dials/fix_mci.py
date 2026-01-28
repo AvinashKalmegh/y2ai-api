@@ -427,4 +427,5 @@ def main():
     print("=" * 60)
     print("Done!")
 
+if __name__ == "__main__":
     main()
