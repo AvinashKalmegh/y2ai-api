@@ -30,6 +30,14 @@ from datetime import datetime, timedelta
 from typing import Optional
 import logging
 import pprint
+
+# Setup logging FIRST (before imports that may use logger)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 from urgency_mode import get_system_mode, check_nlp_urgency_triggers, is_urgency_mode
 
 # Private Capital Tracker - weekly Monday update
@@ -40,12 +48,13 @@ except ImportError:
     PRIVATE_CAPITAL_AVAILABLE = False
     logger.warning("Private Capital module not available")
 
-
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+# PE Funding Tracker - generic PE/VC (separate from AI-specific Private Capital)
+try:
+    from private_capital.pe_funding_tracker import run_pe_funding_update
+    PE_FUNDING_AVAILABLE = True
+except ImportError:
+    PE_FUNDING_AVAILABLE = False
+    logger.warning("PE Funding module not available")
 
 
 # =============================================================================
@@ -635,6 +644,51 @@ def run_private_capital_update():
         return False
 
 
+def run_pe_funding():
+    """
+    Run PE Funding update - generic PE/VC tracking.
+    Separate from Private Capital (AI-specific).
+    Writes to Supabase (pe_funding_*) and Google Sheets (PE_Funding_Dial).
+    """
+    if not PE_FUNDING_AVAILABLE:
+        logger.warning("PE Funding module not available - skipping")
+        return False
+    
+    logger.info("=" * 60)
+    logger.info("RUNNING PE FUNDING UPDATE")
+    logger.info("=" * 60)
+    
+    try:
+        from storage import get_storage
+        storage = get_storage()
+        
+        result = run_pe_funding_update(
+            supabase_client=storage.client,
+            hours_back=24,
+            write_sheets=True
+        )
+        
+        if result.get('status') == 'no_data':
+            logger.warning("No PE funding entries found")
+            return True
+        
+        logger.info(f"✅ PE Funding Update Complete")
+        logger.info(f"   Entries (Supabase): {result.get('entries_stored_supabase', 0)}")
+        logger.info(f"   Entries (Sheets): {result.get('entries_written_sheets', 0)}")
+        logger.info(f"   Sectors: {result.get('sectors_updated', 0)}")
+        
+        if result.get('daily_metrics'):
+            dm = result['daily_metrics']
+            logger.info(f"   30D Volume: ${dm.get('vol_30d_m', 0):.1f}M")
+            logger.info(f"   Top Sectors: {', '.join(dm.get('top_sectors', []))}")
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ PE Funding error: {e}")
+        return False
+
+
 def run_newsletter_social():
     """
     Run Monday 8:30 AM ET to post newsletter announcement.
@@ -828,6 +882,7 @@ if __name__ == "__main__":
     parser.add_argument('--news', action='store_true', help='Run news collection now')
     parser.add_argument('--newsletter', action='store_true', help='Run newsletter generation now')
     parser.add_argument('--private-capital', action='store_true', help='Run Monday private capital update now')
+    parser.add_argument('--pe-funding', action='store_true', help='Run PE Funding update (generic PE/VC tracking)')
     parser.add_argument('--all', action='store_true', help='Run all daily tasks now')
     parser.add_argument(
         '--backfill',
@@ -868,6 +923,8 @@ if __name__ == "__main__":
         run_newsletter_generation()
     elif args.private_capital:
         run_private_capital_update()
+    elif args.pe_funding:
+        run_pe_funding()
     elif args.all:
         run_all_now()
     elif args.backfill:

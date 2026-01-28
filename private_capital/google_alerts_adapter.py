@@ -66,6 +66,40 @@ ALERT_QUERIES = {
 
 
 # =============================================================================
+# GENERIC PE/VC ALERTS (Sector-agnostic - for PE Funding Tracker)
+# =============================================================================
+
+PE_GOOGLE_ALERT_FEEDS = {
+    # Alert 1: Mega Rounds
+    'mega_rounds': 'https://www.google.co.in/alerts/feeds/11684174711489635674/17703966950070996622',
+    
+    # Alert 2: Series A Activity
+    'series_a': 'https://www.google.co.in/alerts/feeds/11684174711489635674/3568358442484310603',
+    
+    # Alert 3: Series B Activity
+    'series_b': 'https://www.google.co.in/alerts/feeds/11684174711489635674/8992225447639163417',
+    
+    # Alert 4: Late Stage (C/D/E)
+    'late_stage': 'https://www.google.co.in/alerts/feeds/11684174711489635674/13994208772373342460',
+    
+    # Alert 5: IPO Pipeline
+    'ipo_pipeline': 'https://www.google.co.in/alerts/feeds/11684174711489635674/12924698942897999339',
+    
+    # Alert 6: VC Fund Launches
+    'vc_fund_launches': 'https://www.google.co.in/alerts/feeds/11684174711489635674/14906854701486242163',
+}
+
+PE_ALERT_QUERIES = {
+    'mega_rounds': '"raised" AND ("$100 million" OR "$200 million" OR "$500 million" OR "$1 billion")',
+    'series_a': '"Series A" AND ("raised" OR "funding" OR "closes")',
+    'series_b': '"Series B" AND ("raised" OR "funding" OR "closes")',
+    'late_stage': '("Series C" OR "Series D" OR "Series E" OR "growth round") AND "raised"',
+    'ipo_pipeline': '("IPO" OR "going public" OR "S-1 filing") AND ("plans" OR "filed" OR "confidential")',
+    'vc_fund_launches': '"venture fund" AND ("closed" OR "raised" OR "launching") AND "million"',
+}
+
+
+# =============================================================================
 # DATA CLASSES
 # =============================================================================
 

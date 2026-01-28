@@ -1,8 +1,8 @@
-name: Daily Private Capital Update (5x per day)
+name: Daily PE Funding Update (5x per day)
 
 on:
   schedule:
-    # Same schedule as daily-backfill.yml
+    # Same schedule as private capital
     # 4:00 AM ET  -> 09:00 UTC  (Pre-market overnight)
     # 8:00 AM ET  -> 13:00 UTC  (Pre-market buzz)
     # 12:00 PM ET -> 17:00 UTC  (Midday)
@@ -21,7 +21,7 @@ env:
   GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
 
 jobs:
-  run-private-capital:
+  run-pe-funding:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -45,16 +45,17 @@ jobs:
         run: |
           echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > credentials.json
 
-      - name: Run Private Capital Update
+      - name: Run PE Funding Update
         run: |
-          echo "Starting Private Capital update..."
-          python -m orchestrator --private-capital
-          echo "Private Capital update complete"
+          echo "Starting PE Funding update..."
+          python -m orchestrator --pe-funding
+          echo "PE Funding update complete"
 
       - name: Summary
         if: always()
         run: |
-          echo "## Daily Private Capital Update Complete" >> $GITHUB_STEP_SUMMARY
+          echo "## PE Funding Update Complete" >> $GITHUB_STEP_SUMMARY
           echo "- Date: $(date -u '+%Y-%m-%d %H:%M UTC')" >> $GITHUB_STEP_SUMMARY
-          echo "- Data sources: RSS feeds + Google Alerts" >> $GITHUB_STEP_SUMMARY
-          echo "- Storage: Supabase + Google Sheets" >> $GITHUB_STEP_SUMMARY
+          echo "- Alerts: Mega Rounds, Series A/B, Late Stage, IPO Pipeline, VC Fund Launches" >> $GITHUB_STEP_SUMMARY
+          echo "- Sectors: Emergent from data (AI, Fintech, Healthtech, Climate, etc.)" >> $GITHUB_STEP_SUMMARY
+          echo "- Storage: Supabase (pe_funding_*) + Google Sheets (PE_Funding_Dial)" >> $GITHUB_STEP_SUMMARY
