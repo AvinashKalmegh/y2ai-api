@@ -96,10 +96,49 @@ def write_to_sheet(client, spreadsheet_name: str, sheet_name: str,
         return False
 
 
+def write_batch_to_sheet(client, spreadsheet_name: str, sheet_name: str, 
+                         rows: list, headers: list = None):
+    """Write multiple rows to a sheet at once (batch write)."""
+    import gspread
+    import time
+    
+    if not rows:
+        return True
+    
+    try:
+        spreadsheet = client.open(spreadsheet_name)
+        try:
+            sheet = spreadsheet.worksheet(sheet_name)
+        except gspread.WorksheetNotFound:
+            logger.info(f"Creating {sheet_name} tab in {spreadsheet_name}...")
+            sheet = spreadsheet.add_worksheet(title=sheet_name, rows=2000, cols=20)
+            if headers:
+                sheet.append_row(headers, value_input_option='USER_ENTERED')
+                time.sleep(1)  # Brief pause after creating sheet
+        
+        # Batch write all rows at once
+        sheet.append_rows(rows, value_input_option='USER_ENTERED')
+        logger.info(f"Batch wrote {len(rows)} rows to {spreadsheet_name}/{sheet_name}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error batch writing to {spreadsheet_name}/{sheet_name}: {e}")
+        return False
+
+
 def write_to_both_sheets(client, sheet_name: str, row_data: list, headers: list = None):
     """Write row to both spreadsheets."""
     write_to_sheet(client, SPREADSHEET_NAME, sheet_name, row_data, headers)
     write_to_sheet(client, SPREADSHEET_NAME_2, sheet_name, row_data, headers)
+
+
+def write_batch_to_both_sheets(client, sheet_name: str, rows: list, headers: list = None):
+    """Batch write rows to both spreadsheets."""
+    import time
+    
+    write_batch_to_sheet(client, SPREADSHEET_NAME, sheet_name, rows, headers)
+    time.sleep(2)  # Pause between sheets to avoid rate limits
+    write_batch_to_sheet(client, SPREADSHEET_NAME_2, sheet_name, rows, headers)
 
 
 # =============================================================================
@@ -298,12 +337,13 @@ class PEFundingTracker:
     # -------------------------------------------------------------------------
     
     def write_entries_sheets(self, entries: List[Dict[str, Any]]) -> int:
-        """Write funding entries to PE_Funding_Entries sheet."""
+        """Write funding entries to PE_Funding_Entries sheet (batch write)."""
         client = self._get_sheets_client()
         if not client or not entries:
             return 0
         
-        written = 0
+        # Build all rows first
+        rows = []
         for entry in entries:
             row = [
                 entry.get('date', ''),
@@ -316,15 +356,16 @@ class PEFundingTracker:
                 entry.get('source', ''),
                 entry.get('url', ''),
             ]
-            
-            try:
-                write_to_both_sheets(client, PE_ENTRIES_SHEET, row, PE_ENTRIES_HEADERS)
-                written += 1
-            except Exception as e:
-                logger.error(f"Error writing entry to sheets: {e}")
+            rows.append(row)
         
-        logger.info(f"Google Sheets: Wrote {written}/{len(entries)} entries")
-        return written
+        # Batch write all rows at once
+        try:
+            write_batch_to_both_sheets(client, PE_ENTRIES_SHEET, rows, PE_ENTRIES_HEADERS)
+            logger.info(f"Google Sheets: Batch wrote {len(rows)} entries")
+            return len(rows)
+        except Exception as e:
+            logger.error(f"Error batch writing entries to sheets: {e}")
+            return 0
     
     def write_daily_sheets(self, metrics: Dict[str, Any]) -> bool:
         """Write daily metrics to PE_Funding_Dial sheet."""
