@@ -111,7 +111,7 @@ __all__ = [
     "AMRICalculator",
     "AMRIResult",
     "AMRIComponents",
-    "AMRIDecomposition",
+    # "AMRIDecomposition",  # Not defined - removed
     
     # TTI
     "TTICalculator",

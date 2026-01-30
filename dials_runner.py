@@ -117,9 +117,11 @@ class DialsRunner:
         if self.run_module("BreadthDial", BreadthCalculator):
             success += 1
         
-        from dials.mci import MCICalculator
-        if self.run_module("MCI", MCICalculator):
-            success += 1
+        # MCI is computed via fix_mci.py backfill script, not a dial module
+        # from dials.mci import MCICalculator
+        # if self.run_module("MCI", MCICalculator):
+        #     success += 1
+        logger.info("  ⏭️  MCI - skipped (uses fix_mci.py script)")
         
         from dials.macro_dial import MacroDialCalculator
         if self.run_module("MacroDial", MacroDialCalculator):
