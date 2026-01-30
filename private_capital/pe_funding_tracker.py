@@ -8,6 +8,9 @@ Sectors emerge from data, not predefined.
 Writes to:
 - Supabase: pe_funding_entries, pe_funding_daily, pe_sector_daily
 - Google Sheets: PE_Funding_Dial tab, PE_Funding_Entries tab
+  - Copy of Copy of Version 3.3 - Development Copy (Active)
+  - Vikram-Develop-This
+  - NEW_FlowOS
 
 Author: ARGUS-1 Development Team
 Created: January 2026
@@ -29,6 +32,7 @@ logger = logging.getLogger(__name__)
 GOOGLE_SHEETS_CREDS_FILE = 'credentials.json'
 SPREADSHEET_NAME = 'Copy of Copy of Version 3.3 - Development Copy (Active)'
 SPREADSHEET_NAME_2 = 'Vikram-Develop-This'
+SPREADSHEET_NAME_3 = 'NEW_FlowOS'
 PE_SHEET_NAME = 'PE_Funding_Dial'
 PE_ENTRIES_SHEET = 'PE_Funding_Entries'
 
@@ -127,18 +131,21 @@ def write_batch_to_sheet(client, spreadsheet_name: str, sheet_name: str,
 
 
 def write_to_both_sheets(client, sheet_name: str, row_data: list, headers: list = None):
-    """Write row to both spreadsheets."""
+    """Write row to all three spreadsheets."""
     write_to_sheet(client, SPREADSHEET_NAME, sheet_name, row_data, headers)
     write_to_sheet(client, SPREADSHEET_NAME_2, sheet_name, row_data, headers)
+    write_to_sheet(client, SPREADSHEET_NAME_3, sheet_name, row_data, headers)
 
 
 def write_batch_to_both_sheets(client, sheet_name: str, rows: list, headers: list = None):
-    """Batch write rows to both spreadsheets."""
+    """Batch write rows to all three spreadsheets."""
     import time
     
     write_batch_to_sheet(client, SPREADSHEET_NAME, sheet_name, rows, headers)
     time.sleep(2)  # Pause between sheets to avoid rate limits
     write_batch_to_sheet(client, SPREADSHEET_NAME_2, sheet_name, rows, headers)
+    time.sleep(2)
+    write_batch_to_sheet(client, SPREADSHEET_NAME_3, sheet_name, rows, headers)
 
 
 # =============================================================================
