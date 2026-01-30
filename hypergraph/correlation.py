@@ -60,10 +60,13 @@ def correlation_to_adjacency(corr_matrix: pd.DataFrame, threshold: float = 0.7) 
     # Absolute correlation above threshold
     adjacency = (corr_matrix.abs() >= threshold).astype(int)
     
-    # Remove self-connections (diagonal)
-    np.fill_diagonal(adjacency.values, 0)
+    # Get writable numpy array (newer pandas returns read-only view from .values)
+    adjacency_arr = adjacency.to_numpy(copy=True)
     
-    return adjacency.values
+    # Remove self-connections (diagonal)
+    np.fill_diagonal(adjacency_arr, 0)
+    
+    return adjacency_arr
 
 
 def get_adjacency_stats(adjacency: np.ndarray, tickers: list) -> dict:
