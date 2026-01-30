@@ -92,8 +92,10 @@ class SignalsData:
     bubble_warnings: int = 0
     constraint_evidence: int = 0
     demand_validation: int = 0
-    # Alerts
+    # Alerts (V2 - with warning state)
     veto_triggers: int = 0
+    veto_warnings: int = 0  # NEW: count of warning-level vetos
+    has_warning: bool = False  # NEW: True if warning state active
     depreciation_flags: int = 0
     # Interpretation
     interpretation: str = ""
@@ -262,13 +264,17 @@ class SignalsDialCalculator:
             logger.error(f"Failed to calculate from articles: {e}")
             return None
     
-    def _get_regime(self, infra_signal: float, veto_count: int) -> str:
-        """Determine signal regime."""
+    def _get_regime(self, infra_signal: float, veto_count: int, has_warning: bool = False) -> str:
+        """Determine signal regime (V2 - with WARNING state)."""
         thresholds = self.config["regime_thresholds"]
         
         # Check for VETO first
         if veto_count >= self.config["veto_threshold"]:
             return "VETO_ALERT"
+        
+        # Check for WARNING (new in V2)
+        if has_warning:
+            return "WARNING"
         
         if infra_signal > thresholds["strong_cycle"]:
             return "STRONG_CYCLE"
@@ -290,6 +296,7 @@ class SignalsDialCalculator:
             "WEAKENING": "Cycle momentum fading - reduce exposure",
             "CYCLE_RISK": "Infrastructure thesis at risk - defensive posture",
             "VETO_ALERT": "High-severity event detected - pause new positions",
+            "WARNING": "Elevated risk signals - reduce new exposure, monitor closely",
             "NO_DATA": "Insufficient data for signal calculation"
         }
         return interpretations.get(regime, "Unknown regime")

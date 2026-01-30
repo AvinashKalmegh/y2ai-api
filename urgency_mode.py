@@ -24,12 +24,13 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# NLP Urgency Thresholds
+# NLP Urgency Thresholds (V2 - with warning support)
 NLP_THRESHOLDS = {
     "burst_count": 20,
-    "veto_triggers": 25,
+    "veto_triggers": 25,      # Full veto threshold
+    "veto_warnings": 15,      # NEW: Warning threshold (elevated but not full urgency)
     "evi_score": 85,
-    "thesis_swing": 15  # absolute change from previous day
+    "thesis_swing": 15        # absolute change from previous day
 }
 
 
@@ -154,23 +155,27 @@ def get_yesterday_signals() -> dict:
         return None
 
 
-def check_nlp_urgency_triggers() -> bool:
+def check_nlp_urgency_triggers() -> dict:
     """
-    Check if NLP signals warrant urgency mode.
+    Check if NLP signals warrant urgency or warning mode.
     Called after NLP processing completes.
     
-    Returns True if urgency was triggered.
+    Returns dict with:
+        - triggered: bool (True if urgency was triggered)
+        - warning: bool (True if warning state detected)
+        - reason: str (description of triggers)
     """
-    logger.info("=== CHECKING NLP URGENCY TRIGGERS ===")
+    logger.info("=== CHECKING NLP URGENCY TRIGGERS (V2) ===")
     
     today = get_today_signals()
     yesterday = get_yesterday_signals()
     
     if not today:
         logger.warning("No signals data for today")
-        return False
+        return {"triggered": False, "warning": False, "reason": None}
     
     triggers = []
+    warnings = []
     
     # Check burst count
     burst_count = today.get("burst_count") or 0
@@ -178,16 +183,26 @@ def check_nlp_urgency_triggers() -> bool:
         triggers.append(f"Burst count {burst_count} >= {NLP_THRESHOLDS['burst_count']}")
     logger.info(f"Burst Count: {burst_count}")
     
-    # Check veto triggers
+    # Check veto triggers (full urgency)
     veto_triggers = today.get("veto_triggers") or 0
     if veto_triggers >= NLP_THRESHOLDS["veto_triggers"]:
         triggers.append(f"Veto triggers {veto_triggers} >= {NLP_THRESHOLDS['veto_triggers']}")
+    elif veto_triggers >= NLP_THRESHOLDS["veto_warnings"]:
+        warnings.append(f"Veto warnings {veto_triggers} >= {NLP_THRESHOLDS['veto_warnings']}")
     logger.info(f"Veto Triggers: {veto_triggers}")
+    
+    # Check veto warnings count (NEW in V2)
+    veto_warnings = today.get("veto_warnings") or 0
+    if veto_warnings > 0:
+        warnings.append(f"Warning-level vetos detected: {veto_warnings}")
+    logger.info(f"Veto Warnings: {veto_warnings}")
     
     # Check EVI score
     evi_score = today.get("evi_score") or 0
     if evi_score >= NLP_THRESHOLDS["evi_score"]:
         triggers.append(f"EVI score {evi_score} >= {NLP_THRESHOLDS['evi_score']}")
+    elif evi_score >= 75:  # Warning threshold for EVI
+        warnings.append(f"EVI elevated: {evi_score}")
     logger.info(f"EVI Score: {evi_score}")
     
     # Check thesis swing (vs yesterday)
@@ -200,15 +215,21 @@ def check_nlp_urgency_triggers() -> bool:
             triggers.append(f"Thesis swing {thesis_swing:.1f} >= {NLP_THRESHOLDS['thesis_swing']}")
         logger.info(f"Thesis Swing: {thesis_swing:.1f}")
     
-    # Activate urgency if any triggers
+    # Activate urgency if any full triggers
     if triggers:
         reason = "; ".join(triggers)
         logger.warning(f"⚠️ NLP URGENCY TRIGGERED: {reason}")
         activate_urgency_mode("nlp", reason)
-        return True
+        return {"triggered": True, "warning": False, "reason": reason}
+    
+    # Log warnings but don't activate urgency
+    if warnings:
+        warning_reason = "; ".join(warnings)
+        logger.info(f"⚡ NLP WARNING STATE: {warning_reason}")
+        return {"triggered": False, "warning": True, "reason": warning_reason}
     
     logger.info("✓ NLP triggers clear")
-    return False
+    return {"triggered": False, "warning": False, "reason": None}
 
 
 def is_urgency_mode() -> bool:

@@ -160,10 +160,13 @@ class ProcessedArticle:
     depreciation_company: Optional[str] = None
     depreciation_context: Optional[str] = None
 
-    # Veto signals
+    # Veto signals (V2 - with severity tiers)
     veto_detected: Optional[bool] = False
-    veto_trigger_type: Optional[str] = None
-    veto_severity: Optional[str] = None
+    veto_trigger_type: Optional[str] = None  # regulatory, grid, financing, macro
+    veto_severity: Optional[str] = None      # high, medium, low
+    veto_severity_reason: Optional[str] = None  # enacted, federal_proposal, local_proposal, local
+    veto_is_positive: Optional[bool] = False    # True if positive news (should skip)
+    veto_matched_keyword: Optional[str] = None  # The keyword that triggered
     veto_context: Optional[str] = None
 
     # Newsletter hints

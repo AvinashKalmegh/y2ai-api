@@ -57,7 +57,7 @@ from .credit_spread_dial import CreditSpreadCalculator, CreditSpreadData
 
 # Phase 2 - Core
 from .breadth_dial import BreadthCalculator, BreadthData, PillarBreadth
-from .mci import MCICalculator, MCIData, MCIComponent
+# from .mci import MCICalculator, MCIData, MCIComponent  # TODO: mci.py is a fix script, not a dial module
 from .macro_dial import MacroDialCalculator, MacroData  # FIXED: was MacroDialData
 from .signals_dial import SignalsDialCalculator, SignalsData
 from .correlation_dial import CorrelationDialCalculator, CorrelationDialData
@@ -102,7 +102,7 @@ __all__ = [
     
     # Phase 2 - Core
     "BreadthCalculator", "BreadthData", "PillarBreadth",
-    "MCICalculator", "MCIData", "MCIComponent",
+    # "MCICalculator", "MCIData", "MCIComponent",  # TODO: mci.py is a fix script
     "MacroDialCalculator", "MacroData",  # FIXED
     "SignalsDialCalculator", "SignalsData",
     "CorrelationDialCalculator", "CorrelationDialData",
@@ -117,7 +117,7 @@ __all__ = [
     # Phase 4 - Flow
     "StockFlowCalculator", "StockFlowDialData",
     "FlowDivergenceCalculator", "FlowDivergenceData",
-    "AttractorMassCalculator", "AttractorMassResult",
+    # "AttractorMassCalculator", "AttractorMassResult",  # TODO: not imported
     
     # Phase 5 - Multipliers
     "MacroMultiplierCalculator", "MultiplierData",

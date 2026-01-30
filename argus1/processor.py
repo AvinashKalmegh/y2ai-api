@@ -218,8 +218,11 @@ Respond with ONLY valid JSON (no markdown, no explanation):
     
     "veto_trigger": {{
         "detected": true/false,
-        "trigger_type": "regulatory|crisis|geopolitical|null",
+        "trigger_type": "regulatory|grid|financing|macro|null",
         "severity": "high|medium|low|null",
+        "severity_reason": "enacted|federal_proposal|local_proposal|local|null",
+        "is_positive_news": true/false,
+        "matched_keyword": "the specific keyword that triggered detection or null",
         "context": "brief explanation"
     }},
     
@@ -346,10 +349,13 @@ class ClaudeProcessor:
                 depreciation_company=depr.get("company"),
                 depreciation_context=depr.get("context"),
                 
-                # Veto signal
-                veto_detected=veto.get("detected", False),
+                # Veto signal (V2 - with severity tiers)
+                veto_detected=veto.get("detected", False) and not veto.get("is_positive_news", False),
                 veto_trigger_type=veto.get("trigger_type"),
                 veto_severity=veto.get("severity"),
+                veto_severity_reason=veto.get("severity_reason"),
+                veto_is_positive=veto.get("is_positive_news", False),
+                veto_matched_keyword=veto.get("matched_keyword"),
                 veto_context=veto.get("context"),
                 
                 # Newsletter hints
