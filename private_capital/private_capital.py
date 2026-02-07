@@ -626,7 +626,19 @@ class PrivateCapitalTracker:
             'new_entries': len(new_entries),
             'saved': saved_count,
             'intensity': intensity,
-            'timestamp': datetime.now().isoformat()
+            'timestamp': datetime.now().isoformat(),
+            'entries': [
+                {
+                    'date': e.date,
+                    'company': e.company,
+                    'amount_m': e.amount_m,
+                    'category': e.category,
+                    'source': e.source,
+                    'investors': e.lead_investor or '',
+                    'url': e.url or ''
+                }
+                for e in all_entries[:50]  # Last 50 entries for summary
+            ]
         }
 
 

@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 GOOGLE_SHEETS_CREDS_FILE = 'credentials.json'
 SPREADSHEET_NAME = 'Copy of Copy of Version 3.3 - Development Copy (Active)'
-SPREADSHEET_NAME_2 = 'Vikram-Develop-This'
+SPREADSHEET_NAME_2 = 'NEW_FlowOS_Preferred'
 SPREADSHEET_NAME_3 = 'NEW_FlowOS'
 PE_SHEET_NAME = 'PE_Funding_Dial'
 PE_ENTRIES_SHEET = 'PE_Funding_Entries'
@@ -78,8 +78,8 @@ def get_sheets_client():
 
 
 def write_to_sheet(client, spreadsheet_name: str, sheet_name: str, 
-                   row_data: list, headers: list = None):
-    """Write row to a sheet, creating tab if needed."""
+                   row_data: list, headers: list = None, upsert_by_date: bool = False):
+    """Write row to a sheet, creating tab if needed. Optionally upsert by date."""
     import gspread
     
     try:
@@ -92,6 +92,24 @@ def write_to_sheet(client, spreadsheet_name: str, sheet_name: str,
             if headers:
                 sheet.append_row(headers, value_input_option='USER_ENTERED')
         
+        if upsert_by_date and row_data:
+            # Try to find existing row with this date
+            date_value = row_data[0]
+            try:
+                cell = sheet.find(str(date_value), in_column=1)
+                if cell:
+                    # Update existing row
+                    row_num = cell.row
+                    for col_idx, value in enumerate(row_data, start=1):
+                        sheet.update_cell(row_num, col_idx, value)
+                    logger.info(f"Updated row {row_num} in {spreadsheet_name}/{sheet_name}")
+                    return True
+            except gspread.exceptions.CellNotFound:
+                pass  # Will append below
+            except Exception as e:
+                logger.debug(f"Upsert search failed: {e}")
+        
+        # Append new row
         sheet.append_row(row_data, value_input_option='USER_ENTERED')
         logger.info(f"Wrote to {spreadsheet_name}/{sheet_name}")
         return True
@@ -130,11 +148,11 @@ def write_batch_to_sheet(client, spreadsheet_name: str, sheet_name: str,
         return False
 
 
-def write_to_both_sheets(client, sheet_name: str, row_data: list, headers: list = None):
-    """Write row to all three spreadsheets."""
-    write_to_sheet(client, SPREADSHEET_NAME, sheet_name, row_data, headers)
-    write_to_sheet(client, SPREADSHEET_NAME_2, sheet_name, row_data, headers)
-    write_to_sheet(client, SPREADSHEET_NAME_3, sheet_name, row_data, headers)
+def write_to_both_sheets(client, sheet_name: str, row_data: list, headers: list = None, upsert_by_date: bool = False):
+    """Write row to all three spreadsheets. Use upsert_by_date=True for dial data."""
+    write_to_sheet(client, SPREADSHEET_NAME, sheet_name, row_data, headers, upsert_by_date)
+    write_to_sheet(client, SPREADSHEET_NAME_2, sheet_name, row_data, headers, upsert_by_date)
+    write_to_sheet(client, SPREADSHEET_NAME_3, sheet_name, row_data, headers, upsert_by_date)
 
 
 def write_batch_to_both_sheets(client, sheet_name: str, rows: list, headers: list = None):
@@ -398,7 +416,7 @@ class PEFundingTracker:
         ]
         
         try:
-            write_to_both_sheets(client, PE_SHEET_NAME, row, PE_DIAL_HEADERS)
+            write_to_both_sheets(client, PE_SHEET_NAME, row, PE_DIAL_HEADERS, upsert_by_date=True)
             logger.info(f"Google Sheets: Wrote daily metrics for {metrics.get('date')}")
             return True
         except Exception as e:

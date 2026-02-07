@@ -12,7 +12,7 @@ on:
 jobs:
   run-backfill:
     runs-on: ubuntu-latest
-    timeout-minutes: 60  # Increased from 45 to accommodate dials
+    timeout-minutes: 60
 
     env:
       TZ: America/New_York
@@ -22,6 +22,7 @@ jobs:
       GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
       FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
       ALPHA_VANTAGE_KEY: ${{ secrets.ALPHA_VANTAGE_KEY }}
+      TWELVE_API_KEY: ${{ secrets.TWELVE_API_KEY }}
 
     steps:
       # 1️⃣ Checkout code
@@ -32,7 +33,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.10"
+          python-version: "3.11"
 
       # 3️⃣ Install dependencies
       - name: Install dependencies
@@ -100,7 +101,6 @@ jobs:
           python -c "from analytical import ARGUS1Calculator; c = ARGUS1Calculator(); r = c.run(); c.store_result(r); print(f'Regime: {r.regime.value} AMRI={r.amri.core_amri}')"
 
       # 🔟 RUN ALL DIALS (27 modules)
-      # This is the critical step that was missing!
       - name: Run All Dial Modules
         if: success()
         run: |
@@ -109,9 +109,21 @@ jobs:
           echo "RUNNING Y2AI DIALS (27 modules)"
           echo "========================================"
           python dials_runner.py --all
-        continue-on-error: true  # Don't fail entire workflow if some dials fail
+        continue-on-error: true
 
-      # 1️⃣1️⃣ Summary logging
+      # 1️⃣1️⃣ RUN MCI BACKFILL (was missing!)
+      # MCI is skipped in dials_runner.py, so we run it separately
+      - name: Run MCI Backfill
+        if: success()
+        run: |
+          export PYTHONPATH=$PYTHONPATH:.
+          echo "========================================"
+          echo "RUNNING MCI BACKFILL"
+          echo "========================================"
+          python dials/mci.py --days 5
+        continue-on-error: true
+
+      # 1️⃣2️⃣ Summary logging
       - name: Log completion
         if: always()
         run: |

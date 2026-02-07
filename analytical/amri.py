@@ -1,23 +1,34 @@
 """
-AMRI (ARGUS Master Regime Index) Calculator - CORRECTED VERSION
-================================================================
+AMRI (ARGUS Master Regime Index) Calculator - GS-ALIGNED VERSION
+=================================================================
 
-FORMULA FROM GOOGLE SHEETS (AMRI_MASTER):
+FORMULA ALIGNED WITH GOOGLE SHEETS (AMRI_MASTER):
 
-Core AMRI = CRS×0.25 + CCS×0.25 + SRS×0.25 + SDS×0.25
+Core AMRI = CRS×0.23 + CCS×0.31 + SRS×0.15 + SDS×0.31
 
 Components:
-  - CRS: Correlation Regime Score (avg 20D correlation → 0-100)
+  - CRS: Correlation Regime Score (cluster avg_correlation → 0-100)
   - CCS: Cluster Count Score (cluster count → 0-100)
   - SRS: Spread Regime Score (HY spread level → 0-100)
-  - SDS: Sector Divergence Score (pillar divergence → 0-100)
+  - SDS: Structural Divergence Score (Infra-Enterprise breadth → 0-100)
 
 Enhanced AMRI = 0.80 × Core + 0.20 × Bubble_Overlay
 
-CORRECTIONS APPLIED:
-1. Removed VIX as separate component (it's embedded in SRS)
-2. All 4 components have equal 25% weights
-3. Scoring functions match Google Sheets logic
+GS ALIGNMENT NOTES (Jan 2026):
+------------------------------
+1. Weights updated to match GS: 0.23/0.31/0.15/0.31
+2. Regime thresholds: Normal<30, Elevated<50, Tension<70, Fragile<85, Break>=85
+3. CRS uses cluster_dial avg_correlation (~27%) with calibrated scale
+   - GS Correlation_Dials shows ~57% (different calculation method)
+   - Scale adjusted so Python output approximates GS CRS scores
+4. SDS uses breadth_daily pillar divergence
+   - GS Dashboard may show stale values (Infra:75% vs Breadth_Dial:56%)
+5. Expected ~10-15 point variance vs GS due to data source differences
+
+DATA SOURCES:
+  - cluster_dial_daily: avg_correlation, cluster_count
+  - credit_spread_daily: hy_spread
+  - breadth_daily: pillar_breadth (Infrastructure, Enterprise)
 """
 
 import os
@@ -34,14 +45,14 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
-# CONFIGURATION - CORRECTED
+# CONFIGURATION - GS-ALIGNED
 # =============================================================================
 
 AMRI_WEIGHTS = {
-    "CRS": 0.25,  # Correlation Regime Score
-    "CCS": 0.25,  # Cluster Count Score  
-    "SRS": 0.25,  # Spread Regime Score
-    "SDS": 0.25,  # Structural Divergence Score
+    "CRS": 0.23,  # Correlation Regime Score (matches GS)
+    "CCS": 0.31,  # Cluster Count Score (matches GS)
+    "SRS": 0.15,  # Spread Regime Score (matches GS)
+    "SDS": 0.31,  # Structural Divergence Score (matches GS)
 }
 
 ENHANCED_WEIGHTS = {
@@ -49,13 +60,13 @@ ENHANCED_WEIGHTS = {
     "OVERLAY": 0.20,
 }
 
+# Regime thresholds - matches GS AMRI_MASTER formula
 AMRI_THRESHOLDS = {
-    "Stable": (0, 25),
-    "Normal": (25, 40),
-    "Elevated": (40, 55),
-    "Tension": (55, 70),
-    "Fragile": (70, 85),
-    "Break": (85, 100),
+    "Normal": (0, 30),      # GS: B11<30
+    "Elevated": (30, 50),   # GS: B11<50
+    "Tension": (50, 70),    # GS: B11<70
+    "Fragile": (70, 85),    # GS: B11<85
+    "Break": (85, 100),     # GS: else
 }
 
 
@@ -140,38 +151,50 @@ class AMRICalculator:
         """
         Calculate Correlation Regime Score (CRS).
         
-        Google Sheets logic:
-        - Uses 20D average correlation
-        - 0.30 correlation → 0 (healthy)
-        - 0.60 correlation → 100 (critical)
+        Google Sheets uses stock-level correlations from Correlation_Dials (~57%)
+        Python uses cluster_dial_daily avg_correlation (~27%)
+        
+        These are different metrics, so we calibrate the scale:
+        - GS: 57% correlation → CRS = 59.7
+        - Python: 27% correlation → should give similar CRS
+        
+        Calibrated scale: 0.15 → 0, 0.40 → 100
+        This gives: 0.27 → (0.27-0.15)/(0.40-0.15)*100 = 48
         
         Returns: (score 0-100, status)
         """
+        # Get stock-level correlation from cluster_dial_daily
         if correlation_data is None:
-            correlation_data = self._get_latest("correlation_daily")
-        
-        if not correlation_data:
             correlation_data = self._get_latest("cluster_dial_daily")
         
-        avg_corr = 0.42  # Default from Google Sheets
-        if correlation_data:
-            avg_corr = correlation_data.get("avg_correlation_20d") or \
-                       correlation_data.get("avg_correlation") or 0.42
+        if not correlation_data:
+            correlation_data = self._get_latest("correlation_daily")
         
-        # Scale: 0.30 → 0, 0.60 → 100
-        if avg_corr <= 0.30:
+        avg_corr = 0.27  # Default based on recent data
+        if correlation_data:
+            # Prefer cluster avg_correlation (stock-level)
+            raw_corr = correlation_data.get("avg_correlation") or \
+                       correlation_data.get("corr_20d") or \
+                       correlation_data.get("avg_correlation_20d")
+            if raw_corr is not None:
+                # Convert string to float if needed
+                avg_corr = float(raw_corr) if isinstance(raw_corr, str) else raw_corr
+        
+        # Calibrated scale: 0.15 → 0, 0.40 → 100
+        # Typical range is 0.20-0.35, giving CRS 20-80
+        if avg_corr <= 0.15:
             score = 0
-        elif avg_corr >= 0.60:
+        elif avg_corr >= 0.40:
             score = 100
         else:
-            score = (avg_corr - 0.30) / (0.60 - 0.30) * 100
+            score = (avg_corr - 0.15) / (0.40 - 0.15) * 100
         
-        # Determine status
-        if score < 30:
-            status = "Healthy"
-        elif score < 50:
-            status = "Caution"
-        elif score < 70:
+        # Determine status (matching GS thresholds)
+        if score < 40:
+            status = "Benign"
+        elif score < 60:
+            status = "Watch"
+        elif score < 75:
             status = "Stressed"
         else:
             status = "Critical"
@@ -224,38 +247,41 @@ class AMRICalculator:
         
         Google Sheets logic:
         - Uses HY spread level
-        - HY < 3% → ~0 (benign)
-        - HY > 5% → ~100 (stressed)
+        - HY < 3.0% → 0 (benign)
+        - HY 3.0-5.0% → 0-100 scaled
+        - HY > 5.0% → 100 (stressed)
+        
+        GS shows SRS=0 for HY=2.71%, confirming threshold at 3.0%
         
         Returns: (score 0-100, status)
         """
         if spread_data is None:
             spread_data = self._get_latest("credit_spread_daily")
         
-        if not spread_data:
-            spread_data = self._get_latest("vix_daily")
-        
         hy_spread = 2.81  # Default from Google Sheets (as percentage)
         if spread_data:
-            hy_spread = spread_data.get("hy_spread") or 2.81
+            hy_val = spread_data.get("hy_spread")
+            if hy_val is not None:
+                # Convert string to float if needed
+                hy_spread = float(hy_val) if isinstance(hy_val, str) else hy_val
         
-        # Scale: 3% → 0, 5% → 100
+        # GS Scale: 3.0% → 0, 5.0% → 100 (linear)
         if hy_spread <= 3.0:
-            score = max(0, (hy_spread - 2.0) / 1.0 * 20)  # 2-3% gives 0-20
+            score = 0
         elif hy_spread >= 5.0:
             score = 100
         else:
-            score = 20 + (hy_spread - 3.0) / 2.0 * 80  # 3-5% gives 20-100
+            score = (hy_spread - 3.0) / (5.0 - 3.0) * 100
         
-        # Determine status
-        if hy_spread < 3.0:
+        # Determine status (matching GS thresholds)
+        if score < 20:
             status = "Benign"
-        elif hy_spread < 4.0:
-            status = "Normal"
-        elif hy_spread < 5.0:
-            status = "Elevated"
-        else:
+        elif score < 40:
+            status = "Watch"
+        elif score < 60:
             status = "Stressed"
+        else:
+            status = "Critical"
         
         return round(score, 1), status
     
@@ -263,47 +289,56 @@ class AMRICalculator:
         """
         Calculate Structural Divergence Score (SDS).
         
-        Google Sheets logic (Fragility Model Condition 2):
-        - Infra breadth > 55% AND Enterprise breadth < 35% → ACTIVE (100)
-        - Otherwise scale based on divergence
+        Google Sheets logic:
+        - Compares Infrastructure vs Enterprise breadth
+        - Divergence = abs(Infra - Enterprise)
+        - Scale: 0% divergence → 0, 65% divergence → 100
         
-        Current values: Infra 87.5%, Ent 7.7% → SDS = 100 (Critical)
+        GS shows: Infra 75%, Ent 15% → divergence 60% → SDS 91.7
+        Formula: SDS = min(100, divergence / 0.65 * 100)
         
         Returns: (score 0-100, status)
         """
         if breadth_data is None:
             breadth_data = self._get_latest("breadth_daily")
         
-        # Defaults from Google Sheets
-        infra_breadth = 0.875  # 87.5%
+        # Defaults
+        infra_breadth = 0.563  # 56.3%
         ent_breadth = 0.077    # 7.7%
         
         if breadth_data:
-            infra_breadth = breadth_data.get("infra_breadth") or 0.875
-            ent_breadth = breadth_data.get("enterprise_breadth") or 0.077
+            # Try to get pillar_breadth data
+            pillar_breadth = breadth_data.get("pillar_breadth", {})
+            
+            if pillar_breadth:
+                # Extract Infrastructure and Enterprise breadth
+                infra_data = pillar_breadth.get("Infrastructure") or pillar_breadth.get("Infrastructure & Energy", {})
+                ent_data = pillar_breadth.get("Enterprise") or pillar_breadth.get("Enterprise Adoption", {})
+                
+                if infra_data:
+                    infra_breadth = infra_data.get("breadth_20d", infra_breadth)
+                if ent_data:
+                    ent_breadth = ent_data.get("breadth_20d", ent_breadth)
+            else:
+                # Fallback to direct fields if available
+                infra_breadth = breadth_data.get("infra_breadth", infra_breadth)
+                ent_breadth = breadth_data.get("enterprise_breadth", ent_breadth)
         
-        # Fragility Model Condition 2 check
-        if infra_breadth > 0.55 and ent_breadth < 0.35:
-            score = 100
-            status = "Critical (ACTIVE)"
+        # Calculate divergence
+        divergence = abs(infra_breadth - ent_breadth)
+        
+        # GS formula: SDS = min(100, divergence / 0.65 * 100)
+        score = min(100, divergence / 0.65 * 100)
+        
+        # Determine status (matching GS thresholds)
+        if score < 25:
+            status = "Benign"
+        elif score < 50:
+            status = "Watch"
+        elif score < 70:
+            status = "Tension"
         else:
-            # Calculate divergence
-            divergence = abs(infra_breadth - ent_breadth)
-            
-            # Scale: 0.30 divergence → 0, 0.80 divergence → 100
-            if divergence <= 0.30:
-                score = 0
-            elif divergence >= 0.80:
-                score = 100
-            else:
-                score = (divergence - 0.30) / 0.50 * 100
-            
-            if divergence > 0.60:
-                status = "Extreme"
-            elif divergence > 0.40:
-                status = "Elevated"
-            else:
-                status = "Normal"
+            status = "Extreme"
         
         return round(score, 1), status
     
@@ -329,12 +364,18 @@ class AMRICalculator:
     
     def calculate(self) -> AMRIResult:
         """
-        Calculate AMRI using corrected 4-component formula.
+        Calculate AMRI using GS-aligned formula.
         
-        Core AMRI = CRS×0.25 + CCS×0.25 + SRS×0.25 + SDS×0.25
+        Weights (matching Google Sheets):
+        - CRS: 0.23 (Correlation)
+        - CCS: 0.31 (Clusters)
+        - SRS: 0.15 (Spreads)
+        - SDS: 0.31 (Divergence)
+        
+        Core AMRI = CRS×0.23 + CCS×0.31 + SRS×0.15 + SDS×0.31
         Enhanced = 0.80 × Core + 0.20 × Bubble_Overlay
         """
-        logger.info("Calculating AMRI (corrected formula)...")
+        logger.info("Calculating AMRI (GS-aligned formula)...")
         
         # Calculate all components
         crs_score, crs_status = self.calculate_crs()
@@ -388,10 +429,10 @@ class AMRICalculator:
         
         logger.info(f"Core AMRI: {core_amri:.1f} ({regime})")
         logger.info(f"Enhanced AMRI: {enhanced_amri:.1f}")
-        logger.info(f"  CRS: {crs_score:.1f} × 0.25 = {crs_score * 0.25:.2f} ({crs_status})")
-        logger.info(f"  CCS: {ccs_score:.1f} × 0.25 = {ccs_score * 0.25:.2f} ({ccs_status})")
-        logger.info(f"  SRS: {srs_score:.1f} × 0.25 = {srs_score * 0.25:.2f} ({srs_status})")
-        logger.info(f"  SDS: {sds_score:.1f} × 0.25 = {sds_score * 0.25:.2f} ({sds_status})")
+        logger.info(f"  CRS: {crs_score:.1f} × {AMRI_WEIGHTS['CRS']} = {contributions['CRS']:.1f} ({crs_status})")
+        logger.info(f"  CCS: {ccs_score:.1f} × {AMRI_WEIGHTS['CCS']} = {contributions['CCS']:.1f} ({ccs_status})")
+        logger.info(f"  SRS: {srs_score:.1f} × {AMRI_WEIGHTS['SRS']} = {contributions['SRS']:.1f} ({srs_status})")
+        logger.info(f"  SDS: {sds_score:.1f} × {AMRI_WEIGHTS['SDS']} = {contributions['SDS']:.1f} ({sds_status})")
         logger.info(f"Dominant: {dominant_driver}")
         
         return AMRIResult(

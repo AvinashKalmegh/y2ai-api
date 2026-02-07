@@ -1,66 +1,86 @@
 """
 hypergraph/data.py
-Step 1: Data Ingestion using yfinance
+Step 1: Data Ingestion - 4-PILLAR VERSION
 Supports multiple bubble universes
+
+UPDATED 2026-02-02: 4-Pillar Configuration (52 tickers)
+Pillars:
+- Infrastructure & Energy (22 stocks)
+- Enterprise Demand (17 stocks)
+- Consumer Demand (7 stocks)
+- Capital (6 stocks)
+
+Data source: Supabase price_history (synced from TwelveData)
+Fallback: yfinance
 """
 
+import os
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 from typing import Optional, Dict, List
 import logging
+from dotenv import load_dotenv
+
+load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Default: AI Infrastructure (for backward compatibility)
+# =============================================================================
+# 4-PILLAR UNIVERSE (GS ALIGNED)
+# UPDATED 2026-02-02: Synced with Google Sheets Universe tab
+# =============================================================================
+
+# All 52 tickers
 DEFAULT_TICKERS = [
-    # Infrastructure & Energy (16)
-    'NVDA', 'AMD', 'AVGO', 'TSM', 'ASML', 'AMAT', 'LRCX', 'KLAC',
-    'MRVL', 'MU', 'QCOM', 'ARM', 'SMCI', 'DELL', 'VRT', 'CEG',
-    # Enterprise Adoption (13)
-    'MSFT', 'GOOGL', 'AMZN', 'META', 'ORCL', 'CRM', 'NOW', 
-    'SNOW', 'PLTR', 'MDB', 'DDOG', 'NET', 'CRWD',
-    # Financial & Market (4)
-    'GS', 'MS', 'BLK', 'COIN',
-    # Macro & Policy (4)
-    'LMT', 'RTX', 'GD', 'NOC',
-    # Productivity & Labor (3)
-    'ADBE', 'INTU', 'WDAY',
-    # Demand Dynamics (3)
-    'TSLA', 'UBER', 'ABNB',
+    # Infrastructure & Energy (22)
+    'EQIX', 'DLR', 'TSM', 'ASML', 'NVDA', 'AMD', 'MU', 'AVGO',
+    'VRT', 'CEG', 'NRG', 'LRCX', 'AMAT', 'SMCI', 'JKS', 'RUN',
+    'FSLR', 'ENPH', 'INTC', 'NXPI', 'QCOM', 'ON',
+    # Enterprise Demand (17)
+    'MSFT', 'AMZN', 'GOOGL', 'SNOW', 'PLTR', 'ADBE', 'ORCL',
+    'MDB', 'DDOG', 'ZS', 'NET', 'PANW', 'CRWD', 'CRM', 'NOW',
+    'WDAY', 'ADP',
+    # Consumer Demand (7)
+    'TSLA', 'SHOP', 'UBER', 'ABNB', 'META', 'NFLX', 'SPOT',
+    # Capital (6)
+    'GS', 'MS', 'BX', 'KKR', 'APO', 'ARES',
 ]
 
+# Pillar mapping (ticker -> pillar name)
 DEFAULT_PILLAR_MAP = {
-    # Infrastructure & Energy (16)
+    # Infrastructure & Energy (22)
+    'EQIX': 'Infrastructure & Energy', 'DLR': 'Infrastructure & Energy',
+    'TSM': 'Infrastructure & Energy', 'ASML': 'Infrastructure & Energy',
     'NVDA': 'Infrastructure & Energy', 'AMD': 'Infrastructure & Energy',
-    'AVGO': 'Infrastructure & Energy', 'TSM': 'Infrastructure & Energy',
-    'ASML': 'Infrastructure & Energy', 'AMAT': 'Infrastructure & Energy',
-    'LRCX': 'Infrastructure & Energy', 'KLAC': 'Infrastructure & Energy',
-    'MRVL': 'Infrastructure & Energy', 'MU': 'Infrastructure & Energy',
-    'QCOM': 'Infrastructure & Energy', 'ARM': 'Infrastructure & Energy',
-    'SMCI': 'Infrastructure & Energy', 'DELL': 'Infrastructure & Energy',
+    'MU': 'Infrastructure & Energy', 'AVGO': 'Infrastructure & Energy',
     'VRT': 'Infrastructure & Energy', 'CEG': 'Infrastructure & Energy',
-    # Enterprise Adoption (13)
-    'MSFT': 'Enterprise Adoption', 'GOOGL': 'Enterprise Adoption',
-    'AMZN': 'Enterprise Adoption', 'META': 'Enterprise Adoption',
-    'ORCL': 'Enterprise Adoption', 'CRM': 'Enterprise Adoption',
-    'NOW': 'Enterprise Adoption', 'SNOW': 'Enterprise Adoption',
-    'PLTR': 'Enterprise Adoption', 'MDB': 'Enterprise Adoption',
-    'DDOG': 'Enterprise Adoption', 'NET': 'Enterprise Adoption',
-    'CRWD': 'Enterprise Adoption',
-    # Financial & Market (4)
-    'GS': 'Financial & Market', 'MS': 'Financial & Market',
-    'BLK': 'Financial & Market', 'COIN': 'Financial & Market',
-    # Macro & Policy (4)
-    'LMT': 'Macro & Policy', 'RTX': 'Macro & Policy',
-    'GD': 'Macro & Policy', 'NOC': 'Macro & Policy',
-    # Productivity & Labor (3)
-    'ADBE': 'Productivity & Labor', 'INTU': 'Productivity & Labor',
-    'WDAY': 'Productivity & Labor',
-    # Demand Dynamics (3)
-    'TSLA': 'Demand Dynamics', 'UBER': 'Demand Dynamics',
-    'ABNB': 'Demand Dynamics',
+    'NRG': 'Infrastructure & Energy', 'LRCX': 'Infrastructure & Energy',
+    'AMAT': 'Infrastructure & Energy', 'SMCI': 'Infrastructure & Energy',
+    'JKS': 'Infrastructure & Energy', 'RUN': 'Infrastructure & Energy',
+    'FSLR': 'Infrastructure & Energy', 'ENPH': 'Infrastructure & Energy',
+    'INTC': 'Infrastructure & Energy', 'NXPI': 'Infrastructure & Energy',
+    'QCOM': 'Infrastructure & Energy', 'ON': 'Infrastructure & Energy',
+    # Enterprise Demand (17)
+    'MSFT': 'Enterprise Demand', 'AMZN': 'Enterprise Demand',
+    'GOOGL': 'Enterprise Demand', 'SNOW': 'Enterprise Demand',
+    'PLTR': 'Enterprise Demand', 'ADBE': 'Enterprise Demand',
+    'ORCL': 'Enterprise Demand', 'MDB': 'Enterprise Demand',
+    'DDOG': 'Enterprise Demand', 'ZS': 'Enterprise Demand',
+    'NET': 'Enterprise Demand', 'PANW': 'Enterprise Demand',
+    'CRWD': 'Enterprise Demand', 'CRM': 'Enterprise Demand',
+    'NOW': 'Enterprise Demand', 'WDAY': 'Enterprise Demand',
+    'ADP': 'Enterprise Demand',
+    # Consumer Demand (7)
+    'TSLA': 'Consumer Demand', 'SHOP': 'Consumer Demand',
+    'UBER': 'Consumer Demand', 'ABNB': 'Consumer Demand',
+    'META': 'Consumer Demand', 'NFLX': 'Consumer Demand',
+    'SPOT': 'Consumer Demand',
+    # Capital (6)
+    'GS': 'Capital', 'MS': 'Capital',
+    'BX': 'Capital', 'KKR': 'Capital',
+    'APO': 'Capital', 'ARES': 'Capital',
 }
 
 # Backward compatibility aliases
@@ -68,45 +88,114 @@ TICKERS = DEFAULT_TICKERS
 PILLAR_MAP = DEFAULT_PILLAR_MAP
 
 
-def build_pillar_map(universe: Dict) -> Dict[str, str]:
+# =============================================================================
+# SUPABASE CLIENT
+# =============================================================================
+
+def get_supabase_client():
+    """Get Supabase client."""
+    try:
+        from supabase import create_client
+        
+        url = os.getenv("SUPABASE_URL")
+        key = os.getenv("SUPABASE_KEY")
+        
+        if not url or not key:
+            logger.warning("SUPABASE_URL or SUPABASE_KEY not set")
+            return None
+        
+        return create_client(url, key)
+    except ImportError:
+        logger.warning("supabase package not installed")
+        return None
+
+
+# =============================================================================
+# DATA FETCHING
+# =============================================================================
+
+def fetch_price_data_supabase(start_date: str, end_date: str, tickers: List[str] = None) -> pd.DataFrame:
     """
-    Build ticker -> pillar mapping from universe definition
+    Fetch daily close prices from Supabase price_history table.
     
     Args:
-        universe: Universe dict with 'pillars' key
+        start_date: 'YYYY-MM-DD'
+        end_date: 'YYYY-MM-DD'
+        tickers: List of tickers (default: DEFAULT_TICKERS)
     
     Returns:
-        Dict mapping ticker to pillar name
+        DataFrame with dates as index, tickers as columns, close prices as values
     """
-    pillar_map = {}
-    for pillar_name, tickers in universe['pillars'].items():
-        for ticker in tickers:
-            pillar_map[ticker] = pillar_name
-    return pillar_map
+    tickers = tickers or DEFAULT_TICKERS
+    logger.info(f"Fetching price data from Supabase for {len(tickers)} tickers...")
+    logger.info(f"Date range: {start_date} to {end_date}")
+    
+    client = get_supabase_client()
+    if not client:
+        logger.warning("No Supabase client, falling back to yfinance")
+        return fetch_price_data_yfinance(start_date, end_date, tickers)
+    
+    try:
+        # Paginate to handle Supabase 1000-row limit
+        all_data = []
+        batch_size = 1000
+        offset = 0
+        
+        while True:
+            response = client.table("price_history") \
+                .select("date, ticker, close") \
+                .in_("ticker", tickers) \
+                .gte("date", start_date) \
+                .lte("date", end_date) \
+                .order("date", desc=True) \
+                .range(offset, offset + batch_size - 1) \
+                .execute()
+            
+            if not response.data:
+                break
+                
+            all_data.extend(response.data)
+            
+            if len(response.data) < batch_size:
+                break
+                
+            offset += batch_size
+        
+        if not all_data:
+            logger.warning("No data from Supabase, falling back to yfinance")
+            return fetch_price_data_yfinance(start_date, end_date, tickers)
+        
+        # Convert to DataFrame
+        df = pd.DataFrame(all_data)
+        df["date"] = pd.to_datetime(df["date"])
+        
+        # Pivot to get tickers as columns
+        prices = df.pivot_table(index="date", columns="ticker", values="close")
+        prices = prices.sort_index()
+        
+        # Filter to only requested tickers that have data
+        available = [t for t in tickers if t in prices.columns]
+        missing = [t for t in tickers if t not in prices.columns]
+        
+        if missing:
+            logger.warning(f"Missing data for: {missing}")
+        
+        prices = prices[available]
+        
+        logger.info(f"Fetched {len(prices)} trading days from Supabase")
+        logger.info(f"Tickers with data: {len(prices.columns)}")
+        
+        return prices
+        
+    except Exception as e:
+        logger.error(f"Supabase fetch error: {e}")
+        logger.warning("Falling back to yfinance")
+        return fetch_price_data_yfinance(start_date, end_date, tickers)
 
 
-def get_universe(universe_id: str = 'ai_infra') -> Dict:
+def fetch_price_data_yfinance(start_date: str, end_date: str, tickers: List[str] = None) -> pd.DataFrame:
     """
-    Load a universe by ID
-    
-    Args:
-        universe_id: 'ai_infra', 'crypto', 'nuclear', etc.
-    
-    Returns:
-        Universe dict with tickers, pillars, etc.
-    """
-    from .universes import ALL_UNIVERSES
-    
-    if universe_id not in ALL_UNIVERSES:
-        available = list(ALL_UNIVERSES.keys())
-        raise ValueError(f"Unknown universe: {universe_id}. Available: {available}")
-    
-    return ALL_UNIVERSES[universe_id]
-
-
-def fetch_price_data(start_date: str, end_date: str, tickers: List[str] = None) -> pd.DataFrame:
-    """
-    Fetch daily close prices for all tickers using yfinance
+    Fetch daily close prices using yfinance (fallback).
     
     Args:
         start_date: 'YYYY-MM-DD'
@@ -119,7 +208,7 @@ def fetch_price_data(start_date: str, end_date: str, tickers: List[str] = None) 
     import yfinance as yf
     
     tickers = tickers or DEFAULT_TICKERS
-    logger.info(f"Fetching price data for {len(tickers)} tickers...")
+    logger.info(f"Fetching price data from yfinance for {len(tickers)} tickers...")
     logger.info(f"Date range: {start_date} to {end_date}")
     
     # Download all at once (faster)
@@ -152,15 +241,30 @@ def fetch_price_data(start_date: str, end_date: str, tickers: List[str] = None) 
     
     prices = prices[available]
     
-    logger.info(f"Fetched {len(prices)} trading days")
+    logger.info(f"Fetched {len(prices)} trading days from yfinance")
     logger.info(f"Tickers with data: {len(prices.columns)}")
     
     return prices
 
 
+def fetch_price_data(start_date: str, end_date: str, tickers: List[str] = None) -> pd.DataFrame:
+    """
+    Main function: fetch prices (Supabase first, yfinance fallback).
+    
+    Args:
+        start_date: 'YYYY-MM-DD'
+        end_date: 'YYYY-MM-DD'
+        tickers: List of tickers (default: DEFAULT_TICKERS)
+    
+    Returns:
+        DataFrame with dates as index, tickers as columns, close prices as values
+    """
+    return fetch_price_data_supabase(start_date, end_date, tickers)
+
+
 def compute_returns(prices: pd.DataFrame) -> pd.DataFrame:
     """
-    Compute daily returns from prices
+    Compute daily returns from prices.
     
     Args:
         prices: DataFrame of close prices (dates × tickers)
@@ -174,7 +278,7 @@ def compute_returns(prices: pd.DataFrame) -> pd.DataFrame:
 
 def get_returns_data(start_date: str, end_date: str, tickers: List[str] = None) -> pd.DataFrame:
     """
-    Main function: fetch prices and compute returns
+    Main function: fetch prices and compute returns.
     
     Args:
         start_date: 'YYYY-MM-DD'
@@ -193,9 +297,69 @@ def get_returns_data(start_date: str, end_date: str, tickers: List[str] = None) 
     return returns
 
 
+# =============================================================================
+# UNIVERSE SUPPORT (for multi-bubble analysis)
+# =============================================================================
+
+def build_pillar_map(universe: Dict) -> Dict[str, str]:
+    """Build ticker -> pillar mapping from universe definition."""
+    pillar_map = {}
+    for pillar_name, tickers in universe['pillars'].items():
+        for ticker in tickers:
+            pillar_map[ticker] = pillar_name
+    return pillar_map
+
+
+def get_universe(universe_id: str = 'ai_infra') -> Dict:
+    """
+    Load a universe by ID.
+    
+    Args:
+        universe_id: 'ai_infra', 'crypto', 'nuclear', etc.
+    
+    Returns:
+        Universe dict with tickers, pillars, etc.
+    """
+    # Default AI Infrastructure universe (4-pillar)
+    if universe_id == 'ai_infra':
+        return {
+            'name': 'AI Infrastructure',
+            'stage': 'MATURE',
+            'tickers': DEFAULT_TICKERS,
+            'pillars': {
+                'Infrastructure & Energy': [
+                    'EQIX', 'DLR', 'TSM', 'ASML', 'NVDA', 'AMD', 'MU', 'AVGO',
+                    'VRT', 'CEG', 'NRG', 'LRCX', 'AMAT', 'SMCI', 'JKS', 'RUN',
+                    'FSLR', 'ENPH', 'INTC', 'NXPI', 'QCOM', 'ON'
+                ],
+                'Enterprise Demand': [
+                    'MSFT', 'AMZN', 'GOOGL', 'SNOW', 'PLTR', 'ADBE', 'ORCL',
+                    'MDB', 'DDOG', 'ZS', 'NET', 'PANW', 'CRWD', 'CRM', 'NOW',
+                    'WDAY', 'ADP'
+                ],
+                'Consumer Demand': [
+                    'TSLA', 'SHOP', 'UBER', 'ABNB', 'META', 'NFLX', 'SPOT'
+                ],
+                'Capital': [
+                    'GS', 'MS', 'BX', 'KKR', 'APO', 'ARES'
+                ]
+            }
+        }
+    
+    # Try loading from universes module
+    try:
+        from .universes import ALL_UNIVERSES
+        if universe_id in ALL_UNIVERSES:
+            return ALL_UNIVERSES[universe_id]
+    except ImportError:
+        pass
+    
+    raise ValueError(f"Unknown universe: {universe_id}")
+
+
 def get_universe_returns(universe_id: str, start_date: str, end_date: str) -> tuple:
     """
-    Get returns data for a specific universe
+    Get returns data for a specific universe.
     
     Args:
         universe_id: 'ai_infra', 'crypto', 'nuclear'
@@ -222,23 +386,28 @@ def get_universe_returns(universe_id: str, start_date: str, end_date: str) -> tu
 # =============================================================================
 
 if __name__ == "__main__":
-    # Test with last 60 days
     end = datetime.now().strftime('%Y-%m-%d')
     start = (datetime.now() - timedelta(days=60)).strftime('%Y-%m-%d')
     
     print("=" * 60)
-    print("TESTING MULTIPLE UNIVERSES")
+    print("HYPERGRAPH DATA MODULE (4-PILLAR VERSION)")
     print("=" * 60)
+    print(f"Date range: {start} to {end}")
+    print(f"Total tickers: {len(DEFAULT_TICKERS)}")
+    print()
     
-    for universe_id in ['ai_infra', 'crypto', 'nuclear']:
-        print(f"\n--- {universe_id.upper()} ---")
-        try:
-            returns, pillar_map, universe = get_universe_returns(universe_id, start, end)
-            print(f"  Name: {universe['name']}")
-            print(f"  Stage: {universe['stage']}")
-            print(f"  Tickers: {len(returns.columns)}")
-            print(f"  Pillars: {len(universe['pillars'])}")
-            print(f"  Days: {len(returns)}")
-        except Exception as e:
-            print(f"  Error: {e}")
-
+    # Count by pillar
+    pillar_counts = {}
+    for ticker, pillar in PILLAR_MAP.items():
+        pillar_counts[pillar] = pillar_counts.get(pillar, 0) + 1
+    
+    print("Pillars:")
+    for pillar, count in pillar_counts.items():
+        print(f"  {pillar}: {count} tickers")
+    
+    print()
+    print("Testing data fetch...")
+    
+    returns = get_returns_data(start, end)
+    print(f"\nReturns shape: {returns.shape}")
+    print(f"Tickers: {list(returns.columns)[:10]}...")

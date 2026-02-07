@@ -181,7 +181,7 @@ def validate_data(supabase: Client, target_date: str = "2026-01-19"):
     
     if pillar_response.data:
         row = pillar_response.data[0]
-        pillars = ["infra", "enterprise", "macro", "financial", "productivity", "demand"]
+        pillars = ["infra", "enterprise", "financial", "demand"]  
         
         print("  5D Returns (stored as decimal):")
         values = []
@@ -314,7 +314,7 @@ def backfill_mci_corrected(supabase: Client, days: int = 252) -> int:
         # Formula: avg_5d_pct / 3 * 25, clamped to ±25
         # Raw values are stored as decimals (0.0194), need *100 for %
         # =================================================================
-        pillars = ["infra", "enterprise", "macro", "financial", "productivity", "demand"]
+        pillars = ["infra", "enterprise", "financial", "demand"]  
         pillar_5d_values = [pillar_row.get(f"{p}_5d", 0) or 0 for p in pillars]
         avg_5d_decimal = sum(pillar_5d_values) / len(pillar_5d_values) if pillar_5d_values else 0
         avg_5d_pct = avg_5d_decimal * 100  # Convert to percentage

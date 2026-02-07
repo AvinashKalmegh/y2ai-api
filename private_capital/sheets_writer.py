@@ -44,8 +44,42 @@ def get_sheets_client():
         return None
 
 
+def upsert_row_by_date(sheet, row_data: list, headers: list = None):
+    """
+    Upsert a row by date (column A).
+    If a row with this date exists, update it. Otherwise append.
+    
+    Args:
+        sheet: gspread worksheet object
+        row_data: List of values (first element is date)
+        headers: Optional headers for new sheets
+    """
+    import gspread
+    
+    date_value = row_data[0]  # Date is always first column
+    
+    try:
+        # Search for existing row with this date
+        cell = sheet.find(str(date_value), in_column=1)
+        if cell:
+            # Found existing row - update it
+            row_num = cell.row
+            # Update each cell in the row
+            for col_idx, value in enumerate(row_data, start=1):
+                sheet.update_cell(row_num, col_idx, value)
+            return 'updated', row_num
+    except gspread.exceptions.CellNotFound:
+        pass  # No existing row, will append
+    except Exception as e:
+        logger.debug(f"Search failed, will append: {e}")
+    
+    # No existing row found - append new row
+    sheet.append_row(row_data, value_input_option='USER_ENTERED')
+    return 'appended', None
+
+
 def write_to_both_sheets(client, sheet_name: str, row_data: list, headers: list = None):
-    """Write row to both spreadsheets, creating tab if needed."""
+    """Write/update row in both spreadsheets, creating tab if needed. Uses upsert by date."""
     import gspread
     
     # Primary sheet
@@ -59,8 +93,8 @@ def write_to_both_sheets(client, sheet_name: str, row_data: list, headers: list 
             if headers:
                 sheet1.append_row(headers, value_input_option='USER_ENTERED')
         
-        sheet1.append_row(row_data, value_input_option='USER_ENTERED')
-        logger.info(f"Wrote to {SPREADSHEET_NAME}")
+        action, row = upsert_row_by_date(sheet1, row_data, headers)
+        logger.info(f"{action.capitalize()} row in {SPREADSHEET_NAME} ({sheet_name})")
     except Exception as e:
         logger.error(f"Error writing to primary sheet: {e}")
     
@@ -75,8 +109,8 @@ def write_to_both_sheets(client, sheet_name: str, row_data: list, headers: list 
             if headers:
                 sheet2.append_row(headers, value_input_option='USER_ENTERED')
         
-        sheet2.append_row(row_data, value_input_option='USER_ENTERED')
-        logger.info(f"Wrote to {SPREADSHEET_NAME_2}")
+        action, row = upsert_row_by_date(sheet2, row_data, headers)
+        logger.info(f"{action.capitalize()} row in {SPREADSHEET_NAME_2} ({sheet_name})")
     except Exception as e:
         logger.warning(f"Error writing to secondary sheet: {e}")
 
@@ -125,6 +159,11 @@ def write_private_capital_to_sheets(result: dict):
         
         # Write to both sheets (auto-creates tab if needed)
         write_to_both_sheets(client, SHEET_NAME, row, headers=headers)
+        
+        # Also update the Summary sheet with entries
+        entries = result.get('entries', [])
+        if entries:
+            update_private_capital_summary(result, entries)
         
         logger.info(f"✅ Private Capital written to Google Sheets: {intensity.score} ({intensity.regime})")
         return True
@@ -192,6 +231,115 @@ def update_dashboard_private_capital(result: dict):
         
     except Exception as e:
         logger.error(f"Error updating Dashboard: {e}")
+        return False
+
+
+def update_private_capital_summary(result: dict, entries: list = None):
+    """
+    Update Private_Capital_Summary sheet with funding entries.
+    
+    Shows actual deals that feed into the daily calculations.
+    Each row = one funding entry (company, amount, category, etc.)
+    
+    Args:
+        result: The daily calculation result (for header info)
+        entries: List of funding entry dicts to write
+    """
+    import gspread
+    
+    try:
+        client = get_sheets_client()
+        if not client:
+            print("ERROR: Could not get Google Sheets client")
+            return False
+        
+        if not entries:
+            print("No entries to write to Summary")
+            return False
+        
+        # Headers for entries view
+        headers = [
+            'Date', 'Company', 'Amount_M', 'Category', 'Source', 
+            'Investors', 'Detail', 'URL'
+        ]
+        
+        success_count = 0
+        
+        for spreadsheet_name in [SPREADSHEET_NAME, SPREADSHEET_NAME_2]:
+            try:
+                spreadsheet = client.open(spreadsheet_name)
+                try:
+                    summary_sheet = spreadsheet.worksheet('Private_Capital_Summary')
+                except gspread.WorksheetNotFound:
+                    # Create the sheet if it doesn't exist
+                    summary_sheet = spreadsheet.add_worksheet(
+                        title='Private_Capital_Summary', rows=500, cols=10
+                    )
+                    summary_sheet.append_row(headers, value_input_option='USER_ENTERED')
+                    print(f"Created Private_Capital_Summary in {spreadsheet_name}")
+                
+                # Check if headers exist, add if not
+                first_row = summary_sheet.row_values(1)
+                if not first_row or first_row[0] != 'Date':
+                    summary_sheet.insert_row(headers, 1, value_input_option='USER_ENTERED')
+                
+                # Write each entry (upsert by date+company)
+                entries_written = 0
+                for entry in entries:
+                    row_data = [
+                        entry.get('date', ''),
+                        entry.get('company', entry.get('title', '')),
+                        entry.get('amount_m', entry.get('amount', 0)),
+                        entry.get('category', ''),
+                        entry.get('source', ''),
+                        entry.get('investors', ''),
+                        entry.get('detail', entry.get('summary', '')),
+                        entry.get('url', entry.get('link', ''))
+                    ]
+                    
+                    # Try to find existing row by date+company (columns A+B)
+                    date_val = str(row_data[0])
+                    company_val = str(row_data[1])
+                    
+                    found_row = None
+                    try:
+                        # Search for matching date first
+                        date_cells = summary_sheet.findall(date_val, in_column=1)
+                        for cell in date_cells:
+                            # Check if company matches in same row
+                            existing_company = summary_sheet.cell(cell.row, 2).value
+                            if existing_company == company_val:
+                                found_row = cell.row
+                                break
+                    except Exception:
+                        pass
+                    
+                    if found_row:
+                        # Update existing row
+                        for col_idx, value in enumerate(row_data, start=1):
+                            summary_sheet.update_cell(found_row, col_idx, value)
+                    else:
+                        # Append new row
+                        summary_sheet.append_row(row_data, value_input_option='USER_ENTERED')
+                    
+                    entries_written += 1
+                
+                print(f"✅ Wrote {entries_written} entries to Private_Capital_Summary in {spreadsheet_name}")
+                logger.info(f"✅ Wrote {entries_written} entries to Private_Capital_Summary in {spreadsheet_name}")
+                success_count += 1
+                
+            except gspread.WorksheetNotFound:
+                logger.debug(f"Private_Capital_Summary not found in {spreadsheet_name}")
+            except Exception as e:
+                print(f"⚠️  Error with {spreadsheet_name}: {e}")
+                logger.warning(f"Could not update Private_Capital_Summary in {spreadsheet_name}: {e}")
+        
+        return success_count > 0
+        
+    except Exception as e:
+        print(f"ERROR: {e}")
+        logger.error(f"Error updating Private_Capital_Summary: {e}")
+        return False
         return False
 
 
