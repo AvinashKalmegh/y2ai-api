@@ -44,21 +44,21 @@ GOOGLE_SHEETS_CREDS_FILE = 'credentials.json'
 # Spreadsheet -> partition mapping
 PARTITIONS = [
     {
-        "spreadsheet": "dm-history-2016-2019",
+        "spreadsheet": "copy-dm-history-2016-2019",
         "tab": "DM_2016_2019",
         "start": "2016-01-01",
         "end": "2019-12-31",
         "key": "2016_2019",
     },
     {
-        "spreadsheet": "dm-history-2020-2023",
+        "spreadsheet": "copy-dm-history-2020-2023",
         "tab": "DM_2020_2023",
         "start": "2020-01-01",
         "end": "2023-12-31",
         "key": "2020_2023",
     },
     {
-        "spreadsheet": "dm-history 2024-current",
+        "spreadsheet": "copy-dm-history 2024-current",
         "tab": "DM_2024_2026",
         "start": "2024-01-01",
         "end": "2026-12-31",
@@ -67,7 +67,7 @@ PARTITIONS = [
 ]
 
 # DM_Latest goes in main spreadsheet
-LATEST_SPREADSHEET = "dm-history 2024-current"
+LATEST_SPREADSHEET = "copy-dm-history 2024-current"
 TAB_LATEST = "DM_Latest"
 
 LATEST_HEADERS = [

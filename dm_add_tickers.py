@@ -1,68 +1,120 @@
 """
-Check and add tickers to scanner_universe.
-Usage: python add_tickers.py
+Add BE (Bloom Energy) and ALAB (Astera Labs) to scanner_universe.
+Then backfill their price history from Polygon.
+
+Usage: python dm_add_tickers.py
 """
 import os
 from dotenv import load_dotenv
 load_dotenv()
 from supabase import create_client
+import requests
+from datetime import datetime
 
 supabase = create_client(os.getenv('SUPABASE_URL'), os.getenv('SUPABASE_KEY'))
+POLYGON_API_KEY = os.getenv("POLYGON_API_KEY") or os.getenv("MASSIVE_API_KEY")
 
-TICKERS_TO_CHECK = {
-    "INFY": "Information Technology",
-    "WIT": "Information Technology",
-    "CTSH": "Information Technology",
-    "HDB": "Financials",
-    "IBM": "Information Technology",
-    "ACN": "Information Technology",
-    "IT": "Information Technology",
-    "SAP": "Information Technology",
+TICKERS_TO_ADD = {
+    "BE":   "Clean Energy",     # Bloom Energy — fuel cells, AI infrastructure power → TAN
+    "ALAB": "Semiconductors",   # Astera Labs — PCIe retimers for data centers → SMH
 }
 
-# Check existing
+# ── Step 1: Check existing universe ──
 result = supabase.table("scanner_universe").select("ticker,sector").execute()
 existing = {r['ticker']: r['sector'] for r in result.data}
 
+print(f"Current universe: {len(existing)} tickers\n")
 print("STATUS CHECK:")
-print("")
-already_in = []
-to_add = []
 
-for ticker, sector in TICKERS_TO_CHECK.items():
+to_add = []
+for ticker, sector in TICKERS_TO_ADD.items():
     if ticker in existing:
-        print(f"  {ticker}: ✓ Already exists (sector: {existing[ticker]})")
-        already_in.append(ticker)
+        print(f"  {ticker}: Already exists (sector: {existing[ticker]})")
     else:
-        print(f"  {ticker}: ❌ Missing - will add (sector: {sector})")
+        print(f"  {ticker}: Missing — will add (sector: {sector})")
         to_add.append(ticker)
 
-print("")
-
+# ── Step 2: Add to scanner_universe ──
 if not to_add:
-    print("All tickers already in scanner_universe. Nothing to add.")
+    print("\nAll tickers already in scanner_universe.")
 else:
-    print(f"Adding {len(to_add)} tickers: {', '.join(to_add)}")
-    
+    print(f"\nAdding {len(to_add)} tickers...")
     for ticker in to_add:
-        sector = TICKERS_TO_CHECK[ticker]
+        sector = TICKERS_TO_ADD[ticker]
         supabase.table("scanner_universe").upsert(
             {"ticker": ticker, "sector": sector},
             on_conflict="ticker"
         ).execute()
-        print(f"  ✓ Added {ticker} ({sector})")
-    
-    print("")
-    print("Done! New universe size:", len(existing) + len(to_add))
+        print(f"  Added {ticker} ({sector})")
+    print(f"New universe size: {len(existing) + len(to_add)}")
 
-# Also check price_history coverage
-print("")
-print("PRICE HISTORY CHECK:")
-for ticker in TICKERS_TO_CHECK:
-    result = supabase.table("price_history") \
+# ── Step 3: Backfill prices from Polygon ──
+if not POLYGON_API_KEY:
+    print("\nNo POLYGON_API_KEY found. Skipping price backfill.")
+    print("Set POLYGON_API_KEY in .env and run again, or use:")
+    print("  python Dm_historical_pipeline.py fetch")
+    exit()
+
+START_DATE = "2020-01-02"
+END_DATE = datetime.now().strftime("%Y-%m-%d")
+
+print(f"\nPRICE BACKFILL ({START_DATE} to {END_DATE}):")
+for ticker in TICKERS_TO_ADD:
+    # Check existing price data
+    count_result = supabase.table("price_history") \
         .select("date", count="exact") \
         .eq("ticker", ticker) \
         .execute()
-    count = result.count or 0
-    status = "✓ has data" if count > 1000 else ("⚠️ short" if count > 0 else "❌ no data")
-    print(f"  {ticker}: {count} rows {status}")
+    existing_count = count_result.count or 0
+
+    if existing_count > 1000:
+        print(f"  {ticker}: {existing_count} rows already — skipping")
+        continue
+
+    print(f"  {ticker}: {existing_count} rows — fetching from Polygon...")
+
+    url = f"https://api.polygon.io/v2/aggs/ticker/{ticker}/range/1/day/{START_DATE}/{END_DATE}"
+    params = {"adjusted": "true", "sort": "asc", "limit": 50000, "apiKey": POLYGON_API_KEY}
+
+    try:
+        resp = requests.get(url, params=params)
+        data = resp.json()
+
+        if data.get("resultsCount", 0) == 0:
+            print(f"    No data from Polygon for {ticker}")
+            continue
+
+        rows = []
+        for r in data.get("results", []):
+            try:
+                date = datetime.fromtimestamp(r["t"] / 1000).strftime("%Y-%m-%d")
+                rows.append({
+                    "date": date,
+                    "ticker": ticker,
+                    "open": float(r["o"]),
+                    "high": float(r["h"]),
+                    "low": float(r["l"]),
+                    "close": float(r["c"]),
+                    "volume": int(r["v"])
+                })
+            except (ValueError, KeyError):
+                continue
+
+        # Batch upsert
+        uploaded = 0
+        BATCH = 500
+        for i in range(0, len(rows), BATCH):
+            batch = rows[i:i + BATCH]
+            supabase.table("price_history").upsert(
+                batch, on_conflict="date,ticker"
+            ).execute()
+            uploaded += len(batch)
+
+        print(f"    {uploaded} rows uploaded ({rows[0]['date']} to {rows[-1]['date']})")
+
+    except Exception as e:
+        print(f"    ERROR: {e}")
+
+print("\nDone! Now run:")
+print("  python Dm_historical_pipeline.py calculate --refresh-cache")
+print("  python Dm_historical_pipeline.py summary")

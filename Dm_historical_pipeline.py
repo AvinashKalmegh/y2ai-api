@@ -1,10 +1,15 @@
 """
 DM HISTORICAL PIPELINE
 =======================
-Calculates Dark Matter scores for the full Scanner Universe (533 tickers)
+Calculates Dark Matter scores for the full Scanner Universe (553 tickers)
 using the FlowOS 3-component formula and stores in Supabase.
 
 DM = (RelStr vs ETF * 0.50) + (RelStr vs SPY * 0.30) + (VolumeZ * 0.20)
+
+Data Source: Polygon.io (primary), Twelve Data (legacy fallback)
+  - Daily: Polygon Grouped Daily = 5 API calls for all tickers (~30 sec)
+  - Backfill: Polygon per-ticker aggs = 0.2s delay (~2 min for 553 tickers)
+  - Legacy: Twelve Data = 7.5s delay per ticker (~70 min for 553 tickers)
 
 Usage:
     python dm_historical_pipeline.py fetch        # Fetch prices (resumable)
@@ -17,7 +22,8 @@ Requirements:
     pip install supabase pandas requests python-dotenv
 
 Environment Variables (.env):
-    TWELVEDATA_API_KEY=your_key
+    POLYGON_API_KEY=your_key       # Primary (Starter tier, unlimited calls)
+    TWELVE_API_KEY=your_key        # Legacy fallback (free tier, 8 calls/min)
     SUPABASE_URL=https://jfdihmlxzemvdytrdcpw.supabase.co
     SUPABASE_KEY=your_key
 """
@@ -40,11 +46,15 @@ load_dotenv()
 # CONFIGURATION
 # ============================================================
 
-TWELVEDATA_API_KEY = os.getenv("TWELVE_API_KEY")
+POLYGON_API_KEY = os.getenv("POLYGON_API_KEY") or os.getenv("MASSIVE_API_KEY")
+TWELVEDATA_API_KEY = os.getenv("TWELVE_API_KEY")  # Legacy fallback
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-# Twelve Data rate limits (free tier)
+# Polygon rate limits (Starter tier = unlimited, add courtesy delay)
+POLYGON_DELAY = 0.2  # 200ms courtesy delay between calls
+
+# Twelve Data rate limits (legacy fallback)
 CALLS_PER_MINUTE = 8
 DELAY_BETWEEN_CALLS = 60 / CALLS_PER_MINUTE  # 7.5 seconds
 DAILY_CALL_LIMIT = 800
@@ -429,6 +439,97 @@ def upload_prices_to_supabase(rows):
     return uploaded
 
 
+# ============================================================
+# POLYGON PRICE FETCHERS
+# ============================================================
+
+def fetch_grouped_daily_polygon(date_str, ticker_set=None):
+    """
+    Fetch ALL US stock OHLCV for a single date using Polygon Grouped Daily.
+    Returns rows filtered to ticker_set if provided.
+    One API call = every ticker for that date.
+    """
+    url = f"https://api.polygon.io/v2/aggs/grouped/locale/us/market/stocks/{date_str}"
+    params = {"adjusted": "true", "apiKey": POLYGON_API_KEY}
+    
+    response = requests.get(url, params=params)
+    data = response.json()
+    
+    if data.get("status") == "ERROR" or data.get("resultsCount", 0) == 0:
+        logger.warning(f"Polygon grouped daily: no data for {date_str}")
+        return []
+    
+    rows = []
+    for r in data.get("results", []):
+        ticker = r.get("T", "")
+        if ticker_set and ticker not in ticker_set:
+            continue
+        try:
+            rows.append({
+                "date": date_str,
+                "ticker": ticker,
+                "open": float(r["o"]),
+                "high": float(r["h"]),
+                "low": float(r["l"]),
+                "close": float(r["c"]),
+                "volume": int(r["v"])
+            })
+        except (ValueError, KeyError):
+            continue
+    
+    return rows
+
+
+def fetch_ticker_prices_polygon(ticker, start_date, end_date):
+    """
+    Fetch historical daily bars for a single ticker from Polygon.
+    Used for backfill. Returns up to 50,000 rows per call.
+    """
+    url = f"https://api.polygon.io/v2/aggs/ticker/{ticker}/range/1/day/{start_date}/{end_date}"
+    params = {
+        "adjusted": "true",
+        "sort": "asc",
+        "limit": 50000,
+        "apiKey": POLYGON_API_KEY
+    }
+    
+    response = requests.get(url, params=params)
+    data = response.json()
+    
+    if data.get("status") == "ERROR" or data.get("resultsCount", 0) == 0:
+        raise Exception(f"Polygon: no data for {ticker} ({start_date} to {end_date})")
+    
+    rows = []
+    for r in data.get("results", []):
+        try:
+            # Polygon returns timestamp in milliseconds
+            date = datetime.fromtimestamp(r["t"] / 1000).strftime("%Y-%m-%d")
+            rows.append({
+                "date": date,
+                "ticker": ticker,
+                "open": float(r["o"]),
+                "high": float(r["h"]),
+                "low": float(r["l"]),
+                "close": float(r["c"]),
+                "volume": int(r["v"])
+            })
+        except (ValueError, KeyError):
+            continue
+    
+    return rows
+
+
+def get_trading_days(n_days=7):
+    """Return last n calendar days as list of date strings, skipping weekends."""
+    dates = []
+    d = datetime.now()
+    while len(dates) < n_days:
+        d -= timedelta(days=1)
+        if d.weekday() < 5:  # Mon-Fri
+            dates.append(d.strftime("%Y-%m-%d"))
+    return sorted(dates)
+
+
 def save_checkpoint(ticker, status, rows_fetched=0, error_msg=None):
     """Save fetch progress to Supabase checkpoint table."""
     supabase = get_supabase()
@@ -514,7 +615,11 @@ def run_price_fetch(universe, skip_existing=True):
     logger.info(f"Already completed: {len(completed)}")
     logger.info(f"Already in price_history: {len(existing)}")
     logger.info(f"Pending: {len(pending)}")
-    logger.info(f"Estimated time: ~{len(pending) * DELAY_BETWEEN_CALLS / 60:.0f} minutes")
+    use_polygon = bool(POLYGON_API_KEY)
+    delay = POLYGON_DELAY if use_polygon else DELAY_BETWEEN_CALLS
+    source = "Polygon" if use_polygon else "Twelve Data"
+    logger.info(f"Data source: {source}")
+    logger.info(f"Estimated time: ~{len(pending) * delay / 60:.0f} minutes")
     logger.info(f"Date range: {START_DATE} to {END_DATE}")
     logger.info("=" * 60)
     
@@ -530,7 +635,10 @@ def run_price_fetch(universe, skip_existing=True):
         logger.info(f"[{i}/{len(pending)}] Fetching {ticker}...")
         
         try:
-            rows = fetch_ticker_prices(ticker)
+            if use_polygon:
+                rows = fetch_ticker_prices_polygon(ticker, START_DATE, END_DATE)
+            else:
+                rows = fetch_ticker_prices(ticker)
             logger.info(f"  Got {len(rows)} rows")
             
             uploaded = upload_prices_to_supabase(rows)
@@ -547,10 +655,9 @@ def run_price_fetch(universe, skip_existing=True):
         
         # Rate limiting
         if i < len(pending):
-            time.sleep(DELAY_BETWEEN_CALLS)
+            time.sleep(delay)
         
-        # Daily limit check
-        if api_calls >= DAILY_CALL_LIMIT - 10:
+        if not use_polygon and api_calls >= DAILY_CALL_LIMIT - 10:
             logger.warning(f"Approaching daily API limit ({api_calls} calls). Stopping.")
             logger.warning(f"Run again tomorrow to continue from checkpoint.")
             break
@@ -797,8 +904,8 @@ def calculate_dm_for_ticker(ticker_df, spy_df, etf_df, etf_symbol):
     )
     merged['dm_raw'] = merged['dm_raw'].clip(0, 100)
     
-    # DM Smoothed - NO EMA, matches GS which stores raw DM directly
-    merged['dm_smoothed'] = merged['dm_raw'].copy()
+    # DM Smoothed - Apply 5-period EMA to raw DM
+    merged['dm_smoothed'] = merged['dm_raw'].ewm(span=EMA_PERIOD, adjust=False).mean()
     merged['dm_smoothed'] = merged['dm_smoothed'].clip(0, 100)
     
     # ETF's own DM (simplified: use its rel_str vs SPY + volume)
@@ -837,7 +944,7 @@ def calculate_dm_for_ticker(ticker_df, spy_df, etf_df, etf_symbol):
             etf_merged['etf_rel_str_spy'] * 0.70 +
             etf_merged['etf_vol_z'] * 0.30
         ).clip(0, 100)
-        etf_merged['etf_dm'] = etf_merged['etf_dm_raw'].clip(0, 100)
+        etf_merged['etf_dm'] = etf_merged['etf_dm_raw'].ewm(span=EMA_PERIOD, adjust=False).mean().clip(0, 100)
     else:
         etf_merged['etf_dm'] = 50.0
     
@@ -1529,41 +1636,60 @@ def run_daily_summary():
 
 def run_daily_update(universe):
     """
-    Optimized daily update pipeline.
-    Phase 1: Fetch last 5 days of prices (~69 min, rate-limited)
-    Phase 2: Calculate DM for NEW dates only (~30 sec vs 15 min)
-    Phase 3: Update dm_latest with batch queries (~5 sec vs 10 min)
+    Optimized daily update pipeline using Polygon Grouped Daily.
+    Phase 1: Fetch last 5 trading days of prices (~30 sec, 5 API calls)
+    Phase 2: Calculate DM for NEW dates only (~30 sec)
+    Phase 3: Update dm_latest with batch queries (~5 sec)
+    
+    Total: ~1-2 minutes vs 70+ minutes with Twelve Data.
     """
     logger.info("=" * 60)
-    logger.info("DAILY UPDATE (OPTIMIZED)")
+    logger.info("DAILY UPDATE (POLYGON)")
     logger.info("=" * 60)
     
-    today = datetime.now().strftime("%Y-%m-%d")
-    yesterday = (datetime.now() - timedelta(days=5)).strftime("%Y-%m-%d")
+    # Build ticker set for filtering
+    all_tickers = set([u['ticker'] for u in universe] + ALL_ETFS)
+    logger.info(f"Universe: {len(all_tickers)} tickers")
     
-    # Phase 1: Fetch fresh prices
-    all_tickers = list(set([u['ticker'] for u in universe] + ALL_ETFS))
+    # Phase 1: Fetch last 5 trading days using Polygon Grouped Daily
+    trading_days = get_trading_days(7)  # 7 calendar days to cover ~5 trading days
+    logger.info(f"Phase 1: Fetching grouped daily for {len(trading_days)} dates")
     
-    logger.info(f"Phase 1: Fetching prices for {len(all_tickers)} tickers ({yesterday} to {today})")
+    total_rows = 0
+    missing_tickers_by_date = {}
     
-    api_calls = 0
-    for i, ticker in enumerate(all_tickers, 1):
+    for date_str in trading_days:
         try:
-            rows = fetch_ticker_prices(ticker, start_date=yesterday, end_date=today)
+            rows = fetch_grouped_daily_polygon(date_str, ticker_set=all_tickers)
             if rows:
-                upload_prices_to_supabase(rows)
-            api_calls += 1
+                uploaded = upload_prices_to_supabase(rows)
+                total_rows += uploaded
+                
+                # Track which tickers we got data for
+                fetched_tickers = set(r['ticker'] for r in rows)
+                missing = all_tickers - fetched_tickers
+                if missing:
+                    missing_tickers_by_date[date_str] = missing
+                
+                logger.info(f"  {date_str}: {len(rows)} tickers fetched, {uploaded} rows uploaded")
+            else:
+                logger.warning(f"  {date_str}: no data (weekend/holiday?)")
+            
+            time.sleep(POLYGON_DELAY)
+            
         except Exception as e:
-            logger.warning(f"  {ticker}: {e}")
-        
-        if i < len(all_tickers):
-            time.sleep(DELAY_BETWEEN_CALLS)
-        
-        if api_calls >= DAILY_CALL_LIMIT - 10:
-            logger.warning("Approaching daily API limit. Stopping price fetch.")
-            break
+            logger.error(f"  {date_str}: {e}")
     
-    logger.info(f"Phase 1 complete: {api_calls} API calls")
+    # Report any missing tickers
+    if missing_tickers_by_date:
+        latest_date = max(missing_tickers_by_date.keys())
+        missing = missing_tickers_by_date[latest_date]
+        if len(missing) <= 20:
+            logger.warning(f"Missing from {latest_date}: {', '.join(sorted(missing))}")
+        else:
+            logger.warning(f"Missing from {latest_date}: {len(missing)} tickers")
+    
+    logger.info(f"Phase 1 complete: {total_rows} total rows, {len(trading_days)} API calls")
     
     # Invalidate local cache so Phase 2 picks up new prices
     cache_csv = "price_cache.csv"
@@ -1605,9 +1731,15 @@ def main():
         logger.error("SUPABASE_URL and SUPABASE_KEY must be set in .env")
         sys.exit(1)
     
-    if args.command in ("fetch", "daily", "all") and not TWELVEDATA_API_KEY:
-        logger.error("TWELVEDATA_API_KEY must be set in .env for price fetching")
+    if args.command in ("fetch", "daily", "all") and not POLYGON_API_KEY and not TWELVEDATA_API_KEY:
+        logger.error("POLYGON_API_KEY (preferred) or TWELVE_API_KEY must be set in .env for price fetching")
         sys.exit(1)
+    
+    if args.command in ("fetch", "daily", "all"):
+        if POLYGON_API_KEY:
+            logger.info("Using Polygon API for price data")
+        else:
+            logger.info("Using Twelve Data API (legacy fallback)")
     
     # Populate doesn't need universe loaded (it creates the universe)
     if args.command == "populate":

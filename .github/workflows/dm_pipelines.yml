@@ -9,14 +9,14 @@ on:
 jobs:
   run-data-pipelines:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 30
 
     env:
       TZ: America/New_York
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
       GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
-      TWELVE_API_KEY: ${{ secrets.TWELVE_API_KEY }}
+      POLYGON_API_KEY: ${{ secrets.POLYGON_API_KEY }}
       FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
       POLYGON_API_KEY: ${{ secrets.POLYGON_API_KEY }}
       FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
@@ -41,14 +41,14 @@ jobs:
           echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > credentials.json
 
       # ════════════════════════════════════════════════════════
-      # DM PIPELINE (longest — ~70 min for price fetch + calc)
+      # DM PIPELINE (~2 min with Polygon grouped daily + calc)
       # ════════════════════════════════════════════════════════
 
       - name: "DM Pipeline 1/2: Fetch prices + Calculate DM"
         run: |
           export PYTHONPATH=$PYTHONPATH:.
           echo "========================================"
-          echo "DM HISTORICAL — Daily Update (~70 min)"
+          echo "DM HISTORICAL — Daily Update (Polygon, ~2 min)"
           echo "Started at $(date)"
           echo "========================================"
           python Dm_historical_pipeline.py daily
@@ -201,7 +201,7 @@ jobs:
           echo "========================================"
           echo ""
           echo "Pipelines executed:"
-          echo "  DM Historical  — Twelve Data (price fetch + DM calc + Sheets push)"
+          echo "  DM Historical  — Polygon (price fetch + DM calc + Sheets push)"
           echo "  Macro History  — FRED (VIX, Yields, Credit Spreads)"
           echo "  Options P/C    — Polygon (Put/Call ratios)"
           echo "  Short Volume   — FINRA (daily short sale volume)"
