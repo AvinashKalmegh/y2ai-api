@@ -1,4 +1,4 @@
-name: Daily Data Pipelines (Post-Market)
+name: DM Daily Data Pipelines (Post-Market)
 
 on:
   schedule:
