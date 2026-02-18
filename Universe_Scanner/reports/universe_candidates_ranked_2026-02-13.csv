@@ -1,0 +1,5 @@
+rank,ticker,crossings,hits,hit_rate,avg_return_30d,avg_return_60d,avg_return_90d,in_preferred,hr_pre-covi,hr_covid+re,hr_ai_cycle
+1,BBIO,10,10,1.0,0.0927,0.1727,0.3347,False,,,1.0
+2,VRDN,10,10,1.0,0.1365,0.2856,0.4395,False,,,1.0
+3,ZBIO,10,10,1.0,0.216,0.4908,0.7844,False,,,1.0
+4,BBD,11,10,0.9091,0.1057,0.1737,0.216,False,,,0.9091
