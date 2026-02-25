@@ -31,8 +31,11 @@ HIT_RETURN_THRESHOLD = 0.10    # 10% return = hit
 OUTCOME_WINDOW_DAYS = 90       # Calendar days for outcome evaluation
 MIN_CROSSINGS_CANDIDATE = 10   # Minimum evaluated crossings for candidate status
 MIN_CROSSINGS_DEGRADATION = 5  # Minimum for degradation flag
+MIN_CROSSINGS_RANKED = 3       # Minimum for full ranked list + CSV
 CANDIDATE_HIT_RATE = 0.50      # 50% hit rate for new candidate
 DEGRADATION_HIT_RATE = 0.40    # Below 40% flags degradation
+MIN_MARKET_CAP = 2_000_000_000 # $2B minimum for candidates
+MIN_PRICE = 10                 # Fallback if no market cap data
 
 # Era definitions for consistency check
 ERAS = {
@@ -346,27 +349,67 @@ def _flush_updates(supabase, updates):
 
 
 # ============================================================
-# REPORT: Generate weekly report with era analysis + CSV
+# REPORT: Enhanced 10-section weekly report
 # ============================================================
 
-def _load_all_evaluated(supabase):
-    """Load all evaluated crossings, paginating past 1000 limit."""
+def _paginated_fetch(supabase, table, select, filters=None, order=None, page_size=1000):
+    """Generic paginated fetch past 1000 row limit."""
     all_rows = []
-    page_size = 1000
     offset = 0
     while True:
-        batch = supabase.table("universe_crossings") \
-            .select("ticker,cross_date,entry_price,max_return_30d,max_return_60d,max_return_90d,is_hit") \
-            .eq("evaluated", True) \
-            .range(offset, offset + page_size - 1) \
-            .execute()
-        if not batch.data:
+        query = supabase.table(table).select(select)
+        if filters:
+            for method, args in filters:
+                query = getattr(query, method)(*args)
+        if order:
+            query = query.order(order)
+        query = query.range(offset, offset + page_size - 1)
+        result = query.execute()
+        if not result.data:
             break
-        all_rows.extend(batch.data)
-        if len(batch.data) < page_size:
+        all_rows.extend(result.data)
+        if len(result.data) < page_size:
             break
         offset += page_size
     return all_rows
+
+
+def _load_all_crossings(supabase):
+    """Load ALL crossings (evaluated and unevaluated)."""
+    return _paginated_fetch(
+        supabase, "universe_crossings",
+        "ticker,cross_date,entry_dm,entry_price,max_return_30d,max_return_60d,max_return_90d,is_hit,evaluated"
+    )
+
+
+def _load_all_evaluated(supabase):
+    """Load only evaluated crossings."""
+    return _paginated_fetch(
+        supabase, "universe_crossings",
+        "ticker,cross_date,entry_price,max_return_30d,max_return_60d,max_return_90d,is_hit",
+        filters=[("eq", ("evaluated", True))]
+    )
+
+
+def _load_ticker_metadata(supabase):
+    """Load ticker metadata for market cap and sector."""
+    tickers_raw = _paginated_fetch(
+        supabase, "universe_tickers",
+        "ticker,name,market_cap,avg_dollar_volume,sic_description"
+    )
+    meta = {t["ticker"]: t for t in tickers_raw}
+    
+    # Load curated sectors
+    scanner = supabase.table("scanner_universe").select("ticker,sector").execute()
+    if scanner.data:
+        for r in scanner.data:
+            ticker = r.get("ticker", "")
+            if ticker and ticker in meta:
+                meta[ticker]["sector"] = r.get("sector", "")
+            elif ticker:
+                meta[ticker] = {"ticker": ticker, "sector": r.get("sector", ""),
+                                "market_cap": 0, "name": ""}
+    return meta
 
 
 def _classify_era(cross_date_str):
@@ -409,12 +452,24 @@ def _build_ticker_stats(all_evaluated):
     return dict(stats)
 
 
+def _passes_liquidity(ticker, meta):
+    """Check if ticker passes liquidity filter using metadata."""
+    m = meta.get(ticker, {})
+    mcap = m.get("market_cap", 0) or 0
+    if mcap >= MIN_MARKET_CAP:
+        return True
+    # No market cap data — skip entirely (don't use price proxy to avoid noise)
+    if mcap == 0:
+        return False
+    return False
+
+
 def generate_report():
-    """Generate enhanced weekly report: summary, candidates, degradation, era check, full CSV."""
+    """Generate 10-section weekly report with crossing distribution, preferred status, era coverage."""
     report_date = datetime.now().strftime('%Y-%m-%d')
     
     logger.info("=" * 60)
-    logger.info("UNIVERSE SCANNER WEEKLY REPORT")
+    logger.info("UNIVERSE SCANNER WEEKLY REPORT (v3)")
     logger.info(f"Date: {report_date}")
     logger.info("=" * 60)
     
@@ -425,22 +480,27 @@ def generate_report():
     # COLLECT ALL DATA
     # ============================================================
     
-    # --- All evaluated crossings ---
+    logger.info("  Loading all crossings...")
+    all_crossings = _load_all_crossings(supabase)
+    logger.info(f"  {len(all_crossings)} total crossings loaded")
+    
     logger.info("  Loading evaluated crossings...")
     all_evaluated = _load_all_evaluated(supabase)
     ticker_stats = _build_ticker_stats(all_evaluated) if all_evaluated else {}
+    logger.info(f"  {len(all_evaluated)} evaluated across {len(ticker_stats)} tickers")
     
-    total_eval_crossings = len(all_evaluated)
+    logger.info("  Loading ticker metadata...")
+    ticker_meta = _load_ticker_metadata(supabase)
+    logger.info(f"  {len(ticker_meta)} tickers with metadata")
+    
+    total_eval = len(all_evaluated)
     total_hits = sum(1 for r in all_evaluated if r["is_hit"])
-    overall_hit_rate = total_hits / max(total_eval_crossings, 1)
+    overall_hit_rate = total_hits / max(total_eval, 1)
     
-    logger.info(f"  {total_eval_crossings} evaluated crossings across {len(ticker_stats)} tickers")
-    
-    # --- Latest DM snapshot ---
+    # DM snapshot
     latest = supabase.table("universe_dm_daily").select("date").order("date", desc=True).limit(1).execute()
     latest_date = latest.data[0]["date"] if latest.data else report_date
     
-    # Health counts
     total_count = supabase.table("universe_dm_daily") \
         .select("ticker", count="exact").eq("date", latest_date).execute().count or 0
     above_70_count = supabase.table("universe_dm_daily") \
@@ -450,28 +510,72 @@ def generate_report():
     below_30_count = supabase.table("universe_dm_daily") \
         .select("ticker", count="exact").eq("date", latest_date).lt("dm_smoothed", 30).execute().count or 0
     
-    total_crossings_count = supabase.table("universe_crossings") \
-        .select("id", count="exact").execute().count or 0
-    evaluated_count = supabase.table("universe_crossings") \
-        .select("id", count="exact").eq("evaluated", True).execute().count or 0
+    total_crossings_count = len(all_crossings)
+    evaluated_count = len(all_evaluated)
     
-    # Approaching threshold
     approaching = supabase.table("universe_dm_daily") \
         .select("ticker,dm_smoothed,close") \
-        .eq("date", latest_date) \
-        .gte("dm_smoothed", 60).lt("dm_smoothed", 70) \
-        .order("dm_smoothed", desc=True) \
-        .execute()
+        .eq("date", latest_date).gte("dm_smoothed", 60).lt("dm_smoothed", 70) \
+        .order("dm_smoothed", desc=True).execute()
     approaching_count = len(approaching.data) if approaching.data else 0
     
-    # Top DM non-preferred
     top_dm = supabase.table("universe_dm_daily") \
         .select("ticker,dm_smoothed,close") \
-        .eq("date", latest_date) \
-        .gte("dm_smoothed", 70) \
-        .order("dm_smoothed", desc=True) \
-        .limit(100) \
-        .execute()
+        .eq("date", latest_date).gte("dm_smoothed", 70) \
+        .order("dm_smoothed", desc=True).limit(100).execute()
+    
+    # ============================================================
+    # BUILD CROSSING DISTRIBUTION
+    # ============================================================
+    
+    from collections import defaultdict, Counter
+    
+    # Count evaluated crossings per ticker
+    eval_counts = Counter(r["ticker"] for r in all_evaluated)
+    all_counts = Counter(r["ticker"] for r in all_crossings)
+    
+    dist_10plus = sum(1 for t, c in eval_counts.items() if c >= 10)
+    dist_5plus = sum(1 for t, c in eval_counts.items() if c >= 5)
+    dist_3plus = sum(1 for t, c in eval_counts.items() if c >= 3)
+    dist_1plus = sum(1 for t, c in eval_counts.items() if c >= 1)
+    dist_0 = len(set(all_counts.keys()) - set(eval_counts.keys()))
+    
+    top_by_count = eval_counts.most_common(20)
+    
+    # ============================================================
+    # BUILD PREFERRED 28 STATUS
+    # ============================================================
+    
+    # Count ALL crossings (not just evaluated) for each preferred ticker
+    pref_all_counts = {t: 0 for t in PREFERRED_28}
+    for c in all_crossings:
+        if c["ticker"] in pref_all_counts:
+            pref_all_counts[c["ticker"]] += 1
+    
+    pref_status = []
+    for ticker in sorted(PREFERRED_28):
+        total_all = pref_all_counts.get(ticker, 0)
+        s = ticker_stats.get(ticker, {"total": 0, "hits": 0, "returns_90d": []})
+        evaluated = s["total"]
+        hits = s["hits"]
+        hit_rate = hits / evaluated if evaluated > 0 else None
+        avg_90d = sum(s["returns_90d"]) / len(s["returns_90d"]) if s["returns_90d"] else None
+        
+        if evaluated == 0:
+            status = "NO DATA"
+        elif evaluated < 5:
+            status = "LOW DATA"
+        elif hit_rate >= 0.60:
+            status = "STRONG"
+        elif hit_rate >= 0.40:
+            status = "OK"
+        else:
+            status = "DEGRADED"
+        
+        pref_status.append({
+            "ticker": ticker, "total_crossings": total_all, "evaluated": evaluated,
+            "hits": hits, "hit_rate": hit_rate, "avg_90d": avg_90d, "status": status
+        })
     
     # ============================================================
     # BUILD CANDIDATES, DEGRADATION, ERA ANALYSIS
@@ -484,12 +588,11 @@ def generate_report():
         e = era_dict.get(era_name, {"total": 0, "hits": 0})
         return e["hits"] / e["total"] if e["total"] > 0 else None
     
+    era_names = list(ERAS.keys())
     candidates = []
     degraded = []
     full_ranked = []
     inconsistent = []
-    
-    era_names = list(ERAS.keys())
     
     for ticker, s in ticker_stats.items():
         if s["total"] < 1:
@@ -504,18 +607,23 @@ def generate_report():
         for era_name in era_names:
             era_rates[era_name] = _era_hit_rate(s["eras"], era_name)
         
+        m = ticker_meta.get(ticker, {})
+        mcap = m.get("market_cap", 0) or 0
+        
         row = {
             "ticker": ticker, "crossings": s["total"], "hits": s["hits"],
             "hit_rate": hit_rate, "avg_30d": avg_30d, "avg_60d": avg_60d, "avg_90d": avg_90d,
             "era_rates": era_rates, "in_preferred": ticker in PREFERRED_28,
+            "market_cap": mcap, "sector": m.get("sector", m.get("sic_description", "")),
         }
         
-        # Full ranked (10+ crossings)
-        if s["total"] >= MIN_CROSSINGS_CANDIDATE:
+        # Full ranked: 3+ crossings
+        if s["total"] >= MIN_CROSSINGS_RANKED:
             full_ranked.append(row)
         
-        # Candidates: not preferred, 50%+ hit rate, 10+ crossings
-        if ticker not in PREFERRED_28 and s["total"] >= MIN_CROSSINGS_CANDIDATE and hit_rate >= CANDIDATE_HIT_RATE:
+        # Candidates: not preferred, 50%+ hit rate, 10+ crossings, passes liquidity
+        if (ticker not in PREFERRED_28 and s["total"] >= MIN_CROSSINGS_CANDIDATE
+                and hit_rate >= CANDIDATE_HIT_RATE and _passes_liquidity(ticker, ticker_meta)):
             candidates.append(row)
         
         # Degradation: preferred, below 40%, 5+ crossings
@@ -524,10 +632,9 @@ def generate_report():
         
         # Consistency: era hit rates vary by more than 20 points
         valid_era_rates = [r for r in era_rates.values() if r is not None]
-        if len(valid_era_rates) >= 2:
+        if len(valid_era_rates) >= 2 and s["total"] >= MIN_CROSSINGS_RANKED:
             if max(valid_era_rates) - min(valid_era_rates) > 0.20:
-                if s["total"] >= MIN_CROSSINGS_CANDIDATE:
-                    inconsistent.append(row)
+                inconsistent.append(row)
     
     candidates.sort(key=lambda x: -x["hit_rate"])
     degraded.sort(key=lambda x: x["hit_rate"])
@@ -535,22 +642,45 @@ def generate_report():
     inconsistent.sort(key=lambda x: -x["hit_rate"])
     
     # ============================================================
-    # BUILD MARKDOWN
+    # ERA COVERAGE
+    # ============================================================
+    
+    # Check date range per ticker in universe_dm_daily
+    logger.info("  Checking era coverage...")
+    date_range = supabase.table("universe_dm_daily") \
+        .select("date").order("date").limit(1).execute()
+    earliest_date = date_range.data[0]["date"] if date_range.data else "unknown"
+    
+    era_coverage = {}
+    for era_name, (start, end) in ERAS.items():
+        count = supabase.table("universe_dm_daily") \
+            .select("ticker", count="exact") \
+            .gte("date", start).lte("date", end).execute().count or 0
+        # Rough unique ticker count: total rows / ~250 trading days per year per era span
+        era_years = (datetime.strptime(min(end, latest_date), "%Y-%m-%d") -
+                     datetime.strptime(max(start, earliest_date), "%Y-%m-%d")).days / 365
+        era_years = max(era_years, 0.1)
+        est_tickers = int(count / (era_years * 252)) if count > 0 else 0
+        era_coverage[era_name] = {"rows": count, "est_tickers": est_tickers}
+    
+    # ============================================================
+    # BUILD MARKDOWN — 10 SECTIONS
     # ============================================================
     
     md.append("# FlowOS Universe Scanner Report")
     md.append(f"**Date:** {latest_date}  ")
     md.append(f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M')}  ")
+    md.append(f"**Data range:** {earliest_date} to {latest_date}  ")
     md.append("")
     
-    # --- Summary Table ---
-    md.append("## Summary")
+    # ---- Section 1: Summary ----
+    md.append("## 1. Summary")
     md.append("")
     md.append("| Metric | Count | % of Universe |")
     md.append("|--------|------:|:-------------:|")
     md.append(f"| Total tickers scanned | {total_count:,} | 100% |")
     md.append(f"| DM >= 70 (active signals) | {above_70_count:,} | {above_70_count/max(total_count,1)*100:.1f}% |")
-    md.append(f"| DM 50-69 (warming) | {above_50_count - above_70_count:,} | {(above_50_count - above_70_count)/max(total_count,1)*100:.1f}% |")
+    md.append(f"| DM 50-69 (warming) | {above_50_count - above_70_count:,} | {(above_50_count-above_70_count)/max(total_count,1)*100:.1f}% |")
     md.append(f"| DM 60-69 (approaching) | {approaching_count:,} | {approaching_count/max(total_count,1)*100:.1f}% |")
     md.append(f"| DM < 30 (cold) | {below_30_count:,} | {below_30_count/max(total_count,1)*100:.1f}% |")
     md.append("")
@@ -558,36 +688,84 @@ def generate_report():
     md.append("|-----------|------:|")
     md.append(f"| Total recorded | {total_crossings_count:,} |")
     md.append(f"| Evaluated | {evaluated_count:,} |")
-    md.append(f"| Pending (insufficient forward data) | {total_crossings_count - evaluated_count:,} |")
-    if total_eval_crossings > 0:
-        md.append(f"| Overall hit rate (10%+ in 90d) | {overall_hit_rate*100:.1f}% |")
+    md.append(f"| Pending | {total_crossings_count - evaluated_count:,} |")
+    md.append(f"| Overall hit rate | {overall_hit_rate*100:.1f}% |")
     md.append("")
     
-    # --- Section 1: New Candidates ---
-    md.append("## 1. New Candidates")
-    md.append(f"Tickers NOT in Preferred 28 with hit rate >= {CANDIDATE_HIT_RATE*100:.0f}% and {MIN_CROSSINGS_CANDIDATE}+ evaluated crossings.")
+    # ---- Section 2: Crossing Distribution ----
+    md.append("## 2. Crossing Distribution")
+    md.append("")
+    md.append("| Evaluated Crossings | Tickers |")
+    md.append("|--------------------:|--------:|")
+    md.append(f"| 10+ crossings | {dist_10plus} |")
+    md.append(f"| 5+ crossings | {dist_5plus} |")
+    md.append(f"| 3+ crossings | {dist_3plus} |")
+    md.append(f"| 1+ crossings | {dist_1plus} |")
+    md.append(f"| 0 crossings (unevaluated only) | {dist_0} |")
+    md.append("")
+    md.append("**Top 20 tickers by evaluated crossing count:**")
+    md.append("")
+    md.append("| Ticker | Eval Crossings | Hits | Hit Rate | Mkt Cap |")
+    md.append("|--------|---------------:|-----:|---------:|--------:|")
+    for ticker, count in top_by_count:
+        s = ticker_stats.get(ticker, {"hits": 0})
+        hr = s["hits"] / count if count > 0 else 0
+        m = ticker_meta.get(ticker, {})
+        mcap = m.get("market_cap", 0) or 0
+        mcap_str = f"${mcap/1e9:.1f}B" if mcap >= 1e9 else f"${mcap/1e6:.0f}M" if mcap >= 1e6 else "N/A"
+        pref = " (P28)" if ticker in PREFERRED_28 else ""
+        md.append(f"| {ticker}{pref} | {count} | {s['hits']} | {hr*100:.0f}% | {mcap_str} |")
+    md.append("")
+    
+    # ---- Section 3: Preferred 28 Status ----
+    md.append("## 3. Preferred 28 Status")
+    md.append("")
+    md.append("| Ticker | Total | Evaluated | Hits | Hit Rate | Avg 90d | Status |")
+    md.append("|--------|------:|----------:|-----:|---------:|--------:|:------:|")
+    # Sort: STRONG first, then OK, DEGRADED, LOW DATA, NO DATA
+    status_order = {"STRONG": 0, "OK": 1, "DEGRADED": 2, "LOW DATA": 3, "NO DATA": 4}
+    pref_status.sort(key=lambda x: (status_order.get(x["status"], 5), -(x["hit_rate"] or 0)))
+    for p in pref_status:
+        hr_str = f"{p['hit_rate']*100:.0f}%" if p["hit_rate"] is not None else "--"
+        avg_str = f"{p['avg_90d']*100:.1f}%" if p["avg_90d"] is not None else "--"
+        md.append(f"| {p['ticker']} | {p['total_crossings']} | {p['evaluated']} | "
+                 f"{p['hits']} | {hr_str} | {avg_str} | {p['status']} |")
+    
+    # Summary counts
+    status_counts = Counter(p["status"] for p in pref_status)
+    md.append("")
+    md.append(f"STRONG: {status_counts.get('STRONG', 0)} | "
+              f"OK: {status_counts.get('OK', 0)} | "
+              f"DEGRADED: {status_counts.get('DEGRADED', 0)} | "
+              f"LOW DATA: {status_counts.get('LOW DATA', 0)} | "
+              f"NO DATA: {status_counts.get('NO DATA', 0)}")
+    md.append("")
+    
+    # ---- Section 4: New Candidates ----
+    md.append("## 4. New Candidates")
+    md.append(f"Non-Preferred tickers with {CANDIDATE_HIT_RATE*100:.0f}%+ hit rate, "
+              f"{MIN_CROSSINGS_CANDIDATE}+ crossings, market cap >= $2B.")
     md.append("")
     
     if candidates:
         md.append(f"**{len(candidates)} candidates found.**")
         md.append("")
-        md.append("| Ticker | Crossings | Hits | Hit Rate | Avg 30d | Avg 60d | Avg 90d |")
-        md.append("|--------|----------:|-----:|---------:|--------:|--------:|--------:|")
+        md.append("| Ticker | Crossings | Hits | Hit Rate | Avg 30d | Avg 60d | Avg 90d | Mkt Cap | Sector |")
+        md.append("|--------|----------:|-----:|---------:|--------:|--------:|--------:|--------:|--------|")
         for c in candidates[:30]:
+            mcap = c["market_cap"]
+            mcap_str = f"${mcap/1e9:.1f}B" if mcap >= 1e9 else f"${mcap/1e6:.0f}M"
             md.append(f"| {c['ticker']} | {c['crossings']} | {c['hits']} | "
                      f"{c['hit_rate']*100:.0f}% | {c['avg_30d']*100:.1f}% | "
-                     f"{c['avg_60d']*100:.1f}% | {c['avg_90d']*100:.1f}% |")
-        if len(candidates) > 30:
-            md.append(f"| ... | | | | | | +{len(candidates)-30} more (see CSV) |")
-    elif ticker_stats:
-        md.append("No candidates meeting criteria yet.")
+                     f"{c['avg_60d']*100:.1f}% | {c['avg_90d']*100:.1f}% | "
+                     f"{mcap_str} | {c.get('sector', '')[:20]} |")
     else:
-        md.append("No evaluated crossings yet. Run `evaluate` first.")
+        md.append("No candidates meeting all criteria yet.")
     md.append("")
     
-    # --- Section 2: Degradation Flags ---
-    md.append("## 2. Degradation Flags")
-    md.append(f"Preferred 28 tickers with hit rate below {DEGRADATION_HIT_RATE*100:.0f}% and {MIN_CROSSINGS_DEGRADATION}+ crossings.")
+    # ---- Section 5: Degradation Flags ----
+    md.append("## 5. Degradation Flags")
+    md.append(f"Preferred 28 tickers below {DEGRADATION_HIT_RATE*100:.0f}% hit rate with {MIN_CROSSINGS_DEGRADATION}+ crossings.")
     md.append("")
     
     if degraded:
@@ -598,23 +776,21 @@ def generate_report():
         for d in degraded:
             md.append(f"| {d['ticker']} | {d['crossings']} | {d['hits']} | "
                      f"{d['hit_rate']*100:.0f}% | {d['avg_90d']*100:.1f}% | :warning: |")
-    elif ticker_stats:
-        md.append("No degradation flags. All Preferred 28 tickers above threshold.")
     else:
-        md.append("No evaluated crossings yet.")
+        md.append("No degradation flags.")
     md.append("")
     
-    # --- Section 3: Era Consistency Check ---
-    md.append("## 3. Era Consistency Check")
-    md.append("Tickers where hit rate varies more than 20 points across eras (inconsistent signal).")
+    # ---- Section 6: Era Consistency ----
+    md.append("## 6. Era Consistency Check")
+    md.append("Tickers where hit rate varies >20pp across eras.")
     md.append("")
     era_short = ["Pre-COVID", "COVID+Rec", "AI Cycle"]
     
     if inconsistent:
         md.append(f"**{len(inconsistent)} inconsistent tickers.**")
         md.append("")
-        header = "| Ticker | Overall | " + " | ".join(era_short) + " | Spread | In Pref? |"
-        sep = "|--------|--------:|" + "|".join(["--------:" for _ in era_short]) + "|-------:|:--------:|"
+        header = "| Ticker | Overall | " + " | ".join(era_short) + " | Spread | Pref? |"
+        sep = "|--------|--------:|" + "|".join(["--------:" for _ in era_short]) + "|-------:|:-----:|"
         md.append(header)
         md.append(sep)
         for row in inconsistent[:30]:
@@ -632,42 +808,49 @@ def generate_report():
             md.append(f"| {row['ticker']} | {row['hit_rate']*100:.0f}% | "
                      + " | ".join(era_vals)
                      + f" | {spread:.0f}pp | {pref} |")
-    elif ticker_stats:
-        md.append("All tickers with sufficient data show consistent hit rates across eras.")
     else:
-        md.append("No evaluated crossings yet.")
+        md.append("No inconsistencies found (or insufficient multi-era data).")
     md.append("")
     
-    # --- Section 4: Full Ranked List ---
-    md.append("## 4. Full Ranked List")
-    md.append(f"All {len(full_ranked)} tickers with {MIN_CROSSINGS_CANDIDATE}+ evaluated crossings, sorted by hit rate.")
+    # ---- Section 7: Era Coverage ----
+    md.append("## 7. Era Coverage")
+    md.append(f"Data range: {earliest_date} to {latest_date}")
+    md.append("")
+    md.append("| Era | DM Rows | Est. Tickers |")
+    md.append("|-----|--------:|-------------:|")
+    for era_name in era_names:
+        ec = era_coverage.get(era_name, {"rows": 0, "est_tickers": 0})
+        md.append(f"| {era_name} | {ec['rows']:,} | ~{ec['est_tickers']:,} |")
+    md.append("")
+    if earliest_date > "2020-01-01":
+        md.append("**Note:** DM data starts at " + earliest_date + ". "
+                  "Pre-COVID and COVID+Recovery eras have no data. "
+                  "Era analysis requires extending the DM backfill with longer Polygon history.")
+    md.append("")
+    
+    # ---- Section 8: Full Ranked List ----
+    md.append("## 8. Full Ranked List")
+    md.append(f"All {len(full_ranked)} tickers with {MIN_CROSSINGS_RANKED}+ evaluated crossings.")
     md.append("")
     
     if full_ranked:
-        header = "| Rank | Ticker | Crossings | Hits | Hit Rate | Avg 30d | Avg 60d | Avg 90d | " + " | ".join(era_short) + " | Pref? |"
-        sep = "|-----:|--------|----------:|-----:|---------:|--------:|--------:|--------:|" + "|".join(["--------:" for _ in era_short]) + "|:-----:|"
-        md.append(header)
-        md.append(sep)
+        md.append("| Rank | Ticker | Crossings | Hits | Hit Rate | Avg 30d | Avg 60d | Avg 90d | Mkt Cap | Pref? |")
+        md.append("|-----:|--------|----------:|-----:|---------:|--------:|--------:|--------:|--------:|:-----:|")
         for i, row in enumerate(full_ranked[:50], 1):
-            era_vals = []
-            for en in era_names:
-                r = row["era_rates"].get(en)
-                era_vals.append(f"{r*100:.0f}%" if r is not None else "--")
+            mcap = row["market_cap"]
+            mcap_str = f"${mcap/1e9:.1f}B" if mcap >= 1e9 else (f"${mcap/1e6:.0f}M" if mcap >= 1e6 else "N/A")
             pref = "Yes" if row["in_preferred"] else ""
             md.append(f"| {i} | {row['ticker']} | {row['crossings']} | {row['hits']} | "
                      f"{row['hit_rate']*100:.0f}% | {row['avg_30d']*100:.1f}% | "
-                     f"{row['avg_60d']*100:.1f}% | {row['avg_90d']*100:.1f}% | "
-                     + " | ".join(era_vals)
-                     + f" | {pref} |")
+                     f"{row['avg_60d']*100:.1f}% | {row['avg_90d']*100:.1f}% | {mcap_str} | {pref} |")
         if len(full_ranked) > 50:
-            md.append(f"| ... | +{len(full_ranked)-50} more (see CSV) | | | | | | | | | | |")
+            md.append(f"| ... | +{len(full_ranked)-50} more (see CSV) | | | | | | | | |")
     md.append("")
     
-    # --- Approaching + Top 20 Discovery ---
-    md.append("## 5. Approaching Threshold (DM 60-69)")
+    # ---- Section 9: Approaching Threshold ----
+    md.append("## 9. Approaching Threshold (DM 60-69)")
     md.append(f"{approaching_count} tickers as of {latest_date}. Top 30:")
     md.append("")
-    
     if approaching.data:
         md.append("| Ticker | DM | Price | Note |")
         md.append("|--------|---:|------:|------|")
@@ -678,7 +861,8 @@ def generate_report():
             md.append(f"| ... | | | +{approaching_count - 30} more |")
     md.append("")
     
-    md.append("## 6. Top 20 DM Tickers (Not in Preferred 28)")
+    # ---- Section 10: Top 20 DM Discovery ----
+    md.append("## 10. Top 20 DM Tickers (Not in Preferred 28)")
     md.append("")
     if top_dm.data:
         md.append("| Rank | Ticker | DM | Price |")
@@ -693,10 +877,10 @@ def generate_report():
     md.append("")
     
     md.append("---")
-    md.append(f"*FlowOS Universe Scanner v2.0 | Threshold: {CROSSING_THRESHOLD} | "
+    md.append(f"*FlowOS Universe Scanner v3.0 | Threshold: {CROSSING_THRESHOLD} | "
               f"Hit: {HIT_RETURN_THRESHOLD*100:.0f}%+ in {OUTCOME_WINDOW_DAYS}d | "
-              f"Candidate: {CANDIDATE_HIT_RATE*100:.0f}%/{MIN_CROSSINGS_CANDIDATE}+ | "
-              f"Degradation: <{DEGRADATION_HIT_RATE*100:.0f}%/{MIN_CROSSINGS_DEGRADATION}+*")
+              f"Candidate: {CANDIDATE_HIT_RATE*100:.0f}%/{MIN_CROSSINGS_CANDIDATE}+ ($2B+) | "
+              f"Ranked: {MIN_CROSSINGS_RANKED}+*")
     
     # ============================================================
     # WRITE FILES
@@ -706,14 +890,14 @@ def generate_report():
     reports_dir = os.path.join(script_dir, "reports")
     os.makedirs(reports_dir, exist_ok=True)
     
-    # --- Markdown report ---
+    # Markdown
     md_filename = f"universe_report_{latest_date}.md"
     md_filepath = os.path.join(reports_dir, md_filename)
     with open(md_filepath, "w") as f:
         f.write("\n".join(md))
     logger.info(f"  Report saved: {md_filepath}")
     
-    # --- CSV export (full ranked list) ---
+    # CSV — all tickers with 3+ evaluated crossings
     if full_ranked:
         import csv
         csv_filename = f"universe_candidates_ranked_{latest_date}.csv"
@@ -721,7 +905,7 @@ def generate_report():
         
         fieldnames = ["rank", "ticker", "crossings", "hits", "hit_rate",
                        "avg_return_30d", "avg_return_60d", "avg_return_90d",
-                       "in_preferred"]
+                       "market_cap", "sector", "in_preferred"]
         for en in era_names:
             fieldnames.append(f"hr_{en[:8].lower().replace(' ', '_')}")
         
@@ -730,14 +914,14 @@ def generate_report():
             writer.writeheader()
             for i, row in enumerate(full_ranked, 1):
                 csv_row = {
-                    "rank": i,
-                    "ticker": row["ticker"],
-                    "crossings": row["crossings"],
-                    "hits": row["hits"],
+                    "rank": i, "ticker": row["ticker"],
+                    "crossings": row["crossings"], "hits": row["hits"],
                     "hit_rate": round(row["hit_rate"], 4),
                     "avg_return_30d": round(row["avg_30d"], 4),
                     "avg_return_60d": round(row["avg_60d"], 4),
                     "avg_return_90d": round(row["avg_90d"], 4),
+                    "market_cap": row["market_cap"],
+                    "sector": row.get("sector", ""),
                     "in_preferred": row["in_preferred"],
                 }
                 for en in era_names:
@@ -756,24 +940,22 @@ def generate_report():
     logger.info(f"  SUMMARY: {total_count} tickers | {above_70_count} active (DM>=70) | "
                 f"{evaluated_count}/{total_crossings_count} crossings evaluated | "
                 f"overall hit rate: {overall_hit_rate*100:.1f}%")
+    logger.info(f"  DISTRIBUTION: 10+: {dist_10plus} | 5+: {dist_5plus} | 3+: {dist_3plus} | 1+: {dist_1plus}")
+    
+    logger.info(f"  PREFERRED 28: {status_counts.get('STRONG',0)} strong, "
+                f"{status_counts.get('OK',0)} ok, {status_counts.get('DEGRADED',0)} degraded, "
+                f"{status_counts.get('LOW DATA',0)} low data, {status_counts.get('NO DATA',0)} no data")
     
     if candidates:
-        logger.info(f"  CANDIDATES: {len(candidates)} new (top 5):")
+        logger.info(f"  CANDIDATES: {len(candidates)} (top 5):")
         for c in candidates[:5]:
+            mcap = c["market_cap"]
+            mcap_str = f"${mcap/1e9:.1f}B" if mcap >= 1e9 else f"${mcap/1e6:.0f}M"
             logger.info(f"    {c['ticker']:6s}  {c['hits']}/{c['crossings']}  "
-                       f"hit: {c['hit_rate']*100:.0f}%  avg90d: {c['avg_90d']*100:.1f}%")
+                       f"hit: {c['hit_rate']*100:.0f}%  {mcap_str}")
     
     if degraded:
-        logger.info(f"  DEGRADATION: {len(degraded)} flags:")
-        for d in degraded:
-            logger.info(f"    {d['ticker']:6s}  {d['hits']}/{d['crossings']}  "
-                       f"hit: {d['hit_rate']*100:.0f}%  *** REVIEW ***")
-    
-    if inconsistent:
-        logger.info(f"  INCONSISTENT: {len(inconsistent)} tickers with >20pp era spread")
-    
-    if not ticker_stats:
-        logger.info("  No evaluated crossings yet. Run 'evaluate' first.")
+        logger.info(f"  DEGRADATION: {len(degraded)} flags")
     
     return md_filepath
 

@@ -1,0 +1,58 @@
+name: Chain Analysis Pipeline (Post-DM)
+
+on:
+  schedule:
+    # 10:30 PM UTC (5:30 PM ET) — runs 30 min after DM pipeline
+    - cron: "30 22 * * 1-5"
+  workflow_dispatch: {}
+
+jobs:
+  chain-analysis:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    env:
+      TZ: America/New_York
+      GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install gspread google-auth pandas numpy scipy
+
+      - name: Create Google credentials.json
+        run: |
+          echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > credentials.json
+
+      - name: "Chain Analysis: Full Universe Pipeline"
+        run: |
+          export PYTHONPATH=$PYTHONPATH:.
+          echo "========================================"
+          echo "CHAIN ANALYSIS — Full Run"
+          echo "Started at $(date)"
+          echo "========================================"
+          python Chain_Analysis/chain_analysis.py full
+
+      - name: Log completion
+        if: always()
+        run: |
+          echo "========================================"
+          echo "Chain Analysis completed at $(date)"
+          echo "========================================"
+          echo ""
+          echo "Deliverables:"
+          echo "  1. Chain Full Universe  — ticker classifications + edges"
+          echo "  2. Chain Monitor        — daily alert log (append)"
+          echo "  3. Backtest Results     — propagation timing backtest"
+          echo "  4. Strand Analysis      — persistent strand pairs"
+          echo "  5. Strand Emergence     — new strand formations + clusters"
+          echo "========================================"

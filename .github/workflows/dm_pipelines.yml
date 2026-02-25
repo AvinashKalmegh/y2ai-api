@@ -52,6 +52,7 @@ jobs:
           echo "========================================"
           python Dm_historical_pipeline.py daily
         continue-on-error: true
+        
 
       - name: "DM Pipeline 2/2: Push DM Latest + History to Sheets"
         run: |
@@ -68,127 +69,6 @@ jobs:
           echo "DM Pipeline completed at $(date)"
 
       # ════════════════════════════════════════════════════════
-      # MACRO & OPTIONS PIPELINES
-      # ════════════════════════════════════════════════════════
-
-      - name: "Pipeline 1/7: Macro History (FRED) — Daily"
-        run: |
-          export PYTHONPATH=$PYTHONPATH:.
-          echo "========================================"
-          echo "MACRO HISTORY — Daily Update"
-          echo "========================================"
-          python Macro_Options/macro_pipeline.py daily
-        continue-on-error: true
-
-      - name: "Pipeline 1/7: Macro History — Push to Sheets"
-        run: |
-          export PYTHONPATH=$PYTHONPATH:.
-          python Macro_Options/macro_pipeline.py push
-        continue-on-error: true
-
-      - name: "Pipeline 2/7: Options Put/Call (Polygon) — Daily"
-        run: |
-          export PYTHONPATH=$PYTHONPATH:.
-          echo "========================================"
-          echo "OPTIONS PUT/CALL — Daily Update"
-          echo "========================================"
-          python Macro_Options/options_pipeline.py daily
-        continue-on-error: true
-
-      - name: "Pipeline 2/7: Options Put/Call — Push to Sheets"
-        run: |
-          export PYTHONPATH=$PYTHONPATH:.
-          python Macro_Options/options_pipeline.py push
-        continue-on-error: true
-
-      # ════════════════════════════════════════════════════════
-      # SHORT VOLUME + SHORT INTEREST
-      # ════════════════════════════════════════════════════════
-
-      - name: "Pipeline 3/7: Short Volume (FINRA) — Daily"
-        run: |
-          export PYTHONPATH=$PYTHONPATH:.
-          echo "========================================"
-          echo "SHORT VOLUME — Daily Update"
-          echo "========================================"
-          python Short_Volume/short_volume.py daily
-        continue-on-error: true
-
-      - name: "Pipeline 3/7: Short Volume — Push to Sheets"
-        run: |
-          export PYTHONPATH=$PYTHONPATH:.
-          python Short_Volume/short_volume.py push
-        continue-on-error: true
-
-      - name: "Pipeline 4/7: Short Interest (Polygon) — Daily"
-        run: |
-          export PYTHONPATH=$PYTHONPATH:.
-          echo "========================================"
-          echo "SHORT INTEREST — Daily Update"
-          echo "========================================"
-          python Short_Interest/short_interest_pipeline.py daily
-        continue-on-error: true
-
-      - name: "Pipeline 4/7: Short Interest — Push to Sheets"
-        run: |
-          export PYTHONPATH=$PYTHONPATH:.
-          python Short_Interest/short_interest_pipeline.py push
-        continue-on-error: true
-
-      # ════════════════════════════════════════════════════════
-      # FINNHUB PIPELINES (Insider + Earnings)
-      # ════════════════════════════════════════════════════════
-
-      - name: "Pipeline 5/7: Insider Transactions (Finnhub) — Daily"
-        run: |
-          export PYTHONPATH=$PYTHONPATH:.
-          echo "========================================"
-          echo "INSIDER TRANSACTIONS — Daily Update"
-          echo "========================================"
-          python Insider_Transactions/insider_transactions.py daily
-        continue-on-error: true
-
-      - name: "Pipeline 5/7: Insider Transactions — Push to Sheets"
-        run: |
-          export PYTHONPATH=$PYTHONPATH:.
-          python Insider_Transactions/insider_transactions.py push
-        continue-on-error: true
-
-      - name: "Pipeline 6/7: Earnings Calendar (Finnhub) — Daily"
-        run: |
-          export PYTHONPATH=$PYTHONPATH:.
-          echo "========================================"
-          echo "EARNINGS CALENDAR — Daily Update"
-          echo "========================================"
-          python Earnings_Calendar/earnings_calendar.py daily
-        continue-on-error: true
-
-      - name: "Pipeline 6/7: Earnings Calendar — Push to Sheets"
-        run: |
-          export PYTHONPATH=$PYTHONPATH:.
-          python Earnings_Calendar/earnings_calendar.py push
-        continue-on-error: true
-
-      # ════════════════════════════════════════════════════════
-      # ETF NET FLOWS (yfinance — free, no key needed)
-      # ════════════════════════════════════════════════════════
-
-      - name: "Pipeline 7/7: ETF Net Flows (yfinance) — Daily"
-        run: |
-          export PYTHONPATH=$PYTHONPATH:.
-          echo "========================================"
-          echo "ETF NET FLOWS — Daily Update"
-          echo "========================================"
-          python ETF_Pipeline/etf_pipeline.py daily
-        continue-on-error: true
-
-      - name: "Pipeline 7/7: ETF Net Flows — Push to Sheets"
-        run: |
-          export PYTHONPATH=$PYTHONPATH:.
-          python ETF_Pipeline/etf_pipeline.py push
-        continue-on-error: true
-
-      # ════════════════════════════════════════════════════════
       # SUMMARY
       # ════════════════════════════════════════════════════════
 
@@ -196,18 +76,10 @@ jobs:
         if: always()
         run: |
           echo "========================================"
-          echo "Daily Data Pipelines completed at $(date)"
+          echo "DM Pipeline completed at $(date)"
           echo "========================================"
           echo ""
           echo "Pipelines executed:"
-          echo "  DM Historical  — Polygon (price fetch + DM calc + Sheets push)"
-          echo "  Macro History  — FRED (VIX, Yields, Credit Spreads)"
-          echo "  Options P/C    — Polygon (Put/Call ratios)"
-          echo "  Short Volume   — FINRA (daily short sale volume)"
-          echo "  Short Interest — Polygon (short interest data)"
-          echo "  Insider Txns   — Finnhub (insider transactions)"
-          echo "  Earnings Cal   — Finnhub (earnings calendar)"
-          echo "  ETF Net Flows  — yfinance (ETF flow proxies)"
-          echo ""
-          echo "Target sheets: dm-history, Macro_and_Options_History"
+          echo "  DM Historical  — Polygon (price fetch + DM calc)"
+          echo "  DM Push        — Push DM Latest + History to Sheets"
           echo "========================================"

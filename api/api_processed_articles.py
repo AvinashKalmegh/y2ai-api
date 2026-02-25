@@ -9,6 +9,9 @@ import os
 import json
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Any, Union
+from api.drive_service import get_drive_service
+from dotenv import load_dotenv
+load_dotenv()
 
 from fastapi import FastAPI, Query, HTTPException
 from pydantic import BaseModel, Field
@@ -2266,6 +2269,37 @@ def get_flowos_summary():
         "attractor_mass": attractor_mass,
         "nst_status": nst_status
     }
+
+
+@app.get("/test-drive")
+def test_drive():
+    drive_service = get_drive_service()
+    results = drive_service.files().list(pageSize=5).execute()
+    return results
+
+
+from fastapi.responses import HTMLResponse
+from api.drive_service import get_latest_html
+
+MAIN_FOLDER_ID = "1ilN5ANBuK6VM_gSGHQYl8ZbMxoZJP5SI"
+ARCHIVE_FOLDER_ID = "1J3GCWO1OCIk-hfTK61ujUnIHqHoNeNnH"
+
+
+
+@app.get("/latest-html", response_class=HTMLResponse)
+def latest_html():
+    try:
+        html = get_latest_html(MAIN_FOLDER_ID)
+        return HTMLResponse(content=html)
+    except Exception as e:
+        import traceback
+        return {
+            "error": str(e),
+            "trace": traceback.format_exc()
+        }
+
+
+
 
 
 if __name__ == "__main__":

@@ -520,9 +520,17 @@ def fetch_ticker_prices_polygon(ticker, start_date, end_date):
 
 
 def get_trading_days(n_days=7):
-    """Return last n calendar days as list of date strings, skipping weekends."""
+    """Return last n weekdays including today as list of date strings.
+    
+    The pipeline runs post-market, so today's data should be available
+    from Polygon. Start with today and work backward.
+    """
     dates = []
     d = datetime.now()
+    # Include today first if it's a weekday
+    if d.weekday() < 5:
+        dates.append(d.strftime("%Y-%m-%d"))
+    # Then go backward for more dates
     while len(dates) < n_days:
         d -= timedelta(days=1)
         if d.weekday() < 5:  # Mon-Fri
@@ -1374,15 +1382,36 @@ def run_daily_calculation(universe):
     """
     Optimized daily DM calculation.
     Only computes DM for NEW dates not already in dm_history.
+    Also detects partial days (fewer rows than expected) and re-calculates them.
     Loads only ~120 days of prices instead of full 6-year history.
     """
     logger.info("=" * 60)
     logger.info("DAILY DM CALCULATION (INCREMENTAL)")
     logger.info("=" * 60)
     
+    supabase = get_supabase()
+    
     # Find latest date already calculated
     latest_date = get_latest_dm_date()
     logger.info(f"Latest date in dm_history: {latest_date}")
+    
+    # Check if latest date is partial (fewer rows than expected)
+    partial_date = None
+    if latest_date:
+        count_result = supabase.table("dm_history") \
+            .select("ticker", count="exact") \
+            .eq("date", latest_date) \
+            .execute()
+        latest_count = count_result.count if count_result.count else 0
+        
+        # Expected: ~534 tickers. If significantly fewer, it's a partial day
+        expected_min = 200  # conservative threshold
+        if latest_count < expected_min:
+            logger.warning(f"Latest date {latest_date} has only {latest_count} rows "
+                          f"(expected {expected_min}+). Will re-calculate.")
+            partial_date = latest_date
+        else:
+            logger.info(f"Latest date {latest_date}: {latest_count} rows")
     
     # Load only recent prices (120 days = enough for lookback)
     prices_df = load_recent_prices(lookback_days=120)
@@ -1394,7 +1423,11 @@ def run_daily_calculation(universe):
     # Find new dates to calculate
     all_price_dates = sorted(prices_df['date'].dt.strftime('%Y-%m-%d').unique())
     if latest_date:
-        new_dates = [d for d in all_price_dates if d > latest_date]
+        if partial_date:
+            # Include the partial date for re-calculation
+            new_dates = [d for d in all_price_dates if d >= partial_date]
+        else:
+            new_dates = [d for d in all_price_dates if d > latest_date]
     else:
         new_dates = all_price_dates
     

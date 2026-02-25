@@ -25,7 +25,36 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 # ============================================================
 # CONFIGURATION
 # ============================================================
-TICKERS_TO_BACKFILL = ["INFY", "WIT", "HDB", "SAP"]
+TICKERS_TO_BACKFILL = [
+    # Quantum Computing
+    "IONQ", "RGTI", "QUBT", "QBTS",
+    # Semiconductors
+    "ARM", "ASML", "MRVL",
+    # Technology
+    "AXON", "GIB", "DXC",
+    # Software
+    "TEAM", "ASAN", "MNDY", "ZI",
+    # Consumer Discretionary
+    "MELI", "BKNG",
+    # Consumer Staples
+    "CCEP",
+    # Health Care
+    "ABBV", "IDXX", "CNC",
+    # Biotechnology
+    "ALNY",
+    # Cybersecurity
+    "GEN", "OKTA", "CYBR", "CHKP", "S", "TENB", "QLYS",
+    # Energy
+    "BKR",
+    # Industrials
+    "VRSK", "TREX", "AZEK", "IBP", "FERG", "GMS",
+    # Communication Services
+    "IPG", "WPP", "PUBGY",
+    # Financials
+    "ABCB", "LPLA", "IBKR", "AMTD", "SF",
+    # Real Estate
+    "VNO", "SLG", "HIW", "DEA", "CTRE",
+]
 
 START_DATE = "2016-01-01"
 END_DATE = datetime.now().strftime("%Y-%m-%d")
@@ -33,19 +62,28 @@ END_DATE = datetime.now().strftime("%Y-%m-%d")
 DELAY_BETWEEN_CALLS = 8  # seconds (Twelve Data free tier: 8/min)
 
 SECTOR_ETF_MAP = {
-    "Information Technology": "XLK",
-    "Financials": "XLF",
-    "Software": "XLK",
     "Technology": "XLK",
-    "Health Care": "XLV",
+    "Information Technology": "XLK",
+    "Semiconductors": "SMH",
+    "Software": "IGV",
     "Consumer Discretionary": "XLY",
     "Consumer Staples": "XLP",
+    "Health Care": "XLV",
+    "Biotechnology": "XBI",
+    "Financials": "XLF",
     "Industrials": "XLI",
-    "Energy": "XLE",
     "Materials": "XLB",
-    "Communication Services": "XLC",
-    "Utilities": "XLU",
     "Real Estate": "XLRE",
+    "Utilities": "XLU",
+    "Energy": "XLE",
+    "Communication Services": "XLC",
+    "Nuclear": "URA",
+    "Uranium": "URA",
+    "Clean Energy": "TAN",
+    "Cybersecurity": "HACK",
+    "Aerospace & Defense": "ITA",
+    "Defense": "ITA",
+    "Transportation": "IYT",
 }
 
 # ============================================================
@@ -369,9 +407,9 @@ def main():
         
         if rows:
             upload_prices(rows)
-            print(f"  {ticker}: ✓ {len(rows)} rows fetched and uploaded")
+            print(f"  {ticker}: OK {len(rows)} rows fetched and uploaded")
         else:
-            print(f"  {ticker}: ⚠️ No data returned")
+            print(f"  {ticker}: WARN No data returned")
         
         if i < len(all_to_fetch) - 1:
             time.sleep(DELAY_BETWEEN_CALLS)
@@ -426,7 +464,7 @@ def main():
         
         # Update dm_latest
         update_dm_latest(ticker, dm_df)
-        print(f"    ✓ dm_latest updated (DM={dm_df.iloc[-1]['dm_smoothed']}, phase={dm_df.iloc[-1]['phase']})")
+        print(f"    OK dm_latest updated (DM={dm_df.iloc[-1]['dm_smoothed']}, phase={dm_df.iloc[-1]['phase']})")
         print()
     
     print("=" * 60)

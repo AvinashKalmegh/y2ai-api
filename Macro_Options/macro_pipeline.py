@@ -282,19 +282,18 @@ def push_to_sheets():
         logger.error(f"Create it and share with your service account first.")
         return
 
-    # Delete and recreate tab
+    # Get or create tab
     try:
-        old_sheet = spreadsheet.worksheet(SHEETS_TAB)
-        spreadsheet.del_worksheet(old_sheet)
-        logger.info(f"Deleted existing {SHEETS_TAB} tab")
+        sheet = spreadsheet.worksheet(SHEETS_TAB)
+        sheet.clear()
+        if sheet.row_count < len(sheet_rows) + 10:
+            sheet.resize(rows=len(sheet_rows) + 100, cols=len(MACRO_HEADERS))
     except gspread.WorksheetNotFound:
-        pass
-
-    sheet = spreadsheet.add_worksheet(
-        title=SHEETS_TAB,
-        rows=len(sheet_rows) + 100,
-        cols=len(MACRO_HEADERS)
-    )
+        sheet = spreadsheet.add_worksheet(
+            title=SHEETS_TAB,
+            rows=len(sheet_rows) + 100,
+            cols=len(MACRO_HEADERS)
+        )
 
     # Write header
     sheet.update(range_name='A1', values=[MACRO_HEADERS], value_input_option='USER_ENTERED')

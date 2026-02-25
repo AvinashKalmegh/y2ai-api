@@ -1,6 +1,5 @@
 """
-Add BE (Bloom Energy) and ALAB (Astera Labs) to scanner_universe.
-Then backfill their price history from Polygon.
+Add new tickers to scanner_universe and backfill price history from Polygon.
 
 Usage: python dm_add_tickers.py
 """
@@ -15,8 +14,68 @@ supabase = create_client(os.getenv('SUPABASE_URL'), os.getenv('SUPABASE_KEY'))
 POLYGON_API_KEY = os.getenv("POLYGON_API_KEY") or os.getenv("MASSIVE_API_KEY")
 
 TICKERS_TO_ADD = {
-    "BE":   "Clean Energy",     # Bloom Energy — fuel cells, AI infrastructure power → TAN
-    "ALAB": "Semiconductors",   # Astera Labs — PCIe retimers for data centers → SMH
+    # Quantum Computing → XLK
+    "IONQ":  "Technology",
+    "RGTI":  "Technology",
+    "QUBT":  "Technology",
+    "QBTS":  "Technology",
+    # Semiconductors → SMH
+    "ARM":   "Semiconductors",
+    "ASML":  "Semiconductors",
+    "MRVL":  "Semiconductors",
+    # Technology → XLK
+    "AXON":  "Technology",
+    "GIB":   "Technology",
+    "DXC":   "Technology",
+    # Software → IGV
+    "TEAM":  "Software",
+    "ASAN":  "Software",
+    "MNDY":  "Software",
+    "ZI":    "Software",
+    # Consumer Discretionary → XLY
+    "MELI":  "Consumer Discretionary",
+    "BKNG":  "Consumer Discretionary",
+    # Consumer Staples → XLP
+    "CCEP":  "Consumer Staples",
+    # Health Care → XLV
+    "ABBV":  "Health Care",
+    "IDXX":  "Health Care",
+    "CNC":   "Health Care",
+    # Biotechnology → XBI
+    "ALNY":  "Biotechnology",
+    # Cybersecurity → HACK
+    "GEN":   "Cybersecurity",
+    "OKTA":  "Cybersecurity",
+    "CYBR":  "Cybersecurity",
+    "CHKP":  "Cybersecurity",
+    "S":     "Cybersecurity",
+    "TENB":  "Cybersecurity",
+    "QLYS":  "Cybersecurity",
+    # Energy → XLE
+    "BKR":   "Energy",
+    # Industrials → XLI
+    "VRSK":  "Industrials",
+    "TREX":  "Industrials",
+    "AZEK":  "Industrials",
+    "IBP":   "Industrials",
+    "FERG":  "Industrials",
+    "GMS":   "Industrials",
+    # Communication Services → XLC
+    "IPG":   "Communication Services",
+    "WPP":   "Communication Services",
+    "PUBGY": "Communication Services",
+    # Financials → XLF
+    "ABCB":  "Financials",
+    "LPLA":  "Financials",
+    "IBKR":  "Financials",
+    "AMTD":  "Financials",
+    "SF":    "Financials",
+    # Real Estate → XLRE
+    "VNO":   "Real Estate",
+    "SLG":   "Real Estate",
+    "HIW":   "Real Estate",
+    "DEA":   "Real Estate",
+    "CTRE":  "Real Estate",
 }
 
 # ── Step 1: Check existing universe ──
@@ -55,7 +114,7 @@ if not POLYGON_API_KEY:
     print("  python Dm_historical_pipeline.py fetch")
     exit()
 
-START_DATE = "2020-01-02"
+START_DATE = "2016-01-01"
 END_DATE = datetime.now().strftime("%Y-%m-%d")
 
 print(f"\nPRICE BACKFILL ({START_DATE} to {END_DATE}):")

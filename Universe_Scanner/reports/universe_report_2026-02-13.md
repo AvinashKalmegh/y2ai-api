@@ -1,8 +1,9 @@
 # FlowOS Universe Scanner Report
 **Date:** 2026-02-13  
-**Generated:** 2026-02-17 19:49  
+**Generated:** 2026-02-18 07:59  
+**Data range:** 2025-02-18 to 2026-02-13  
 
-## Summary
+## 1. Summary
 
 | Metric | Count | % of Universe |
 |--------|------:|:-------------:|
@@ -16,23 +17,92 @@
 |-----------|------:|
 | Total recorded | 10,512 |
 | Evaluated | 7,347 |
-| Pending (insufficient forward data) | 3,165 |
-| Overall hit rate (10%+ in 90d) | 61.1% |
+| Pending | 3,165 |
+| Overall hit rate | 61.1% |
 
-## 1. New Candidates
-Tickers NOT in Preferred 28 with hit rate >= 50% and 10+ evaluated crossings.
+## 2. Crossing Distribution
 
-**4 candidates found.**
+| Evaluated Crossings | Tickers |
+|--------------------:|--------:|
+| 10+ crossings | 4 |
+| 5+ crossings | 492 |
+| 3+ crossings | 1400 |
+| 1+ crossings | 2255 |
+| 0 crossings (unevaluated only) | 98 |
 
-| Ticker | Crossings | Hits | Hit Rate | Avg 30d | Avg 60d | Avg 90d |
-|--------|----------:|-----:|---------:|--------:|--------:|--------:|
-| BBIO | 10 | 10 | 100% | 9.3% | 17.3% | 33.5% |
-| VRDN | 10 | 10 | 100% | 13.7% | 28.6% | 43.9% |
-| ZBIO | 10 | 10 | 100% | 21.6% | 49.1% | 78.4% |
-| BBD | 11 | 10 | 91% | 10.6% | 17.4% | 21.6% |
+**Top 20 tickers by evaluated crossing count:**
 
-## 2. Degradation Flags
-Preferred 28 tickers with hit rate below 40% and 5+ crossings.
+| Ticker | Eval Crossings | Hits | Hit Rate | Mkt Cap |
+|--------|---------------:|-----:|---------:|--------:|
+| BBD | 11 | 10 | 91% | $42.1B |
+| BBIO | 10 | 10 | 100% | $14.4B |
+| VRDN | 10 | 10 | 100% | $2.7B |
+| ZBIO | 10 | 10 | 100% | $1.4B |
+| AMX | 9 | 5 | 56% | $71.8B |
+| APH | 9 | 9 | 100% | $180.4B |
+| BKD | 9 | 9 | 100% | $3.9B |
+| CPRI | 9 | 8 | 89% | $2.4B |
+| FSLR | 9 | 7 | 78% | $24.2B |
+| GH | 9 | 7 | 78% | $13.6B |
+| HROW | 9 | 9 | 100% | $1.8B |
+| KALU | 9 | 7 | 78% | $2.3B |
+| ONC | 9 | 6 | 67% | $38.3B |
+| ORKA | 9 | 9 | 100% | $1.6B |
+| ZS | 9 | 4 | 44% | $28.3B |
+| AAOI | 8 | 8 | 100% | $3.0B |
+| ELVN | 8 | 6 | 75% | $1.6B |
+| ARQT | 8 | 8 | 100% | $3.2B |
+| ATAI | 8 | 7 | 88% | $1.3B |
+| BH.A | 8 | 8 | 100% | $1.3B |
+
+## 3. Preferred 28 Status
+
+| Ticker | Total | Evaluated | Hits | Hit Rate | Avg 90d | Status |
+|--------|------:|----------:|-----:|---------:|--------:|:------:|
+| TSLA | 6 | 5 | 5 | 100% | 25.1% | STRONG |
+| WDC | 6 | 5 | 5 | 100% | 84.7% | STRONG |
+| LVS | 5 | 5 | 4 | 80% | 19.4% | STRONG |
+| MU | 8 | 5 | 4 | 80% | 57.5% | STRONG |
+| PLTR | 8 | 7 | 5 | 71% | 31.1% | STRONG |
+| PDD | 6 | 5 | 2 | 40% | 5.8% | OK |
+| FCX | 7 | 6 | 2 | 33% | 11.6% | DEGRADED |
+| APP | 3 | 2 | 2 | 100% | 61.3% | LOW DATA |
+| CCJ | 4 | 3 | 3 | 100% | 31.4% | LOW DATA |
+| DNN | 4 | 2 | 2 | 100% | 43.0% | LOW DATA |
+| LEU | 3 | 2 | 2 | 100% | 126.5% | LOW DATA |
+| NVDA | 2 | 2 | 2 | 100% | 24.6% | LOW DATA |
+| PSKY | 1 | 1 | 1 | 100% | 13.0% | LOW DATA |
+| TSM | 7 | 4 | 4 | 100% | 28.3% | LOW DATA |
+| UUUU | 4 | 3 | 3 | 100% | 132.2% | LOW DATA |
+| VRT | 5 | 4 | 4 | 100% | 36.1% | LOW DATA |
+| RCL | 8 | 4 | 3 | 75% | 32.5% | LOW DATA |
+| SMR | 5 | 4 | 3 | 75% | 84.8% | LOW DATA |
+| CEG | 3 | 3 | 2 | 67% | 19.5% | LOW DATA |
+| HAL | 5 | 3 | 2 | 67% | 15.1% | LOW DATA |
+| MSTR | 4 | 3 | 2 | 67% | 22.4% | LOW DATA |
+| TTD | 3 | 3 | 2 | 67% | 13.8% | LOW DATA |
+| UEC | 6 | 3 | 2 | 67% | 60.6% | LOW DATA |
+| CRWD | 4 | 4 | 2 | 50% | 20.7% | LOW DATA |
+| NCLH | 3 | 2 | 1 | 50% | 19.6% | LOW DATA |
+| WYNN | 5 | 4 | 2 | 50% | 17.3% | LOW DATA |
+| ENPH | 7 | 3 | 0 | 0% | 2.8% | LOW DATA |
+| MRNA | 3 | 2 | 0 | 0% | 5.1% | LOW DATA |
+
+STRONG: 5 | OK: 1 | DEGRADED: 1 | LOW DATA: 21 | NO DATA: 0
+
+## 4. New Candidates
+Non-Preferred tickers with 50%+ hit rate, 10+ crossings, market cap >= $2B.
+
+**3 candidates found.**
+
+| Ticker | Crossings | Hits | Hit Rate | Avg 30d | Avg 60d | Avg 90d | Mkt Cap | Sector |
+|--------|----------:|-----:|---------:|--------:|--------:|--------:|--------:|--------|
+| BBIO | 10 | 10 | 100% | 9.3% | 17.3% | 33.5% | $14.4B | PHARMACEUTICAL PREPA |
+| VRDN | 10 | 10 | 100% | 13.7% | 28.6% | 43.9% | $2.7B | PHARMACEUTICAL PREPA |
+| BBD | 11 | 10 | 91% | 10.6% | 17.4% | 21.6% | $42.1B |  |
+
+## 5. Degradation Flags
+Preferred 28 tickers below 40% hit rate with 5+ crossings.
 
 **1 flags.**
 
@@ -40,22 +110,80 @@ Preferred 28 tickers with hit rate below 40% and 5+ crossings.
 |--------|----------:|-----:|---------:|--------:|:----:|
 | FCX | 6 | 2 | 33% | 11.6% | :warning: |
 
-## 3. Era Consistency Check
-Tickers where hit rate varies more than 20 points across eras (inconsistent signal).
+## 6. Era Consistency Check
+Tickers where hit rate varies >20pp across eras.
 
-All tickers with sufficient data show consistent hit rates across eras.
+No inconsistencies found (or insufficient multi-era data).
 
-## 4. Full Ranked List
-All 4 tickers with 10+ evaluated crossings, sorted by hit rate.
+## 7. Era Coverage
+Data range: 2025-02-18 to 2026-02-13
 
-| Rank | Ticker | Crossings | Hits | Hit Rate | Avg 30d | Avg 60d | Avg 90d | Pre-COVID | COVID+Rec | AI Cycle | Pref? |
-|-----:|--------|----------:|-----:|---------:|--------:|--------:|--------:|--------:|--------:|--------:|:-----:|
-| 1 | BBIO | 10 | 10 | 100% | 9.3% | 17.3% | 33.5% | -- | -- | 100% |  |
-| 2 | VRDN | 10 | 10 | 100% | 13.7% | 28.6% | 43.9% | -- | -- | 100% |  |
-| 3 | ZBIO | 10 | 10 | 100% | 21.6% | 49.1% | 78.4% | -- | -- | 100% |  |
-| 4 | BBD | 11 | 10 | 91% | 10.6% | 17.4% | 21.6% | -- | -- | 91% |  |
+| Era | DM Rows | Est. Tickers |
+|-----|--------:|-------------:|
+| Pre-COVID (2016-2019) | 0 | ~0 |
+| COVID+Recovery (2020-2022) | 0 | ~0 |
+| AI Cycle (2023-2026) | 588,474 | ~2,367 |
 
-## 5. Approaching Threshold (DM 60-69)
+**Note:** DM data starts at 2025-02-18. Pre-COVID and COVID+Recovery eras have no data. Era analysis requires extending the DM backfill with longer Polygon history.
+
+## 8. Full Ranked List
+All 1400 tickers with 3+ evaluated crossings.
+
+| Rank | Ticker | Crossings | Hits | Hit Rate | Avg 30d | Avg 60d | Avg 90d | Mkt Cap | Pref? |
+|-----:|--------|----------:|-----:|---------:|--------:|--------:|--------:|--------:|:-----:|
+| 1 | AAMI | 3 | 3 | 100% | 12.1% | 32.0% | 41.6% | $1.9B |  |
+| 2 | AAOI | 8 | 8 | 100% | 25.2% | 39.3% | 44.3% | $3.0B |  |
+| 3 | AAON | 6 | 6 | 100% | 14.5% | 22.4% | 25.7% | $8.2B |  |
+| 4 | ABVX | 6 | 6 | 100% | 291.7% | 485.4% | 693.9% | $9.9B |  |
+| 5 | ACAD | 3 | 3 | 100% | 17.5% | 19.6% | 22.7% | $3.7B |  |
+| 6 | ACLS | 4 | 4 | 100% | 10.0% | 20.5% | 24.6% | $2.9B |  |
+| 7 | ACMR | 4 | 4 | 100% | 24.1% | 35.0% | 42.4% | $4.2B |  |
+| 8 | ADPT | 7 | 7 | 100% | 12.5% | 23.7% | 33.8% | $2.5B |  |
+| 9 | AEM | 5 | 5 | 100% | 9.4% | 20.3% | 27.5% | $108.7B |  |
+| 10 | AEO | 4 | 4 | 100% | 28.2% | 47.6% | 53.0% | $4.3B |  |
+| 11 | AFRM | 4 | 4 | 100% | 16.0% | 30.3% | 36.6% | $16.6B |  |
+| 12 | AG | 4 | 4 | 100% | 22.4% | 36.2% | 43.3% | $11.3B |  |
+| 13 | AGI | 3 | 3 | 100% | 7.9% | 13.2% | 23.7% | $19.0B |  |
+| 14 | AGX | 6 | 6 | 100% | 16.7% | 32.0% | 44.9% | $5.7B |  |
+| 15 | AHR | 7 | 7 | 100% | 6.7% | 10.6% | 16.7% | $9.2B |  |
+| 16 | ALAB | 3 | 3 | 100% | 44.3% | 61.5% | 78.9% | $22.0B |  |
+| 17 | ALB | 5 | 5 | 100% | 17.8% | 35.6% | 53.1% | $19.6B |  |
+| 18 | ALGM | 3 | 3 | 100% | 14.9% | 23.4% | 23.4% | $7.9B |  |
+| 19 | ALHC | 3 | 3 | 100% | 14.6% | 22.2% | 26.8% | $4.0B |  |
+| 20 | ALNT | 4 | 4 | 100% | 11.4% | 20.4% | 30.9% | $1.1B |  |
+| 21 | ALNY | 3 | 3 | 100% | 11.5% | 15.8% | 32.3% | $41.7B |  |
+| 22 | AMD | 4 | 4 | 100% | 9.6% | 22.8% | 31.6% | $338.0B |  |
+| 23 | AMKR | 6 | 6 | 100% | 13.5% | 31.8% | 55.2% | $11.7B |  |
+| 24 | AMLX | 5 | 5 | 100% | 32.3% | 51.5% | 87.9% | $1.6B |  |
+| 25 | AMR | 5 | 5 | 100% | 17.5% | 20.7% | 29.2% | $2.4B |  |
+| 26 | AMRC | 7 | 7 | 100% | 20.1% | 49.8% | 97.0% | $1.7B |  |
+| 27 | AMTM | 3 | 3 | 100% | 19.3% | 22.7% | 28.5% | $7.6B |  |
+| 28 | ANAB | 7 | 7 | 100% | 22.7% | 37.8% | 54.3% | $1.5B |  |
+| 29 | ENLT | 7 | 7 | 100% | 10.9% | 24.6% | 40.2% | $8.6B |  |
+| 30 | APH | 9 | 9 | 100% | 6.9% | 18.5% | 27.0% | $180.4B |  |
+| 31 | ARMN | 7 | 7 | 100% | 12.4% | 35.2% | 54.3% | $4.0B |  |
+| 32 | ARQT | 8 | 8 | 100% | 15.2% | 31.3% | 53.4% | $3.2B |  |
+| 33 | ARRY | 3 | 3 | 100% | 29.6% | 32.3% | 32.3% | $1.7B |  |
+| 34 | ARWR | 3 | 3 | 100% | 22.6% | 54.2% | 82.0% | $8.9B |  |
+| 35 | ASM | 5 | 5 | 100% | 19.0% | 47.4% | 67.3% | $1.5B |  |
+| 36 | ASTE | 3 | 3 | 100% | 9.6% | 12.3% | 16.9% | $1.4B |  |
+| 37 | ASTS | 5 | 5 | 100% | 43.3% | 89.0% | 104.6% | $23.3B |  |
+| 38 | ATRO | 3 | 3 | 100% | 16.4% | 31.0% | 38.1% | $2.7B |  |
+| 39 | AU | 5 | 5 | 100% | 20.7% | 33.2% | 45.7% | $55.4B |  |
+| 40 | AVAV | 3 | 3 | 100% | 39.6% | 46.2% | 67.6% | $12.2B |  |
+| 41 | AVGO | 3 | 3 | 100% | 13.0% | 23.8% | 31.6% | $1541.7B |  |
+| 42 | AXTI | 4 | 4 | 100% | 51.3% | 96.3% | 207.7% | $1.3B |  |
+| 43 | AZTA | 3 | 3 | 100% | 10.8% | 14.4% | 16.8% | $1.3B |  |
+| 44 | BAP | 4 | 4 | 100% | 6.1% | 13.0% | 18.2% | $26.2B |  |
+| 45 | BBAI | 6 | 6 | 100% | 51.7% | 82.4% | 95.5% | $1.9B |  |
+| 46 | BBIO | 10 | 10 | 100% | 9.3% | 17.3% | 33.5% | $14.4B |  |
+| 47 | BC | 5 | 5 | 100% | 5.5% | 14.8% | 21.8% | $5.7B |  |
+| 48 | BCO | 3 | 3 | 100% | 7.6% | 15.9% | 17.5% | $5.4B |  |
+| 49 | BELFA | 5 | 5 | 100% | 4.6% | 19.5% | 31.3% | $2.7B |  |
+| 50 | BH | 4 | 4 | 100% | 11.1% | 19.9% | 24.6% | $1.2B |  |
+| ... | +1350 more (see CSV) | | | | | | | | |
+
+## 9. Approaching Threshold (DM 60-69)
 266 tickers as of 2026-02-13. Top 30:
 
 | Ticker | DM | Price | Note |
@@ -92,7 +220,7 @@ All 4 tickers with 10+ evaluated crossings, sorted by hit rate.
 | HUBB | 68.5 | $524.12 |  |
 | ... | | | +236 more |
 
-## 6. Top 20 DM Tickers (Not in Preferred 28)
+## 10. Top 20 DM Tickers (Not in Preferred 28)
 
 | Rank | Ticker | DM | Price |
 |-----:|--------|---:|------:|
@@ -118,4 +246,4 @@ All 4 tickers with 10+ evaluated crossings, sorted by hit rate.
 | 20 | BAK | 96.6 | $3.83 |
 
 ---
-*FlowOS Universe Scanner v2.0 | Threshold: 70 | Hit: 10%+ in 90d | Candidate: 50%/10+ | Degradation: <40%/5+*
+*FlowOS Universe Scanner v3.0 | Threshold: 70 | Hit: 10%+ in 90d | Candidate: 50%/10+ ($2B+) | Ranked: 3+*

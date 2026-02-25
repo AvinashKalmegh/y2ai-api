@@ -260,20 +260,19 @@ def push_partition(partition):
         logger.error(f"Create it and share with service account first.")
         return
 
-    # Delete and recreate tab
-    try:
-        old_sheet = spreadsheet.worksheet(tab_name)
-        spreadsheet.del_worksheet(old_sheet)
-        logger.info(f"Deleted existing {tab_name} tab")
-    except gspread.WorksheetNotFound:
-        pass
-
+    # Get or create tab
     total_rows_needed = len(sheet_rows) + 1
-    sheet = spreadsheet.add_worksheet(
-        title=tab_name,
-        rows=total_rows_needed,
-        cols=len(HISTORY_HEADERS)
-    )
+    try:
+        sheet = spreadsheet.worksheet(tab_name)
+        sheet.clear()
+        if sheet.row_count < total_rows_needed:
+            sheet.resize(rows=total_rows_needed, cols=len(HISTORY_HEADERS))
+    except gspread.WorksheetNotFound:
+        sheet = spreadsheet.add_worksheet(
+            title=tab_name,
+            rows=total_rows_needed,
+            cols=len(HISTORY_HEADERS)
+        )
 
     # Write header
     sheet.update(range_name='A1', values=[HISTORY_HEADERS], value_input_option='USER_ENTERED')
