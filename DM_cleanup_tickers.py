@@ -2,15 +2,19 @@
 Clean up scanner_universe: remove delisted tickers, update renamed ones.
 
 Delisted (acquired/taken private):
-  K    → Kellanova, acquired by Mars (Dec 11, 2025)
-  SPR  → Spirit AeroSystems, acquired by Boeing (Dec 8, 2025)
-  IPG  → Interpublic Group, merged into Omnicom (Nov 26, 2025)
-  WBA  → Walgreens Boots Alliance, taken private by Sycamore (Aug 28, 2025)
-  DAY  → Dayforce, acquired by Thoma Bravo (Feb 4, 2026)
+  K    ->Kellanova, acquired by Mars (Dec 11, 2025)
+  SPR  ->Spirit AeroSystems, acquired by Boeing (Dec 8, 2025)
+  IPG  ->Interpublic Group, merged into Omnicom (Nov 26, 2025)
+  WBA  ->Walgreens Boots Alliance, taken private by Sycamore (Aug 28, 2025)
+  DAY  ->Dayforce, acquired by Thoma Bravo (Feb 4, 2026)
+  GMS  ->GMS Inc, acquired by Home Depot (Sep 4, 2025)
+  AZEK ->AZEK Company, acquired by James Hardie (Jul 1, 2025)
+  CYBR ->CyberArk Software, acquired by Palo Alto Networks (Feb 11, 2026)
 
 Renamed (still active):
-  FI   → FISV  (Fiserv, moved NYSE→NASDAQ, Nov 11, 2025)
-  MMC  → MRSH  (Marsh McLennan, rebranded, Jan 14, 2026)
+  FI   ->FISV  (Fiserv, moved NYSE->NASDAQ, Nov 11, 2025)
+  MMC  ->MRSH  (Marsh McLennan, rebranded, Jan 14, 2026)
+  ZI   ->GTM   (ZoomInfo, rebranded to GTM on Nasdaq, Feb 2026)
 
 Usage: python dm_cleanup_tickers.py
 """
@@ -21,11 +25,12 @@ from supabase import create_client
 
 supabase = create_client(os.getenv('SUPABASE_URL'), os.getenv('SUPABASE_KEY'))
 
-DELISTED = ["K", "SPR", "IPG", "WBA", "DAY"]
+DELISTED = ["K", "SPR", "IPG", "WBA", "DAY", "GMS", "AZEK", "CYBR"]
 
 RENAMED = {
     "FI":  "FISV",   # Fiserv — moved to NASDAQ, same company
     "MMC": "MRSH",   # Marsh McLennan — rebranded
+    "ZI":  "GTM",    # ZoomInfo — rebranded to GTM on Nasdaq
 }
 
 # ── Step 1: Check current state ──
@@ -52,11 +57,11 @@ for old_ticker, new_ticker in RENAMED.items():
     new_exists = new_ticker in existing
 
     if not old_exists and new_exists:
-        print(f"  {old_ticker} → {new_ticker}: already updated")
+        print(f"  {old_ticker} ->{new_ticker}: already updated")
         continue
 
     if not old_exists and not new_exists:
-        print(f"  {old_ticker} → {new_ticker}: neither found, skipping")
+        print(f"  {old_ticker} ->{new_ticker}: neither found, skipping")
         continue
 
     sector = existing[old_ticker]
@@ -75,7 +80,7 @@ for old_ticker, new_ticker in RENAMED.items():
 
     # Update price_history: rename old ticker rows to new ticker
     # This preserves historical data under the new symbol
-    print(f"  Updating price_history: {old_ticker} → {new_ticker}...")
+    print(f"  Updating price_history: {old_ticker} ->{new_ticker}...")
     try:
         update_result = supabase.table("price_history") \
             .update({"ticker": new_ticker}) \
@@ -88,7 +93,7 @@ for old_ticker, new_ticker in RENAMED.items():
         print(f"    May need manual SQL: UPDATE price_history SET ticker='{new_ticker}' WHERE ticker='{old_ticker}'")
 
     # Update dm_history too
-    print(f"  Updating dm_history: {old_ticker} → {new_ticker}...")
+    print(f"  Updating dm_history: {old_ticker} ->{new_ticker}...")
     try:
         dm_result = supabase.table("dm_history") \
             .update({"ticker": new_ticker}) \

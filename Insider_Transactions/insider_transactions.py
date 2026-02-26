@@ -240,6 +240,13 @@ def upload_to_supabase(records):
     if not records:
         return 0
 
+    # Deduplicate on the conflict key to avoid "cannot affect row a second time"
+    seen = {}
+    for r in records:
+        key = (r['filing_date'], r['ticker'], r['insider_name'], r['transaction_code'], r['shares_changed'])
+        seen[key] = r  # last occurrence wins
+    records = list(seen.values())
+
     batch_size = 200
     uploaded = 0
 

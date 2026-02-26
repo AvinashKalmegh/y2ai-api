@@ -285,7 +285,7 @@ def load_from_supabase(ticker=None):
     page_size = 1000
 
     while True:
-        query = supabase.table("options_history").select("*").order("date")
+        query = supabase.table("options_history").select("*").order("date", desc=True)
         if ticker:
             query = query.eq("ticker", ticker)
         query = query.range(offset, offset + page_size - 1)

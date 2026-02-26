@@ -33,7 +33,7 @@ TICKERS_TO_BACKFILL = [
     # Technology
     "AXON", "GIB", "DXC",
     # Software
-    "TEAM", "ASAN", "MNDY", "ZI",
+    "TEAM", "ASAN", "MNDY", "GTM",
     # Consumer Discretionary
     "MELI", "BKNG",
     # Consumer Staples
@@ -43,13 +43,13 @@ TICKERS_TO_BACKFILL = [
     # Biotechnology
     "ALNY",
     # Cybersecurity
-    "GEN", "OKTA", "CYBR", "CHKP", "S", "TENB", "QLYS",
+    "GEN", "OKTA", "CHKP", "S", "TENB", "QLYS",
     # Energy
     "BKR",
     # Industrials
-    "VRSK", "TREX", "AZEK", "IBP", "FERG", "GMS",
+    "VRSK", "TREX", "IBP", "FERG",
     # Communication Services
-    "IPG", "WPP", "PUBGY",
+    "WPP", "PUBGY",
     # Financials
     "ABCB", "LPLA", "IBKR", "AMTD", "SF",
     # Real Estate

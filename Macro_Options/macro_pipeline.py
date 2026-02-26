@@ -207,7 +207,7 @@ def load_from_supabase():
     while True:
         result = supabase.table("macro_history") \
             .select("*") \
-            .order("date") \
+            .order("date", desc=True) \
             .range(offset, offset + page_size - 1) \
             .execute()
         if not result.data:

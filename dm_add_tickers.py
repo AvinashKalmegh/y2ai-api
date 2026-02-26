@@ -31,7 +31,7 @@ TICKERS_TO_ADD = {
     "TEAM":  "Software",
     "ASAN":  "Software",
     "MNDY":  "Software",
-    "ZI":    "Software",
+    "GTM":   "Software",
     # Consumer Discretionary → XLY
     "MELI":  "Consumer Discretionary",
     "BKNG":  "Consumer Discretionary",
@@ -46,7 +46,6 @@ TICKERS_TO_ADD = {
     # Cybersecurity → HACK
     "GEN":   "Cybersecurity",
     "OKTA":  "Cybersecurity",
-    "CYBR":  "Cybersecurity",
     "CHKP":  "Cybersecurity",
     "S":     "Cybersecurity",
     "TENB":  "Cybersecurity",
@@ -56,12 +55,9 @@ TICKERS_TO_ADD = {
     # Industrials → XLI
     "VRSK":  "Industrials",
     "TREX":  "Industrials",
-    "AZEK":  "Industrials",
     "IBP":   "Industrials",
     "FERG":  "Industrials",
-    "GMS":   "Industrials",
     # Communication Services → XLC
-    "IPG":   "Communication Services",
     "WPP":   "Communication Services",
     "PUBGY": "Communication Services",
     # Financials → XLF
