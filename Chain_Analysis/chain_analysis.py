@@ -46,8 +46,11 @@ CREDENTIALS_FILE = 'credentials.json'
 # Source spreadsheet (read DM data)
 SOURCE_SPREADSHEET_ID = '1uozeMDJwQxj6dTjA_LG0kKx1U2AoSFfMI9MdA48uMMA'
 
-# Output spreadsheet (write chain analysis results)
+# Output spreadsheet (write chain analysis results — overwritten daily)
 OUTPUT_SPREADSHEET_ID = '1nvuP8wC18Fza8C6cmVQj81akflOB-L3dzKtPH65mQ8Q'
+
+# History spreadsheet (append daily — accumulates over time)
+HISTORY_SPREADSHEET_ID = '1xpJr1yFrJBY6iO12F1OArlkEacHW5eNxOo1uPGfVAQs'
 
 # Sheet names
 DM_HISTORY_TAB = 'DM_2024_2026'
@@ -266,6 +269,51 @@ def append_row_to_sheet(row_dict, tab_name):
         ws.append_row(list(row_dict.keys()), value_input_option='USER_ENTERED')
 
     ws.append_row(list(row_dict.values()), value_input_option='USER_ENTERED')
+
+
+def append_dataframe_to_history(df, tab_name):
+    """Append DataFrame rows to the history spreadsheet (never clears existing data)."""
+    if df.empty:
+        print(f"  Skipping history append for {tab_name} — empty DataFrame")
+        return
+
+    client = get_sheets_client()
+    sh = client.open_by_key(HISTORY_SPREADSHEET_ID)
+
+    try:
+        ws = sh.worksheet(tab_name)
+    except gspread.WorksheetNotFound:
+        # Create tab with headers
+        cols_needed = max(len(df.columns) + 2, 20)
+        ws = sh.add_worksheet(title=tab_name, rows=5000, cols=cols_needed)
+        header = df.columns.tolist()
+        ws.update(range_name='A1', values=[header], value_input_option='USER_ENTERED')
+        ws.format('1:1', {'textFormat': {'bold': True}})
+        print(f"  Created history tab: {tab_name}")
+
+    rows = df.fillna('').astype(str).values.tolist()
+
+    # Find next empty row
+    existing = len(ws.col_values(1))
+    start_row = existing + 1
+
+    # Expand sheet if needed
+    rows_needed = start_row + len(rows)
+    if rows_needed > ws.row_count:
+        ws.resize(rows=rows_needed + 5000)
+
+    # Write in batches
+    batch_size = 500
+    for i in range(0, len(rows), batch_size):
+        batch = rows[i:i + batch_size]
+        row_num = start_row + i
+        end_col = chr(ord('A') + len(df.columns) - 1) if len(df.columns) <= 26 else 'Z'
+        cell_range = f'A{row_num}:{end_col}{row_num + len(batch) - 1}'
+        ws.update(range_name=cell_range, values=batch, value_input_option='USER_ENTERED')
+        if i + batch_size < len(rows):
+            time.sleep(2)
+
+    print(f"  Appended {len(rows)} rows to history {tab_name}")
 
 
 # ============================================================
@@ -892,6 +940,7 @@ def run_full_analysis():
     corr_matrix = build_correlation_matrix(dm_wide)
     classifications, edges = classify_tickers(corr_matrix, dm_latest, dm_wide)
     write_dataframe_to_sheet(classifications, UNIVERSE_TAB)
+    append_dataframe_to_history(classifications, UNIVERSE_TAB)
 
     # Deliverable 2 — Daily Chain Monitor
     print("\n" + "=" * 60)
@@ -905,6 +954,7 @@ def run_full_analysis():
     print("=" * 60)
     backtest_results = run_propagation_backtest(dm_wide, edges, dm_latest)
     write_dataframe_to_sheet(backtest_results, BACKTEST_TAB)
+    append_dataframe_to_history(backtest_results, BACKTEST_TAB)
 
     tradeable = backtest_results[backtest_results['Tradeable'] == 'YES'] if not backtest_results.empty else pd.DataFrame()
     print(f"\n  Tradeable signals: {len(tradeable)}")
@@ -917,6 +967,7 @@ def run_full_analysis():
     print("=" * 60)
     strand_results = run_strand_persistence(dm_wide, edges, dm_latest)
     write_dataframe_to_sheet(strand_results, STRAND_TAB)
+    append_dataframe_to_history(strand_results, STRAND_TAB)
 
     # Deliverable 5 — Strand Emergence Scanner
     print("\n" + "=" * 60)
@@ -925,8 +976,10 @@ def run_full_analysis():
     new_strands, clusters = run_strand_emergence_scanner(dm_wide, dm_latest)
     if not new_strands.empty:
         write_dataframe_to_sheet(new_strands, EMERGENCE_TAB)
+        append_dataframe_to_history(new_strands, EMERGENCE_TAB)
     if not clusters.empty:
         write_dataframe_to_sheet(clusters, CLUSTER_TAB)
+        append_dataframe_to_history(clusters, CLUSTER_TAB)
 
     # Final summary
     print("\n" + "=" * 60)
@@ -960,10 +1013,12 @@ def run_backtest_only():
     corr_matrix = build_correlation_matrix(dm_wide)
     classifications, edges = classify_tickers(corr_matrix, dm_latest, dm_wide)
     write_dataframe_to_sheet(classifications, UNIVERSE_TAB)
+    append_dataframe_to_history(classifications, UNIVERSE_TAB)
 
     print("\n[STEP 2] Running Backtest...")
     backtest_results = run_propagation_backtest(dm_wide, edges, dm_latest)
     write_dataframe_to_sheet(backtest_results, BACKTEST_TAB)
+    append_dataframe_to_history(backtest_results, BACKTEST_TAB)
 
     tradeable = backtest_results[backtest_results['Tradeable'] == 'YES'] if not backtest_results.empty else pd.DataFrame()
     print(f"\n  Tradeable signals: {len(tradeable)}")
@@ -983,8 +1038,10 @@ def run_emergence_only():
     new_strands, clusters = run_strand_emergence_scanner(dm_wide, dm_latest)
     if not new_strands.empty:
         write_dataframe_to_sheet(new_strands, EMERGENCE_TAB)
+        append_dataframe_to_history(new_strands, EMERGENCE_TAB)
     if not clusters.empty:
         write_dataframe_to_sheet(clusters, CLUSTER_TAB)
+        append_dataframe_to_history(clusters, CLUSTER_TAB)
 
 
 # ============================================================
