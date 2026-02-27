@@ -6,179 +6,174 @@ on:
     - cron: "0 22 * * 1-5"
   workflow_dispatch: {}
 
+env:
+  TZ: America/New_York
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+  GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
+  PYTHONPATH: "."
+
 jobs:
-  macro-pipelines:
+  # ════════════════════════════════════════════════════════
+  # 1. MACRO HISTORY (FRED)
+  # ════════════════════════════════════════════════════════
+  macro-history:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-
     env:
-      TZ: America/New_York
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-      GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
-      POLYGON_API_KEY: ${{ secrets.POLYGON_API_KEY }}
       FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-      FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
-
     steps:
-      # ── Setup ──────────────────────────────────────────────
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
         with:
           python-version: "3.11"
+      - run: pip install --upgrade pip && pip install -r requirements.txt
+      - run: echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > credentials.json
 
-      - name: Install dependencies
-        run: |
-          pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Create Google credentials.json
-        run: |
-          echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > credentials.json
-
-      # ════════════════════════════════════════════════════════
-      # MACRO & OPTIONS PIPELINES
-      # ════════════════════════════════════════════════════════
-
-      - name: "Pipeline 1/7: Macro History (FRED) — Daily"
-        run: |
-          export PYTHONPATH=$PYTHONPATH:.
-          echo "========================================"
-          echo "MACRO HISTORY — Daily Update"
-          echo "========================================"
-          python Macro_Options/macro_pipeline.py daily
+      - name: "Macro History — Daily Update"
+        run: python Macro_Options/macro_pipeline.py daily
         continue-on-error: true
 
-      - name: "Pipeline 1/7: Macro History — Push to Sheets"
-        run: |
-          export PYTHONPATH=$PYTHONPATH:.
-          python Macro_Options/macro_pipeline.py push
+      - name: "Macro History — Push to Sheets"
+        run: python Macro_Options/macro_pipeline.py push
         continue-on-error: true
 
-      - name: "Pipeline 2/7: Options Put/Call (Polygon) — Daily"
-        run: |
-          export PYTHONPATH=$PYTHONPATH:.
-          echo "========================================"
-          echo "OPTIONS PUT/CALL — Daily Update"
-          echo "========================================"
-          python Macro_Options/options_pipeline.py daily
+  # ════════════════════════════════════════════════════════
+  # 2. OPTIONS PUT/CALL (Polygon)
+  # ════════════════════════════════════════════════════════
+  options-putcall:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      POLYGON_API_KEY: ${{ secrets.POLYGON_API_KEY }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      - run: pip install --upgrade pip && pip install -r requirements.txt
+      - run: echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > credentials.json
+
+      - name: "Options Put/Call — Daily Update"
+        run: python Macro_Options/options_pipeline.py daily
         continue-on-error: true
 
-      - name: "Pipeline 2/7: Options Put/Call — Push to Sheets"
-        run: |
-          export PYTHONPATH=$PYTHONPATH:.
-          python Macro_Options/options_pipeline.py push
+      - name: "Options Put/Call — Push to Sheets"
+        run: python Macro_Options/options_pipeline.py push
         continue-on-error: true
 
-      # ════════════════════════════════════════════════════════
-      # SHORT VOLUME + SHORT INTEREST
-      # ════════════════════════════════════════════════════════
+  # ════════════════════════════════════════════════════════
+  # 3. SHORT VOLUME (FINRA)
+  # ════════════════════════════════════════════════════════
+  short-volume:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      - run: pip install --upgrade pip && pip install -r requirements.txt
+      - run: echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > credentials.json
 
-      - name: "Pipeline 3/7: Short Volume (FINRA) — Daily"
-        run: |
-          export PYTHONPATH=$PYTHONPATH:.
-          echo "========================================"
-          echo "SHORT VOLUME — Daily Update"
-          echo "========================================"
-          python Short_Volume/short_volume.py daily
+      - name: "Short Volume — Daily Update"
+        run: python Short_Volume/short_volume.py daily
         continue-on-error: true
 
-      - name: "Pipeline 3/7: Short Volume — Push to Sheets"
-        run: |
-          export PYTHONPATH=$PYTHONPATH:.
-          python Short_Volume/short_volume.py push
+      - name: "Short Volume — Push to Sheets"
+        run: python Short_Volume/short_volume.py push
         continue-on-error: true
 
-      - name: "Pipeline 4/7: Short Interest (Polygon) — Daily"
-        run: |
-          export PYTHONPATH=$PYTHONPATH:.
-          echo "========================================"
-          echo "SHORT INTEREST — Daily Update"
-          echo "========================================"
-          python Short_Interest/short_interest_pipeline.py daily
+  # ════════════════════════════════════════════════════════
+  # 4. SHORT INTEREST (Polygon)
+  # ════════════════════════════════════════════════════════
+  short-interest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      POLYGON_API_KEY: ${{ secrets.POLYGON_API_KEY }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      - run: pip install --upgrade pip && pip install -r requirements.txt
+      - run: echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > credentials.json
+
+      - name: "Short Interest — Daily Update"
+        run: python Short_Interest/short_interest_pipeline.py daily
         continue-on-error: true
 
-      - name: "Pipeline 4/7: Short Interest — Push to Sheets"
-        run: |
-          export PYTHONPATH=$PYTHONPATH:.
-          python Short_Interest/short_interest_pipeline.py push
+      - name: "Short Interest — Push to Sheets"
+        run: python Short_Interest/short_interest_pipeline.py push
         continue-on-error: true
 
-      # ════════════════════════════════════════════════════════
-      # FINNHUB PIPELINES (Insider + Earnings)
-      # ════════════════════════════════════════════════════════
+  # ════════════════════════════════════════════════════════
+  # 5. INSIDER TRANSACTIONS (Finnhub) — slowest ~10 min
+  # ════════════════════════════════════════════════════════
+  insider-transactions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      - run: pip install --upgrade pip && pip install -r requirements.txt
+      - run: echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > credentials.json
 
-      - name: "Pipeline 5/7: Insider Transactions (Finnhub) — Daily"
-        run: |
-          export PYTHONPATH=$PYTHONPATH:.
-          echo "========================================"
-          echo "INSIDER TRANSACTIONS — Daily Update"
-          echo "========================================"
-          python Insider_Transactions/insider_transactions.py daily
+      - name: "Insider Transactions — Daily Update"
+        run: python Insider_Transactions/insider_transactions.py daily
         continue-on-error: true
 
-      - name: "Pipeline 5/7: Insider Transactions — Push to Sheets"
-        run: |
-          export PYTHONPATH=$PYTHONPATH:.
-          python Insider_Transactions/insider_transactions.py push
+      - name: "Insider Transactions — Push to Sheets"
+        run: python Insider_Transactions/insider_transactions.py push
         continue-on-error: true
 
-      - name: "Pipeline 6/7: Earnings Calendar (Finnhub) — Daily"
-        run: |
-          export PYTHONPATH=$PYTHONPATH:.
-          echo "========================================"
-          echo "EARNINGS CALENDAR — Daily Update"
-          echo "========================================"
-          python Earnings_Calendar/earnings_calendar.py daily
+  # ════════════════════════════════════════════════════════
+  # 6. EARNINGS CALENDAR (Finnhub)
+  # ════════════════════════════════════════════════════════
+  earnings-calendar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      - run: pip install --upgrade pip && pip install -r requirements.txt
+      - run: echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > credentials.json
+
+      - name: "Earnings Calendar — Daily Update"
+        run: python Earnings_Calendar/earnings_calendar.py daily
         continue-on-error: true
 
-      - name: "Pipeline 6/7: Earnings Calendar — Push to Sheets"
-        run: |
-          export PYTHONPATH=$PYTHONPATH:.
-          python Earnings_Calendar/earnings_calendar.py push
+      - name: "Earnings Calendar — Push to Sheets"
+        run: python Earnings_Calendar/earnings_calendar.py push
         continue-on-error: true
 
-      # ════════════════════════════════════════════════════════
-      # ETF NET FLOWS (yfinance — free, no key needed)
-      # ════════════════════════════════════════════════════════
+  # ════════════════════════════════════════════════════════
+  # 7. ETF NET FLOWS (yfinance — free, no key needed)
+  # ════════════════════════════════════════════════════════
+  etf-net-flows:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      - run: pip install --upgrade pip && pip install -r requirements.txt
+      - run: echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > credentials.json
 
-      - name: "Pipeline 7/7: ETF Net Flows (yfinance) — Daily"
-        run: |
-          export PYTHONPATH=$PYTHONPATH:.
-          echo "========================================"
-          echo "ETF NET FLOWS — Daily Update"
-          echo "========================================"
-          python ETF_Pipeline/etf_pipeline.py daily
+      - name: "ETF Net Flows — Daily Update"
+        run: python ETF_Pipeline/etf_pipeline.py daily
         continue-on-error: true
 
-      - name: "Pipeline 7/7: ETF Net Flows — Push to Sheets"
-        run: |
-          export PYTHONPATH=$PYTHONPATH:.
-          python ETF_Pipeline/etf_pipeline.py push
+      - name: "ETF Net Flows — Push to Sheets"
+        run: python ETF_Pipeline/etf_pipeline.py push
         continue-on-error: true
-
-      # ════════════════════════════════════════════════════════
-      # SUMMARY
-      # ════════════════════════════════════════════════════════
-
-      - name: Log completion
-        if: always()
-        run: |
-          echo "========================================"
-          echo "Macro & Market Data Pipelines completed at $(date)"
-          echo "========================================"
-          echo ""
-          echo "Pipelines executed:"
-          echo "  Macro History  — FRED (VIX, Yields, Credit Spreads)"
-          echo "  Options P/C    — Polygon (Put/Call ratios)"
-          echo "  Short Volume   — FINRA (daily short sale volume)"
-          echo "  Short Interest — Polygon (short interest data)"
-          echo "  Insider Txns   — Finnhub (insider transactions)"
-          echo "  Earnings Cal   — Finnhub (earnings calendar)"
-          echo "  ETF Net Flows  — yfinance (ETF flow proxies)"
-          echo ""
-          echo "Target sheets: Macro_and_Options_History"
-          echo "========================================"
