@@ -225,7 +225,7 @@ def load_from_supabase(ticker=None, limit=None):
     page_size = 1000
 
     while True:
-        query = supabase.table("short_volume").select("*").order("date")
+        query = supabase.table("short_volume").select("*").order("date", desc=True)
         if ticker:
             query = query.eq("ticker", ticker)
         query = query.range(offset, offset + page_size - 1)
@@ -281,6 +281,9 @@ def push_to_sheets():
             row.get('short_20d_avg', ''),
             row.get('short_z_score', ''),
         ])
+
+    # Sort newest-first (date descending)
+    sheet_rows.sort(key=lambda r: r[0], reverse=True)
 
     # Replace NaN
     for row in sheet_rows:

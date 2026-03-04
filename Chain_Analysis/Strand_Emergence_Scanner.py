@@ -242,3 +242,14 @@ def run_strand_emergence_scanner(dm_wide, dm_latest,
 # Time: ~5-10 minutes (faster than full chain analysis)
 # Function: run_strand_emergence_scanner(dm_wide, dm_latest)
 # This is SEPARATE from the daily monitor (which runs every morning)
+
+
+Chain_Full_Universe       │ Daily classification snapshots (ticker roles change over time) │
+  ├───────────────────────────┼────────────────────────────────────────────────────────────────┤
+  │ Chain_Backtest_Results    │ Daily backtest pair results                                    │
+  ├───────────────────────────┼────────────────────────────────────────────────────────────────┤
+  │ Strand_Analysis           │ Persistent strand history                                      │
+  ├───────────────────────────┼────────────────────────────────────────────────────────────────┤
+  │ Strand_Emergence_All      │ New strand formations each day                                 │
+  ├───────────────────────────┼────────────────────────────────────────────────────────────────┤
+  │ Strand_Emergence_Clusters │

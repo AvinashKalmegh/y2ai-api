@@ -14,64 +14,23 @@ supabase = create_client(os.getenv('SUPABASE_URL'), os.getenv('SUPABASE_KEY'))
 POLYGON_API_KEY = os.getenv("POLYGON_API_KEY") or os.getenv("MASSIVE_API_KEY")
 
 TICKERS_TO_ADD = {
-    # Quantum Computing → XLK
-    "IONQ":  "Technology",
-    "RGTI":  "Technology",
-    "QUBT":  "Technology",
-    "QBTS":  "Technology",
-    # Semiconductors → SMH
-    "ARM":   "Semiconductors",
-    "ASML":  "Semiconductors",
-    "MRVL":  "Semiconductors",
-    # Technology → XLK
-    "AXON":  "Technology",
-    "GIB":   "Technology",
-    "DXC":   "Technology",
-    # Software → IGV
-    "TEAM":  "Software",
-    "ASAN":  "Software",
-    "MNDY":  "Software",
-    "GTM":   "Software",
-    # Consumer Discretionary → XLY
-    "MELI":  "Consumer Discretionary",
-    "BKNG":  "Consumer Discretionary",
-    # Consumer Staples → XLP
-    "CCEP":  "Consumer Staples",
-    # Health Care → XLV
-    "ABBV":  "Health Care",
-    "IDXX":  "Health Care",
-    "CNC":   "Health Care",
+    # Semiconductors / Photonics → SMH
+    "COHR":  "Semiconductors",
+    "AMKR":  "Semiconductors",
     # Biotechnology → XBI
-    "ALNY":  "Biotechnology",
-    # Cybersecurity → HACK
-    "GEN":   "Cybersecurity",
-    "OKTA":  "Cybersecurity",
-    "CHKP":  "Cybersecurity",
-    "S":     "Cybersecurity",
-    "TENB":  "Cybersecurity",
-    "QLYS":  "Cybersecurity",
-    # Energy → XLE
-    "BKR":   "Energy",
-    # Industrials → XLI
-    "VRSK":  "Industrials",
-    "TREX":  "Industrials",
-    "IBP":   "Industrials",
-    "FERG":  "Industrials",
+    "IONS":  "Biotechnology",
     # Communication Services → XLC
-    "WPP":   "Communication Services",
-    "PUBGY": "Communication Services",
-    # Financials → XLF
-    "ABCB":  "Financials",
-    "LPLA":  "Financials",
-    "IBKR":  "Financials",
-    "AMTD":  "Financials",
-    "SF":    "Financials",
-    # Real Estate → XLRE
-    "VNO":   "Real Estate",
-    "SLG":   "Real Estate",
-    "HIW":   "Real Estate",
-    "DEA":   "Real Estate",
-    "CTRE":  "Real Estate",
+    "GSAT":  "Communication Services",
+    "ROKU":  "Communication Services",
+    "ZM":    "Communication Services",
+    # Aerospace & Defense → ITA
+    "RKLB":  "Aerospace & Defense",
+    # Technology → XLK
+    "CRWV":  "Technology",
+    # Software → IGV
+    "PATH":  "Software",
+    # Consumer Discretionary → XLY
+    "W":     "Consumer Discretionary",
 }
 
 # ── Step 1: Check existing universe ──

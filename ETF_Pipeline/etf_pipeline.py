@@ -455,7 +455,7 @@ def load_from_supabase(ticker=None, limit=None):
     page_size = 1000
 
     while True:
-        query = supabase.table("etf_flows_history").select("*").order("date")
+        query = supabase.table("etf_flows_history").select("*").order("date", desc=True)
         if ticker:
             query = query.eq("ticker", ticker)
         query = query.range(offset, offset + page_size - 1)
