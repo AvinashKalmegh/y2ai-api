@@ -117,9 +117,9 @@ def fetch_finra_daily(date_str):
                 rows.append({
                     'date': parts[0][:4] + '-' + parts[0][4:6] + '-' + parts[0][6:8],
                     'ticker': parts[1],
-                    'short_volume': int(parts[2]),
-                    'short_exempt_volume': int(parts[3]),
-                    'total_volume': int(parts[4]),
+                    'short_volume': int(float(parts[2])),
+                    'short_exempt_volume': int(float(parts[3])),
+                    'total_volume': int(float(parts[4])),
                 })
             except (ValueError, IndexError):
                 continue
@@ -249,8 +249,12 @@ def load_from_supabase(ticker=None, limit=None):
 # ============================================================
 # GOOGLE SHEETS
 # ============================================================
-def push_to_sheets():
-    """Push short_volume data to Google Sheets."""
+def push_to_sheets(full=False):
+    """Push short_volume data to Google Sheets.
+
+    If full=False (default): check latest date in sheet, only push newer data.
+    If full=True: clear sheet and rewrite everything.
+    """
     import gspread
     from google.oauth2.service_account import Credentials
 
@@ -259,14 +263,67 @@ def push_to_sheets():
         'https://www.googleapis.com/auth/drive'
     ]
 
-    logger.info("Loading short_volume from Supabase...")
-    df = load_from_supabase()
+    creds = Credentials.from_service_account_file('credentials.json', scopes=SCOPES)
+    client = gspread.authorize(creds)
 
-    if df.empty:
-        logger.info("No data to push.")
+    try:
+        spreadsheet = client.open(SHEETS_SPREADSHEET)
+    except Exception:
+        logger.error(f"Spreadsheet '{SHEETS_SPREADSHEET}' not found.")
         return
 
-    logger.info(f"  {len(df)} rows loaded")
+    # Get or create tab
+    try:
+        sheet = spreadsheet.worksheet(SHEETS_TAB)
+    except Exception:
+        sheet = spreadsheet.add_worksheet(
+            title=SHEETS_TAB, rows=1000, cols=len(SHORT_HEADERS)
+        )
+        full = True  # New sheet, must do full push
+
+    # Determine latest date already in sheet
+    latest_sheet_date = None
+    if not full:
+        try:
+            date_col = sheet.col_values(1)  # Column A = dates
+            # Skip header, find latest date (row 2 is newest since sorted desc)
+            if len(date_col) > 1:
+                latest_sheet_date = date_col[1].replace("'", "").strip()
+                logger.info(f"Latest date in sheet: {latest_sheet_date}")
+            else:
+                full = True  # Empty sheet
+        except Exception as e:
+            logger.warning(f"Could not read sheet dates: {e}")
+            full = True
+
+    if full:
+        logger.info("FULL PUSH — loading all data from Supabase...")
+        df = load_from_supabase()
+    else:
+        # Load only data newer than latest sheet date
+        logger.info(f"Loading data newer than {latest_sheet_date} from Supabase...")
+        all_rows = []
+        offset = 0
+        page_size = 1000
+        while True:
+            result = supabase.table("short_volume").select("*") \
+                .gt("date", latest_sheet_date) \
+                .order("date", desc=True) \
+                .range(offset, offset + page_size - 1) \
+                .execute()
+            if not result.data:
+                break
+            all_rows.extend(result.data)
+            if len(result.data) < page_size:
+                break
+            offset += page_size
+        df = pd.DataFrame(all_rows) if all_rows else pd.DataFrame()
+
+    if df.empty:
+        logger.info("No new data to push.")
+        return
+
+    logger.info(f"  {len(df)} rows to push")
 
     # Build sheet rows
     sheet_rows = []
@@ -282,7 +339,7 @@ def push_to_sheets():
             row.get('short_z_score', ''),
         ])
 
-    # Sort newest-first (date descending)
+    # Sort newest-first
     sheet_rows.sort(key=lambda r: r[0], reverse=True)
 
     # Replace NaN
@@ -291,39 +348,33 @@ def push_to_sheets():
             if row[j] is None or (isinstance(row[j], float) and np.isnan(row[j])):
                 row[j] = ''
 
-    creds = Credentials.from_service_account_file('credentials.json', scopes=SCOPES)
-    client = gspread.authorize(creds)
-
-    try:
-        spreadsheet = client.open(SHEETS_SPREADSHEET)
-    except Exception:
-        logger.error(f"Spreadsheet '{SHEETS_SPREADSHEET}' not found.")
-        return
-
-    # Get or create tab
-    try:
-        sheet = spreadsheet.worksheet(SHEETS_TAB)
+    if full:
+        # Full push: clear and rewrite
         sheet.clear()
         if sheet.row_count < len(sheet_rows) + 10:
             sheet.resize(rows=len(sheet_rows) + 100, cols=len(SHORT_HEADERS))
-    except Exception:
-        sheet = spreadsheet.add_worksheet(
-            title=SHEETS_TAB,
-            rows=len(sheet_rows) + 100,
-            cols=len(SHORT_HEADERS)
-        )
+        sheet.update(range_name='A1', values=[SHORT_HEADERS], value_input_option='USER_ENTERED')
+        sheet.format('1:1', {'textFormat': {'bold': True}})
 
-    sheet.update(range_name='A1', values=[SHORT_HEADERS], value_input_option='USER_ENTERED')
-    sheet.format('1:1', {'textFormat': {'bold': True}})
+        BATCH_SIZE = 10000
+        total = 0
+        for i in range(0, len(sheet_rows), BATCH_SIZE):
+            batch = sheet_rows[i:i + BATCH_SIZE]
+            sheet.update(range_name=f'A{i+2}', values=batch, value_input_option='USER_ENTERED')
+            total += len(batch)
+            logger.info(f"  Written {total}/{len(sheet_rows)} rows")
+            time.sleep(5)
+    else:
+        # Incremental push: insert new rows at top (after header)
+        current_rows = sheet.row_count
+        needed = current_rows + len(sheet_rows)
+        if needed > current_rows:
+            sheet.resize(rows=needed + 100, cols=len(SHORT_HEADERS))
 
-    BATCH_SIZE = 5000
-    total = 0
-    for i in range(0, len(sheet_rows), BATCH_SIZE):
-        batch = sheet_rows[i:i + BATCH_SIZE]
-        sheet.update(range_name=f'A{i+2}', values=batch, value_input_option='USER_ENTERED')
-        total += len(batch)
-        logger.info(f"  Written {total}/{len(sheet_rows)} rows")
-        time.sleep(1)
+        # Insert new rows after header row
+        sheet.insert_rows(sheet_rows, row=2, value_input_option='USER_ENTERED')
+        total = len(sheet_rows)
+        logger.info(f"  Inserted {total} new rows at top of sheet")
 
     logger.info(f"Push complete: {total} rows")
 
@@ -492,12 +543,12 @@ def run_calculate():
     logger.info(f"Recalculated and uploaded {uploaded} rows")
 
 
-def run_push():
+def run_push(full=False):
     """Push to Google Sheets."""
     logger.info("=" * 60)
-    logger.info("SHORT VOLUME - PUSH TO SHEETS")
+    logger.info(f"SHORT VOLUME - PUSH TO SHEETS ({'FULL' if full else 'INCREMENTAL'})")
     logger.info("=" * 60)
-    push_to_sheets()
+    push_to_sheets(full=full)
 
 
 # ============================================================
@@ -510,7 +561,8 @@ if __name__ == '__main__':
         print("  python short_volume_pipeline.py backfill 2024     # Backfill from specific year")
         print("  python short_volume_pipeline.py daily             # Fetch last 5 trading days")
         print("  python short_volume_pipeline.py calculate         # Recalculate rolling metrics")
-        print("  python short_volume_pipeline.py push              # Push to Google Sheets")
+        print("  python short_volume_pipeline.py push              # Incremental push (new dates only)")
+        print("  python short_volume_pipeline.py push full         # Full rewrite of sheet")
         print("")
         print("Source: FINRA Reg SHO Daily Short Sale Volume (CNMS)")
         print("URL: https://cdn.finra.org/equity/regsho/daily/CNMSshvol{YYYYMMDD}.txt")
@@ -527,7 +579,8 @@ if __name__ == '__main__':
     elif cmd == "calculate":
         run_calculate()
     elif cmd == "push":
-        run_push()
+        full_flag = len(sys.argv) > 2 and sys.argv[2].lower() == "full"
+        run_push(full=full_flag)
     else:
         print(f"Unknown command: {cmd}")
         sys.exit(1)
