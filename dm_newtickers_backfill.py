@@ -195,27 +195,27 @@ def calculate_dm(ticker_df, spy_df, etf_df, etf_symbol):
             continue
         etf_return_20d = (etf_close - etf_match_20d.iloc[0]['close']) / etf_match_20d.iloc[0]['close']
         
-        # Relative strength
-        rel_str_etf = (return_20d - etf_return_20d) * 100
-        rel_str_spy = (return_20d - spy_return_20d) * 100
-        
-        # Volume Z-score
+        # Relative strength (0-100 scale, 50 = equal, matches production pipeline)
+        rel_str_etf = max(0, min(100, 50 + (return_20d - etf_return_20d) * 500))
+        rel_str_spy = max(0, min(100, 50 + (return_20d - spy_return_20d) * 500))
+
+        # Volume Z-score (0-100 scale, matches production GS formula)
         vol_5d = ticker_df.iloc[max(0, i-4):i+1]['volume'].mean()
         vol_start = max(0, i - vol_baseline)
         vol_baseline_avg = ticker_df.iloc[vol_start:i+1]['volume'].mean()
-        
+
         if vol_baseline_avg > 0:
-            vol_std = ticker_df.iloc[vol_start:i+1]['volume'].std()
-            volume_z = (vol_5d - vol_baseline_avg) / vol_std if vol_std > 0 else 0
+            ratio = vol_5d / vol_baseline_avg
+            volume_z = max(0, min(100, (ratio - 0.5) * 66.67))
         else:
-            volume_z = 0
-        
+            volume_z = 50
+
         # 20-day avg volume
         vol_20d_avg = ticker_df.iloc[max(0, i-19):i+1]['volume'].mean()
         vol_ratio = vol_5d / vol_baseline_avg if vol_baseline_avg > 0 else 1
-        
+
         # DM Raw: RelStr_ETF * 0.50 + RelStr_SPY * 0.30 + Volume_Z * 0.20
-        dm_raw = rel_str_etf * 0.50 + rel_str_spy * 0.30 + volume_z * 0.20
+        dm_raw = max(0, min(100, rel_str_etf * 0.50 + rel_str_spy * 0.30 + volume_z * 0.20))
         
         results.append({
             'date': date.strftime('%Y-%m-%d'),
@@ -239,9 +239,9 @@ def calculate_dm(ticker_df, spy_df, etf_df, etf_symbol):
     
     df = pd.DataFrame(results)
     
-    # Smoothing: DM = clamp(EMA5(dm_raw), 10, 100)
+    # Smoothing: EMA5 of dm_raw, clamped 0-100 (matches production pipeline)
     df['dm_smoothed'] = df['dm_raw'].ewm(span=5, adjust=False).mean()
-    df['dm_smoothed'] = df['dm_smoothed'].clip(lower=10, upper=100).round(2)
+    df['dm_smoothed'] = df['dm_smoothed'].clip(lower=0, upper=100).round(2)
     
     # ETF DM (using ETF's own rel strength vs SPY)
     df['etf_dm'] = 50  # placeholder
