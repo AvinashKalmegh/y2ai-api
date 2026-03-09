@@ -1,0 +1,71 @@
+name: Intraday DM Scanner (3x Daily)
+
+on:
+  schedule:
+    # 10:30 AM ET = 14:30 UTC (15:30 UTC during EST)
+    - cron: "30 14 * * 1-5"
+    # 1:00 PM ET = 17:00 UTC (18:00 UTC during EST)
+    - cron: "0 17 * * 1-5"
+    # 3:30 PM ET = 19:30 UTC (20:30 UTC during EST)
+    - cron: "30 19 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      universe:
+        description: "Ticker universe to scan"
+        required: false
+        default: "priority"
+        type: choice
+        options:
+          - priority
+          - marketplace
+          - flowos
+
+jobs:
+  intraday-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      TZ: America/New_York
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      POLYGON_API_KEY: ${{ secrets.POLYGON_API_KEY }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Intraday DM Scan
+        run: |
+          export PYTHONPATH=$PYTHONPATH:.
+          UNIVERSE="${{ github.event.inputs.universe || 'priority' }}"
+          echo "========================================"
+          echo "INTRADAY DM SCAN"
+          echo "Universe: $UNIVERSE"
+          echo "Started at $(date)"
+          echo "========================================"
+
+          if [ "$UNIVERSE" = "marketplace" ]; then
+            python intraday_dm_scanner.py --marketplace
+          elif [ "$UNIVERSE" = "flowos" ]; then
+            python intraday_dm_scanner.py --flowos
+          else
+            python intraday_dm_scanner.py
+          fi
+
+      - name: Log completion
+        if: always()
+        run: |
+          echo "========================================"
+          echo "Intraday DM Scan completed at $(date)"
+          echo "========================================"

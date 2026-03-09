@@ -26,34 +26,9 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 # CONFIGURATION
 # ============================================================
 TICKERS_TO_BACKFILL = [
-    # Quantum Computing
-    "IONQ", "RGTI", "QUBT", "QBTS",
-    # Semiconductors
-    "ARM", "ASML", "MRVL",
-    # Technology
-    "AXON", "GIB", "DXC",
-    # Software
-    "TEAM", "ASAN", "MNDY", "GTM",
-    # Consumer Discretionary
-    "MELI", "BKNG",
-    # Consumer Staples
-    "CCEP",
-    # Health Care
-    "ABBV", "IDXX", "CNC",
-    # Biotechnology
-    "ALNY",
-    # Cybersecurity
-    "GEN", "OKTA", "CHKP", "S", "TENB", "QLYS",
-    # Energy
-    "BKR",
-    # Industrials
-    "VRSK", "TREX", "IBP", "FERG",
-    # Communication Services
-    "WPP", "PUBGY",
-    # Financials
-    "ABCB", "LPLA", "IBKR", "AMTD", "SF",
-    # Real Estate
-    "VNO", "SLG", "HIW", "DEA", "CTRE",
+    # Marketplace Watchlist + Intraday Scanner additions
+    "FVRR", "GTLB", "HUBS", "TWLO", "UPWK",
+    "RBLX", "BILL", "DOCN",
 ]
 
 START_DATE = "2016-01-01"

@@ -14,23 +14,16 @@ supabase = create_client(os.getenv('SUPABASE_URL'), os.getenv('SUPABASE_KEY'))
 POLYGON_API_KEY = os.getenv("POLYGON_API_KEY") or os.getenv("MASSIVE_API_KEY")
 
 TICKERS_TO_ADD = {
-    # Semiconductors / Photonics → SMH
-    "COHR":  "Semiconductors",
-    "AMKR":  "Semiconductors",
-    # Biotechnology → XBI
-    "IONS":  "Biotechnology",
-    # Communication Services → XLC
-    "GSAT":  "Communication Services",
-    "ROKU":  "Communication Services",
-    "ZM":    "Communication Services",
-    # Aerospace & Defense → ITA
-    "RKLB":  "Aerospace & Defense",
-    # Technology → XLK
-    "CRWV":  "Technology",
-    # Software → IGV
-    "PATH":  "Software",
-    # Consumer Discretionary → XLY
-    "W":     "Consumer Discretionary",
+    # Marketplace Watchlist — missing from price_history
+    "FVRR":  "Software",
+    "GTLB":  "Software",
+    "HUBS":  "Software",
+    "TWLO":  "Software",
+    "UPWK":  "Software",
+    # New additions for intraday scanner
+    "RBLX":  "Communication Services",
+    "BILL":  "Software",
+    "DOCN":  "Software",
 }
 
 # ── Step 1: Check existing universe ──
