@@ -527,9 +527,10 @@ def run_intraday_scan(tickers, dry_run=False):
     if results:
         print_results_table(results)
 
-    # 5. Write to Supabase
+    # 5. Write to Supabase + Google Sheets
     if not dry_run and results:
         write_results(results)
+        push_results_to_sheets(results)
     elif dry_run:
         logger.info("DRY RUN — results NOT written to database")
 
@@ -575,23 +576,106 @@ def write_results(results):
         logger.info(f"  Written {len(results)} rows to dm_intraday")
     except Exception as e:
         logger.error(f"  Failed to write to dm_intraday: {e}")
-        # Try creating table if it doesn't exist
-        logger.info("  Table may not exist. Create it with:")
-        print("""
-        CREATE TABLE dm_intraday (
-            scan_time       TIMESTAMPTZ NOT NULL,
-            ticker          VARCHAR(10) NOT NULL,
-            dm_score        DECIMAL(5,1),
-            dm_ema5         DECIMAL(5,1),
-            current_price   DECIMAL(10,2),
-            volume_today    BIGINT,
-            volume_zscore   DECIMAL(5,2),
-            return_20d      DECIMAL(8,4),
-            etf_return_20d  DECIMAL(8,4),
-            spy_return_20d  DECIMAL(8,4),
-            PRIMARY KEY (scan_time, ticker)
-        );
-        """)
+        logger.info("  Table may not exist. Create it in Supabase SQL Editor.")
+
+
+def push_results_to_sheets(results):
+    """Push intraday scan results to Google Sheets DM_Intraday tab."""
+    try:
+        import gspread
+        from oauth2client.service_account import ServiceAccountCredentials
+    except ImportError:
+        logger.error("  gspread/oauth2client not installed. Skipping GS push.")
+        return
+
+    GOOGLE_SHEETS_CREDS_FILE = 'credentials.json'
+    SPREADSHEET_NAME = "copy-dm-history 2024-current"
+    TAB_NAME = "DM_Intraday"
+
+    HEADERS = [
+        'Scan_Time', 'Ticker', 'DM_Raw', 'DM_EMA5', 'Price',
+        'Volume', 'Vol_Z', 'Return_20d', 'ETF_Ret_20d', 'SPY_Ret_20d'
+    ]
+
+    if not os.path.exists(GOOGLE_SHEETS_CREDS_FILE):
+        # GitHub Actions writes credentials.json from secrets
+        creds_json = os.getenv('GOOGLE_CREDENTIALS_JSON')
+        if creds_json:
+            with open(GOOGLE_SHEETS_CREDS_FILE, 'w') as f:
+                f.write(creds_json)
+        else:
+            logger.warning("  No Google credentials found. Skipping GS push.")
+            return
+
+    logger.info("Pushing intraday results to Google Sheets...")
+
+    scope = [
+        'https://spreadsheets.google.com/feeds',
+        'https://www.googleapis.com/auth/drive'
+    ]
+    creds = ServiceAccountCredentials.from_json_keyfile_name(
+        GOOGLE_SHEETS_CREDS_FILE, scope
+    )
+    client = gspread.authorize(creds)
+
+    try:
+        spreadsheet = client.open(SPREADSHEET_NAME)
+    except gspread.SpreadsheetNotFound:
+        logger.error(f"  Spreadsheet '{SPREADSHEET_NAME}' not found.")
+        return
+
+    # Get or create tab
+    try:
+        sheet = spreadsheet.worksheet(TAB_NAME)
+    except gspread.WorksheetNotFound:
+        sheet = spreadsheet.add_worksheet(title=TAB_NAME, rows=2000, cols=len(HEADERS))
+        logger.info(f"  Created new tab: {TAB_NAME}")
+
+    # Sort by DM_EMA5 descending
+    sorted_results = sorted(results, key=lambda r: r['dm_ema5'], reverse=True)
+
+    # Build rows
+    scan_time = sorted_results[0]['scan_time'] if sorted_results else ''
+    # Format scan_time for readability
+    try:
+        from datetime import datetime as dt
+        st = dt.fromisoformat(scan_time.replace('Z', '+00:00'))
+        scan_label = st.strftime('%Y-%m-%d %H:%M ET')
+    except Exception:
+        scan_label = str(scan_time)
+
+    sheet_rows = []
+    for r in sorted_results:
+        sheet_rows.append([
+            scan_label,
+            r['ticker'],
+            r['dm_score'],
+            r['dm_ema5'],
+            r['current_price'],
+            r['volume_today'],
+            r['volume_zscore'],
+            r['return_20d'],
+            r['etf_return_20d'],
+            r['spy_return_20d'],
+        ])
+
+    # Check if tab already has data — append new scan below existing
+    existing_data = sheet.col_values(1)
+    if len(existing_data) <= 1:
+        # Empty tab — write header + data
+        all_data = [HEADERS] + sheet_rows
+        sheet.update(range_name='A1', values=all_data, value_input_option='USER_ENTERED')
+        sheet.format('1:1', {'textFormat': {'bold': True}})
+    else:
+        # Append below existing data (add blank separator row)
+        start_row = len(existing_data) + 2
+        # Expand if needed
+        rows_needed = start_row + len(sheet_rows)
+        if rows_needed > sheet.row_count:
+            sheet.resize(rows=rows_needed + 500)
+        sheet.update(range_name=f'A{start_row}', values=sheet_rows, value_input_option='USER_ENTERED')
+
+    logger.info(f"  Pushed {len(sheet_rows)} rows to GS {TAB_NAME} (scan: {scan_label})")
 
 
 # ============================================================
