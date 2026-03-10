@@ -115,7 +115,7 @@ MARKETPLACE_TICKERS = [
     "ZS", "CRWD", "NET", "DDOG", "MDB", "SNOW",
     "PLTR", "NOW", "CRM", "ADBE", "SHOP", "WDAY",
     "RBLX", "BILL", "DOCN",
-    "TEAM", "MNDY", "IBM", "OKTA",
+    "TEAM", "MNDY", "IBM", "OKTA", "S",
 ]
 
 # 26 FlowOS production universe
