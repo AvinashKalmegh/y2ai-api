@@ -109,12 +109,13 @@ DEFAULT_ETF = "SPY"
 # TICKER UNIVERSES
 # ============================================================
 
-# 21 Marketplace Watchlist tickers
+# 25 Marketplace Watchlist tickers
 MARKETPLACE_TICKERS = [
     "UPWK", "GTLB", "ACN", "HUBS", "FVRR", "TWLO",
     "ZS", "CRWD", "NET", "DDOG", "MDB", "SNOW",
     "PLTR", "NOW", "CRM", "ADBE", "SHOP", "WDAY",
     "RBLX", "BILL", "DOCN",
+    "TEAM", "MNDY", "IBM", "OKTA",
 ]
 
 # 26 FlowOS production universe
