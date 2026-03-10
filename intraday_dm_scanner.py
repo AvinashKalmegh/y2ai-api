@@ -636,11 +636,13 @@ def push_results_to_sheets(results):
 
     # Build rows
     scan_time = sorted_results[0]['scan_time'] if sorted_results else ''
-    # Format scan_time for readability
+    # Format scan_time in ET for readability
     try:
         from datetime import datetime as dt
+        from zoneinfo import ZoneInfo
         st = dt.fromisoformat(scan_time.replace('Z', '+00:00'))
-        scan_label = st.strftime('%Y-%m-%d %H:%M ET')
+        st_et = st.astimezone(ZoneInfo('America/New_York'))
+        scan_label = st_et.strftime('%Y-%m-%d %H:%M ET')
     except Exception:
         scan_label = str(scan_time)
 
