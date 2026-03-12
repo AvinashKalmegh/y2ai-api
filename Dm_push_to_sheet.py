@@ -194,7 +194,7 @@ def fetch_history_partition(start_date, end_date):
             .select(select_fields) \
             .gte("date", start_date) \
             .lte("date", end_date) \
-            .order("date") \
+            .order("date", desc=True) \
             .range(offset, offset + page_size - 1) \
             .execute()
 
@@ -346,17 +346,17 @@ def push_daily():
         push_partition(active)
         return
 
-    # Get last date from GS
+    # Get newest date from GS (row 2, since data is newest-first)
     all_dates = history_sheet.col_values(1)
     if len(all_dates) > 1:
-        last_gs_date = all_dates[-1]
-        logger.info(f"Last date in GS {tab_name}: {last_gs_date}")
+        newest_gs_date = all_dates[1]  # Row 2 = most recent date (newest-first order)
+        logger.info(f"Newest date in GS {tab_name}: {newest_gs_date}")
     else:
         logger.info(f"{tab_name} is empty. Running full partition push.")
         push_partition(active)
         return
 
-    # Fetch new rows from Supabase
+    # Fetch new rows from Supabase (newer than what's already in GS)
     supabase = get_supabase()
     select_fields = ",".join(HISTORY_FIELDS)
 
@@ -366,9 +366,9 @@ def push_daily():
     while True:
         result = supabase.table("dm_history") \
             .select(select_fields) \
-            .gt("date", last_gs_date) \
+            .gt("date", newest_gs_date) \
             .lte("date", active["end"]) \
-            .order("date") \
+            .order("date", desc=True) \
             .range(offset, offset + page_size - 1) \
             .execute()
         if not result.data:
@@ -379,34 +379,37 @@ def push_daily():
         offset += page_size
 
     if not new_rows:
-        logger.info("No new history rows to append.")
+        logger.info("No new history rows to prepend.")
         return
 
-    logger.info(f"New history rows to append: {len(new_rows)}")
+    logger.info(f"New history rows to prepend: {len(new_rows)}")
 
     sheet_rows = rows_to_sheet_data(new_rows)
 
-    BATCH_SIZE = 5000
-    current_row = len(all_dates) + 1
-
     # Expand sheet if needed
-    rows_needed = current_row + len(sheet_rows) - 1
-    if rows_needed > history_sheet.row_count:
-        new_size = rows_needed + 5000  # Add buffer for future appends
+    total_rows = len(all_dates) + len(sheet_rows)
+    if total_rows > history_sheet.row_count:
+        new_size = total_rows + 5000
         history_sheet.resize(rows=new_size)
-        logger.info(f"  Expanded sheet from {history_sheet.row_count} to {new_size} rows")
+        logger.info(f"  Expanded sheet to {new_size} rows")
 
+    # Insert blank rows at row 2 to make space for new data
+    history_sheet.insert_rows(values=[], row=2, number_of_rows=len(sheet_rows))
+    logger.info(f"  Inserted {len(sheet_rows)} blank rows at top")
+
+    # Write new data at row 2 (newest-first, already sorted desc from Supabase)
+    BATCH_SIZE = 5000
     for i in range(0, len(sheet_rows), BATCH_SIZE):
         batch = sheet_rows[i:i + BATCH_SIZE]
-        start_row = current_row + i
+        start_row = 2 + i
         try:
             history_sheet.update(range_name=f'A{start_row}', values=batch, value_input_option='USER_ENTERED')
-            logger.info(f"  Appended {len(batch)} rows (row {start_row})")
+            logger.info(f"  Written {min(i + BATCH_SIZE, len(sheet_rows))}/{len(sheet_rows)} rows")
         except Exception as e:
-            logger.error(f"  Append error at row {start_row}: {e}")
+            logger.error(f"  Write error at row {start_row}: {e}")
         time.sleep(1)
 
-    logger.info(f"Daily push complete. Appended {len(new_rows)} history rows.")
+    logger.info(f"Daily push complete. Prepended {len(new_rows)} history rows.")
 
 
 # ============================================================

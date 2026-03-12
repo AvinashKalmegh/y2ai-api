@@ -4,17 +4,24 @@ HIDDEN MONEY SCORE (HMS) CALCULATOR
 Detects institutional accumulation before DM registers movement.
 HMS fires 2-4 weeks before DM crosses meaningful thresholds.
 
-HMS = (0.30 * Persistent Order Flow)
-    + (0.25 * Volume Absorption Ratio)
-    + (0.25 * Trade Fragmentation Index)
-    + (0.20 * Price Compression Score)
+HMS_v1 (3-component, C4 unavailable):
+    Reweighted from original 4-component formula.
+    C1 and C2 use percentile rank normalization (outlier-resistant).
+    C3 uses min-max normalization.
+
+HMS_v2 (4-component, when trade count data available):
+    HMS = (0.30 * Persistent Order Flow)
+        + (0.25 * Volume Absorption Ratio)
+        + (0.25 * Trade Fragmentation Index)
+        + (0.20 * Price Compression Score)
 
 All components normalized 0-1 across universe daily.
 Final HMS_Score range: 0.0 to 1.0.
+HMS_Valid = FALSE for warm-up period rows (first 10 trading days per ticker).
 
 Usage:
     python hms_calculator.py                    # Run daily HMS for priority universe
-    python hms_calculator.py --validate         # Validation run (NVDA, AMAT, VST)
+    python hms_calculator.py --validate         # Validation run (NVDA, CEG, VST — full-universe normalization)
     python hms_calculator.py --backtest         # Full backtest 2020-2025
     python hms_calculator.py --dry-run          # Print results, don't write to DB
     python hms_calculator.py --tickers NVDA,TSLA  # Custom tickers
@@ -46,11 +53,16 @@ POLYGON_API_KEY = os.getenv("POLYGON_API_KEY") or os.getenv("MASSIVE_API_KEY")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-# HMS component weights
+# HMS component weights (v2 — full 4-component)
 W_PERSISTENT_FLOW = 0.30
 W_VOLUME_ABSORPTION = 0.25
 W_TRADE_FRAGMENTATION = 0.25
 W_PRICE_COMPRESSION = 0.20
+
+# HMS v1 weights (3-component, C4 unavailable — per brief spec)
+W_V1_FLOW = 0.3529
+W_V1_ABSORPTION = 0.2941
+W_V1_COMPRESSION = 0.2353
 
 # Rolling windows (trading days)
 COMPRESSION_WINDOW = 10
@@ -81,7 +93,7 @@ PRIORITY_TICKERS = [
     "VRT", "WDAY", "ZS",
 ]
 
-VALIDATION_TICKERS = ["NVDA", "AMAT", "VST"]
+VALIDATION_TICKERS = ["NVDA", "CEG", "VST"]
 
 
 # ============================================================
@@ -274,7 +286,7 @@ def compute_trade_fragmentation(df, trade_counts):
 # NORMALIZATION
 # ============================================================
 
-def normalize_cross_sectional(series):
+def normalize_cross_sectional_minmax(series):
     """Normalize a series 0-1 using min-max across the universe for that day."""
     min_val = series.min()
     max_val = series.max()
@@ -283,11 +295,20 @@ def normalize_cross_sectional(series):
     return (series - min_val) / (max_val - min_val)
 
 
+def normalize_cross_sectional_percentile(series):
+    """Normalize a series 0-1 using percentile rank across the universe for that day.
+    Immune to single-outlier domination (Finding 1 fix)."""
+    if len(series.dropna()) <= 1:
+        return pd.Series(0.5, index=series.index)
+    return series.rank(pct=True, na_option='bottom')
+
+
 # ============================================================
 # MAIN HMS COMPUTATION
 # ============================================================
 
-def compute_hms(tickers, start_date="2019-06-01", fetch_trade_data=True, dry_run=False):
+def compute_hms(tickers, start_date="2019-06-01", fetch_trade_data=True, dry_run=False,
+                output_tickers=None):
     """
     Compute HMS for all tickers.
 
@@ -295,10 +316,17 @@ def compute_hms(tickers, start_date="2019-06-01", fetch_trade_data=True, dry_run
     2. Compute raw components per ticker
     3. Normalize cross-sectionally per day
     4. Combine into final HMS score
+
+    Args:
+        tickers: Full universe for cross-sectional normalization.
+        output_tickers: If set, filter final output to only these tickers.
+                        Normalization still uses full universe.
     """
     logger.info("=" * 60)
     logger.info("HIDDEN MONEY SCORE (HMS) CALCULATION")
-    logger.info(f"  Tickers: {len(tickers)}")
+    logger.info(f"  Universe: {len(tickers)} tickers")
+    if output_tickers:
+        logger.info(f"  Output filter: {output_tickers}")
     logger.info(f"  Start date: {start_date}")
     logger.info("=" * 60)
 
@@ -353,16 +381,28 @@ def compute_hms(tickers, start_date="2019-06-01", fetch_trade_data=True, dry_run
 
     combined = pd.concat(all_results, ignore_index=True)
 
-    # 4. Cross-sectional normalization per day
+    # 3b. Per-ticker z-score normalization BEFORE cross-sectional ranking
+    # This converts raw scores to "how unusual is this for THIS stock" so that
+    # high-volume stocks like NVDA don't permanently dominate percentile ranks.
+    logger.info("Applying per-ticker z-score normalization...")
+    for comp in ['comp1_raw', 'comp2_raw']:
+        combined[comp] = combined.groupby('ticker')[comp].transform(
+            lambda x: (x - x.rolling(60, min_periods=10).mean()) /
+                      x.rolling(60, min_periods=10).std().replace(0, np.nan)
+        )
+
+    # 4. Cross-sectional normalization per day (cross-universe, not per-ticker)
     logger.info("Normalizing across universe per day...")
 
     def normalize_day(group):
         group = group.copy()
-        group['comp1_norm'] = normalize_cross_sectional(group['comp1_raw'])
-        group['comp2_norm'] = normalize_cross_sectional(group['comp2_raw'])
-        group['comp3_norm'] = normalize_cross_sectional(group['comp3_raw'])
+        # Finding 1 fix: use percentile rank for C1 and C2 to prevent outlier domination
+        group['comp1_norm'] = normalize_cross_sectional_percentile(group['comp1_raw'].fillna(0))
+        group['comp2_norm'] = normalize_cross_sectional_percentile(group['comp2_raw'].fillna(0))
+        group['comp3_norm'] = normalize_cross_sectional_minmax(group['comp3_raw'].fillna(0))
         if has_fragmentation:
-            group['comp4_norm'] = normalize_cross_sectional(group['comp4_raw'])
+            group['comp4_raw'] = group['comp4_raw'].fillna(0)
+            group['comp4_norm'] = normalize_cross_sectional_minmax(group['comp4_raw'])
         else:
             group['comp4_norm'] = 0.0
         return group
@@ -378,21 +418,56 @@ def compute_hms(tickers, start_date="2019-06-01", fetch_trade_data=True, dry_run
             W_PRICE_COMPRESSION * combined['comp1_norm']
         )
     else:
-        # Reweight without Component 4
-        total_w = W_PERSISTENT_FLOW + W_VOLUME_ABSORPTION + W_PRICE_COMPRESSION
+        # v1 weights from brief (NOT renormalized — intentionally < 1.0 to reflect missing C4)
         combined['hms_score'] = (
-            (W_PERSISTENT_FLOW / total_w) * combined['comp3_norm'] +
-            (W_VOLUME_ABSORPTION / total_w) * combined['comp2_norm'] +
-            (W_PRICE_COMPRESSION / total_w) * combined['comp1_norm']
+            W_V1_FLOW * combined['comp3_norm'] +
+            W_V1_ABSORPTION * combined['comp2_norm'] +
+            W_V1_COMPRESSION * combined['comp1_norm']
         )
         combined['comp4_norm'] = 0.0
 
     combined['hms_score'] = combined['hms_score'].clip(0, 1).round(4)
 
+    # Finding 2: Label HMS version
+    combined['hms_version'] = 'v1' if not has_fragmentation else 'v2'
+
+    # Finding 4: Flag warm-up period rows where rolling windows have insufficient history
+    # Sort by ticker+date so cumcount reflects chronological order within each ticker
+    combined = combined.sort_values(['ticker', 'date']).reset_index(drop=True)
+    combined['hms_valid'] = combined.groupby('ticker').cumcount() >= FLOW_LONG_WINDOW
+
+    # Persistence-based ALERT: HMS >= 0.55 for 3+ consecutive days
+    # WATCH = single day >= 0.55, ALERT = sustained accumulation (3+ days)
+    WATCH_THRESHOLD = 0.55
+    ALERT_CONSECUTIVE = 3
+
+    def compute_signal(group):
+        group = group.sort_values('date')
+        is_watch = group['hms_score'] >= WATCH_THRESHOLD
+        # Count consecutive WATCH days using cumsum trick
+        consecutive = is_watch.groupby((~is_watch).cumsum()).cumcount() + 1
+        consecutive = consecutive.where(is_watch, 0)
+        group['hms_signal'] = 'NONE'
+        group.loc[is_watch, 'hms_signal'] = 'WATCH'
+        group.loc[consecutive >= ALERT_CONSECUTIVE, 'hms_signal'] = 'ALERT'
+        group['hms_consecutive_days'] = consecutive.astype(int)
+        return group
+
+    combined = combined.groupby('ticker', group_keys=False).apply(compute_signal)
+
     # Drop rows with NaN HMS
     combined = combined.dropna(subset=['hms_score'])
 
+    invalid_count = (~combined['hms_valid']).sum()
+    if invalid_count > 0:
+        logger.info(f"  Flagged {invalid_count} warm-up rows as HMS_Valid=FALSE")
+
     logger.info(f"  Computed HMS for {combined['ticker'].nunique()} tickers, {len(combined)} total rows")
+
+    # Filter to output tickers if requested (normalization already used full universe)
+    if output_tickers:
+        combined = combined[combined['ticker'].isin(output_tickers)].copy()
+        logger.info(f"  Filtered to {len(output_tickers)} output tickers: {len(combined)} rows")
 
     return combined
 
@@ -405,26 +480,31 @@ def print_latest_hms(df):
     """Print the most recent HMS scores sorted by score."""
     latest_date = df['date'].max()
     latest = df[df['date'] == latest_date].sort_values('hms_score', ascending=False)
+    version = latest['hms_version'].iloc[0] if 'hms_version' in latest.columns else '??'
 
-    print(f"\n{'='*85}")
-    print(f"HMS SCORES — {latest_date.strftime('%Y-%m-%d')}")
-    print(f"{'='*85}")
-    print(f"{'Ticker':<8} {'HMS':>6} {'Compress':>9} {'Absorb':>8} {'Flow':>8} {'Frag':>8} {'Close':>10}")
-    print(f"{'-'*85}")
+    print(f"\n{'='*100}")
+    print(f"HMS SCORES ({version}) — {latest_date.strftime('%Y-%m-%d')}")
+    print(f"{'='*100}")
+    print(f"{'Ticker':<8} {'HMS':>6} {'Signal':<7} {'Days':>4} {'Compress':>9} {'Absorb':>8} {'Flow':>8} {'Frag':>8} {'Close':>10}")
+    print(f"{'-'*100}")
 
     for _, r in latest.iterrows():
-        print(f"{r['ticker']:<8} {r['hms_score']:>6.3f} "
+        signal = r.get('hms_signal', 'NONE')
+        consec = int(r.get('hms_consecutive_days', 0))
+        print(f"{r['ticker']:<8} {r['hms_score']:>6.3f} {signal:<7} {consec:>4} "
               f"{r['comp1_norm']:>9.3f} {r['comp2_norm']:>8.3f} "
               f"{r['comp3_norm']:>8.3f} {r['comp4_norm']:>8.3f} "
               f"{r['close']:>10.2f}")
 
-    print(f"{'='*85}")
+    print(f"{'='*100}")
 
-    # Top signals
-    top = latest[latest['hms_score'] >= 0.7]
-    if not top.empty:
-        tickers_str = ', '.join(top['ticker'].tolist())
-        print(f"\n  HIGH HMS (>= 0.7): {tickers_str}")
+    # Signal summary
+    alerts = latest[latest.get('hms_signal', '') == 'ALERT']
+    watches = latest[latest.get('hms_signal', '') == 'WATCH']
+    if not alerts.empty:
+        print(f"\n  ALERT (sustained >= 0.55): {', '.join(alerts['ticker'].tolist())}")
+    if not watches.empty:
+        print(f"  WATCH (>= 0.55): {', '.join(watches['ticker'].tolist())}")
 
     print()
 
@@ -435,7 +515,7 @@ def write_hms_to_supabase(df):
 
     records = []
     for _, r in df.iterrows():
-        records.append({
+        record = {
             "date": r['date'].strftime('%Y-%m-%d'),
             "ticker": r['ticker'],
             "hms_score": round(float(r['hms_score']), 4),
@@ -445,7 +525,14 @@ def write_hms_to_supabase(df):
             "comp4_fragmentation": round(float(r['comp4_norm']), 4),
             "close": round(float(r['close']), 2),
             "volume": int(r['volume']) if pd.notna(r['volume']) else None,
-        })
+            "hms_version": r.get('hms_version', 'v1'),
+            "hms_valid": bool(r.get('hms_valid', True)),
+            "hms_signal": r.get('hms_signal', 'NONE'),
+            "hms_consecutive_days": int(r.get('hms_consecutive_days', 0)),
+        }
+        if 'dm_score' in r.index and pd.notna(r.get('dm_score')):
+            record["dm_score"] = round(float(r['dm_score']), 2)
+        records.append(record)
 
     # Batch upsert
     batch_size = 500
@@ -486,17 +573,32 @@ def write_hms_to_sheets(df):
             logger.warning("  No Google credentials. Skipping GS push.")
             return
 
-    latest_date = df['date'].max()
-    latest = df[df['date'] == latest_date].sort_values('hms_score', ascending=False)
+    HEADERS = ['Ticker', 'Date', 'HMS_Score', 'HMS_C1_Compression', 'HMS_C2_Absorption',
+               'HMS_C3_Flow', 'HMS_C4_Fragmentation', 'Close', 'Volume',
+               'HMS_Version', 'HMS_Valid', 'HMS_Signal', 'HMS_Consecutive_Days', 'DM_Score']
 
-    HEADERS = ['Date', 'Ticker', 'HMS_Score', 'Compression', 'Absorption',
-               'Flow', 'Fragmentation', 'Close', 'Volume']
+    # Load DM scores for the output dates to include in the sheet
+    dm_scores = {}
+    try:
+        supabase = get_supabase()
+        latest_date = df['date'].max().strftime('%Y-%m-%d')
+        result = supabase.table("dm_latest") \
+            .select("ticker,dm_smoothed") \
+            .execute()
+        for row in result.data or []:
+            dm_scores[row['ticker']] = float(row['dm_smoothed']) if row.get('dm_smoothed') else None
+    except Exception as e:
+        logger.warning(f"  Could not load DM scores: {e}")
+
+    # Push full history sorted by date desc, then by HMS desc within each date
+    sorted_df = df.sort_values(['date', 'hms_score'], ascending=[False, False])
 
     rows = [HEADERS]
-    for _, r in latest.iterrows():
+    for _, r in sorted_df.iterrows():
+        dm_val = r.get('dm_score') if 'dm_score' in r.index and pd.notna(r.get('dm_score')) else dm_scores.get(r['ticker'])
         rows.append([
-            latest_date.strftime('%Y-%m-%d'),
             r['ticker'],
+            r['date'].strftime('%Y-%m-%d') if hasattr(r['date'], 'strftime') else str(r['date']),
             round(r['hms_score'], 4),
             round(r['comp1_norm'], 4),
             round(r['comp2_norm'], 4),
@@ -504,6 +606,11 @@ def write_hms_to_sheets(df):
             round(r['comp4_norm'], 4),
             round(r['close'], 2),
             int(r['volume']) if pd.notna(r['volume']) else 0,
+            r.get('hms_version', 'v1'),
+            bool(r.get('hms_valid', True)),
+            r.get('hms_signal', 'NONE'),
+            int(r.get('hms_consecutive_days', 0)),
+            round(dm_val, 2) if dm_val is not None else '',
         ])
 
     scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
@@ -520,13 +627,316 @@ def write_hms_to_sheets(df):
         sheet = spreadsheet.worksheet(TAB)
         sheet.clear()
     except Exception:
-        sheet = spreadsheet.add_worksheet(title=TAB, rows=200, cols=len(HEADERS))
+        sheet = spreadsheet.add_worksheet(title=TAB, rows=max(len(rows)+10, 200), cols=len(HEADERS))
 
     sheet.update(range_name='A1', values=rows, value_input_option='USER_ENTERED')
     sheet.format('1:1', {'textFormat': {'bold': True}})
     sheet.freeze(rows=1)
 
     logger.info(f"  Pushed {len(rows)-1} rows to GS {TAB}")
+
+
+def _get_sheets_client():
+    """Get authenticated gspread client and spreadsheet."""
+    import gspread
+    from oauth2client.service_account import ServiceAccountCredentials
+
+    CREDS_FILE = 'credentials.json'
+    SPREADSHEET = "copy-dm-history 2024-current"
+
+    if not os.path.exists(CREDS_FILE):
+        creds_json = os.getenv('GOOGLE_CREDENTIALS_JSON')
+        if creds_json:
+            with open(CREDS_FILE, 'w') as f:
+                f.write(creds_json)
+        else:
+            return None, None
+
+    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+    creds = ServiceAccountCredentials.from_json_keyfile_name(CREDS_FILE, scope)
+    client = gspread.authorize(creds)
+    spreadsheet = client.open(SPREADSHEET)
+    return client, spreadsheet
+
+
+def _write_tab(spreadsheet, tab_name, rows):
+    """Write rows (including header) to a sheet tab."""
+    try:
+        sheet = spreadsheet.worksheet(tab_name)
+        sheet.clear()
+    except Exception:
+        sheet = spreadsheet.add_worksheet(title=tab_name, rows=max(len(rows)+10, 200), cols=len(rows[0]) if rows else 10)
+
+    sheet.update(range_name='A1', values=rows, value_input_option='USER_ENTERED')
+    sheet.format('1:1', {'textFormat': {'bold': True}})
+    sheet.freeze(rows=1)
+    logger.info(f"  Pushed {len(rows)-1} rows to GS {tab_name}")
+
+
+def write_backtest_results_to_sheets(df, spreadsheet):
+    """HMS_Backtest_Results — summary per ticker: avg HMS, signal counts, precision, lead time."""
+    TAB = "HMS_Backtest_Results"
+
+    # Load DM history for lead-time calculation
+    supabase = get_supabase()
+    tickers = df['ticker'].unique().tolist()
+    dm_rows = []
+    batch_size = 50
+    for i in range(0, len(tickers), batch_size):
+        batch = tickers[i:i + batch_size]
+        offset = 0
+        while True:
+            result = supabase.table("dm_history") \
+                .select("date,ticker,dm_smoothed") \
+                .in_("ticker", batch) \
+                .gte("date", df['date'].min().strftime('%Y-%m-%d')) \
+                .order("date") \
+                .range(offset, offset + 1000 - 1) \
+                .execute()
+            if not result.data:
+                break
+            dm_rows.extend(result.data)
+            if len(result.data) < 1000:
+                break
+            offset += 1000
+
+    # Build DM breakout dates (first crossing above 70)
+    dm_breakouts = {}
+    if dm_rows:
+        dm_df = pd.DataFrame(dm_rows)
+        dm_df['date'] = pd.to_datetime(dm_df['date'])
+        dm_df['dm_smoothed'] = pd.to_numeric(dm_df['dm_smoothed'], errors='coerce')
+        for ticker in tickers:
+            t_dm = dm_df[dm_df['ticker'] == ticker].sort_values('date')
+            if t_dm.empty:
+                continue
+            prev = t_dm['dm_smoothed'].shift(1)
+            crossings = t_dm[(prev < 70) & (t_dm['dm_smoothed'] >= 70)]
+            if not crossings.empty:
+                dm_breakouts[ticker] = crossings['date'].iloc[-1]
+
+    HEADERS = ['Ticker', 'Avg_HMS', 'Max_HMS', 'Total_Days', 'ALERT_Days', 'WATCH_Days',
+               'First_ALERT_Date', 'DM_Breakout_Date', 'Lead_Days', 'HMS_Valid_Pct']
+
+    rows = [HEADERS]
+    for ticker in sorted(tickers):
+        t_df = df[df['ticker'] == ticker].sort_values('date')
+        if t_df.empty:
+            continue
+
+        valid_df = t_df[t_df['hms_valid'] == True]
+        alert_days = len(t_df[t_df['hms_signal'] == 'ALERT'])
+        watch_days = len(t_df[t_df['hms_signal'] == 'WATCH'])
+
+        # First ALERT date
+        alerts = t_df[t_df['hms_signal'] == 'ALERT']
+        first_alert = alerts['date'].min() if not alerts.empty else None
+
+        # Lead time
+        dm_breakout = dm_breakouts.get(ticker)
+        lead_days = ''
+        if first_alert is not None and dm_breakout is not None and first_alert < dm_breakout:
+            lead_days = (dm_breakout - first_alert).days
+
+        rows.append([
+            ticker,
+            round(valid_df['hms_score'].mean(), 4) if not valid_df.empty else '',
+            round(t_df['hms_score'].max(), 4),
+            len(t_df),
+            alert_days,
+            watch_days,
+            first_alert.strftime('%Y-%m-%d') if first_alert is not None else '',
+            dm_breakout.strftime('%Y-%m-%d') if dm_breakout is not None else '',
+            lead_days,
+            round(len(valid_df) / len(t_df) * 100, 1) if len(t_df) > 0 else '',
+        ])
+
+    _write_tab(spreadsheet, TAB, rows)
+
+
+def write_backtest_detail_to_sheets(df, spreadsheet):
+    """HMS_Backtest_Detail — full row-level data (ticker, date, scores, components, DM)."""
+    TAB = "HMS_Backtest_Detail"
+
+    # Load DM scores
+    supabase = get_supabase()
+    tickers = df['ticker'].unique().tolist()
+    dm_rows = []
+    batch_size = 50
+    for i in range(0, len(tickers), batch_size):
+        batch = tickers[i:i + batch_size]
+        offset = 0
+        while True:
+            result = supabase.table("dm_history") \
+                .select("date,ticker,dm_smoothed") \
+                .in_("ticker", batch) \
+                .gte("date", df['date'].min().strftime('%Y-%m-%d')) \
+                .order("date") \
+                .range(offset, offset + 1000 - 1) \
+                .execute()
+            if not result.data:
+                break
+            dm_rows.extend(result.data)
+            if len(result.data) < 1000:
+                break
+            offset += 1000
+
+    dm_map = {}
+    if dm_rows:
+        for r in dm_rows:
+            dm_map[(r['ticker'], r['date'])] = float(r['dm_smoothed']) if r.get('dm_smoothed') else None
+
+    HEADERS = ['Ticker', 'Date', 'HMS_Score', 'C1_Compression', 'C2_Absorption',
+               'C3_Flow', 'C4_Fragmentation', 'Close', 'Volume',
+               'HMS_Signal', 'Consecutive_Days', 'HMS_Valid', 'DM_Score']
+
+    sorted_df = df.sort_values(['ticker', 'date'])
+    rows = [HEADERS]
+    for _, r in sorted_df.iterrows():
+        date_str = r['date'].strftime('%Y-%m-%d') if hasattr(r['date'], 'strftime') else str(r['date'])
+        dm_val = dm_map.get((r['ticker'], date_str))
+        rows.append([
+            r['ticker'],
+            date_str,
+            round(r['hms_score'], 4),
+            round(r['comp1_norm'], 4),
+            round(r['comp2_norm'], 4),
+            round(r['comp3_norm'], 4),
+            round(r['comp4_norm'], 4),
+            round(r['close'], 2),
+            int(r['volume']) if pd.notna(r['volume']) else 0,
+            r.get('hms_signal', 'NONE'),
+            int(r.get('hms_consecutive_days', 0)),
+            bool(r.get('hms_valid', True)),
+            round(dm_val, 2) if dm_val is not None else '',
+        ])
+
+    _write_tab(spreadsheet, TAB, rows)
+
+
+def write_dm_correlation_to_sheets(df, spreadsheet):
+    """HMS_DM_Correlation — per-ticker correlation between HMS and DM scores."""
+    TAB = "HMS_DM_Correlation"
+
+    # Load DM history
+    supabase = get_supabase()
+    tickers = df['ticker'].unique().tolist()
+    dm_rows = []
+    batch_size = 50
+    for i in range(0, len(tickers), batch_size):
+        batch = tickers[i:i + batch_size]
+        offset = 0
+        while True:
+            result = supabase.table("dm_history") \
+                .select("date,ticker,dm_smoothed") \
+                .in_("ticker", batch) \
+                .gte("date", df['date'].min().strftime('%Y-%m-%d')) \
+                .order("date") \
+                .range(offset, offset + 1000 - 1) \
+                .execute()
+            if not result.data:
+                break
+            dm_rows.extend(result.data)
+            if len(result.data) < 1000:
+                break
+            offset += 1000
+
+    if not dm_rows:
+        logger.warning("  No DM data for correlation. Skipping HMS_DM_Correlation tab.")
+        return
+
+    dm_df = pd.DataFrame(dm_rows)
+    dm_df['date'] = pd.to_datetime(dm_df['date'])
+    dm_df['dm_smoothed'] = pd.to_numeric(dm_df['dm_smoothed'], errors='coerce')
+
+    merged = df.merge(dm_df[['date', 'ticker', 'dm_smoothed']], on=['date', 'ticker'], how='inner')
+
+    HEADERS = ['Ticker', 'Correlation', 'Avg_HMS', 'Avg_DM', 'HMS_Leads_DM',
+               'Overlap_Days', 'HMS_Above_055_Days', 'DM_Above_70_Days']
+
+    rows = [HEADERS]
+    for ticker in sorted(tickers):
+        t = merged[merged['ticker'] == ticker].dropna(subset=['hms_score', 'dm_smoothed'])
+        if len(t) < 10:
+            continue
+
+        corr = t['hms_score'].corr(t['dm_smoothed'])
+        avg_hms = t['hms_score'].mean()
+        avg_dm = t['dm_smoothed'].mean()
+        hms_above = len(t[t['hms_score'] >= 0.55])
+        dm_above = len(t[t['dm_smoothed'] >= 70])
+
+        # Check if HMS signal tends to lead DM: cross-correlation at lag 1-20 days
+        # Find peak lag where HMS best predicts future DM
+        best_lag = 0
+        best_corr = corr
+        t_sorted = t.sort_values('date').reset_index(drop=True)
+        for lag in range(1, 21):
+            if len(t_sorted) <= lag:
+                break
+            shifted_corr = t_sorted['hms_score'].iloc[:-lag].reset_index(drop=True).corr(
+                t_sorted['dm_smoothed'].iloc[lag:].reset_index(drop=True)
+            )
+            if pd.notna(shifted_corr) and shifted_corr > best_corr:
+                best_corr = shifted_corr
+                best_lag = lag
+
+        rows.append([
+            ticker,
+            round(corr, 4) if pd.notna(corr) else '',
+            round(avg_hms, 4),
+            round(avg_dm, 2),
+            f"{best_lag}d (r={round(best_corr, 3)})" if best_lag > 0 else 'No lead',
+            len(t),
+            hms_above,
+            dm_above,
+        ])
+
+    # Sort by correlation descending
+    header = rows[0]
+    data_rows = sorted(rows[1:], key=lambda x: x[1] if isinstance(x[1], float) else -999, reverse=True)
+    rows = [header] + data_rows
+
+    _write_tab(spreadsheet, TAB, rows)
+
+
+def write_all_sheets(df):
+    """Push data to all 4 HMS tabs in Google Sheets."""
+    try:
+        import gspread
+    except ImportError:
+        logger.warning("  gspread not installed. Skipping GS push.")
+        return
+
+    try:
+        client, spreadsheet = _get_sheets_client()
+        if spreadsheet is None:
+            logger.warning("  No Google credentials. Skipping GS push.")
+            return
+    except Exception as e:
+        logger.error(f"  Spreadsheet error: {e}")
+        return
+
+    # Tab 1: HMS_Daily (reuse existing logic but with shared client)
+    write_hms_to_sheets(df)
+
+    # Tab 2: HMS_Backtest_Results
+    try:
+        write_backtest_results_to_sheets(df, spreadsheet)
+    except Exception as e:
+        logger.error(f"  HMS_Backtest_Results error: {e}")
+
+    # Tab 3: HMS_Backtest_Detail
+    try:
+        write_backtest_detail_to_sheets(df, spreadsheet)
+    except Exception as e:
+        logger.error(f"  HMS_Backtest_Detail error: {e}")
+
+    # Tab 4: HMS_DM_Correlation
+    try:
+        write_dm_correlation_to_sheets(df, spreadsheet)
+    except Exception as e:
+        logger.error(f"  HMS_DM_Correlation error: {e}")
 
 
 def export_backtest_csv(df, filename="hms_backtest.csv"):
@@ -566,13 +976,96 @@ def export_backtest_csv(df, filename="hms_backtest.csv"):
 
     # Export
     export = df[['ticker', 'date', 'hms_score', 'comp1_norm', 'comp2_norm',
-                  'comp3_norm', 'comp4_norm', 'dm_score', 'close', 'volume']].copy()
+                  'comp3_norm', 'comp4_norm', 'dm_score', 'close', 'volume',
+                  'hms_version', 'hms_valid']].copy()
     export.columns = ['Ticker', 'Date', 'HMS_Score', 'HMS_Component1', 'HMS_Component2',
-                       'HMS_Component3', 'HMS_Component4', 'DM_Score', 'Close_Price', 'Volume']
+                       'HMS_Component3', 'HMS_Component4', 'DM_Score', 'Close_Price', 'Volume',
+                       'HMS_Version', 'HMS_Valid']
     export['Date'] = export['Date'].dt.strftime('%Y-%m-%d')
     export = export.sort_values(['Ticker', 'Date'])
     export.to_csv(filename, index=False)
     logger.info(f"  Exported {len(export)} rows to {filename}")
+
+
+def export_validation_csv(df, validation_tickers, last_n_days=60):
+    """Export validation CSV for specific tickers with DM breakout dates."""
+    supabase = get_supabase()
+
+    # Load DM history for breakout detection
+    logger.info("Loading DM history for breakout comparison...")
+    dm_rows = []
+    offset = 0
+    while True:
+        result = supabase.table("dm_history") \
+            .select("date,ticker,dm_smoothed") \
+            .in_("ticker", validation_tickers) \
+            .gte("date", df['date'].min().strftime('%Y-%m-%d')) \
+            .order("date") \
+            .range(offset, offset + 1000 - 1) \
+            .execute()
+        if not result.data:
+            break
+        dm_rows.extend(result.data)
+        if len(result.data) < 1000:
+            break
+        offset += 1000
+
+    # Find most recent DM crossing above 70 per ticker (below→above transition)
+    breakout_dates = {}
+    if dm_rows:
+        dm_df = pd.DataFrame(dm_rows)
+        dm_df['date'] = pd.to_datetime(dm_df['date'])
+        dm_df['dm_smoothed'] = pd.to_numeric(dm_df['dm_smoothed'], errors='coerce')
+        for ticker in validation_tickers:
+            t_dm = dm_df[dm_df['ticker'] == ticker].sort_values('date')
+            if t_dm.empty:
+                continue
+            # Find crossings: previous day < 70, current day >= 70
+            prev = t_dm['dm_smoothed'].shift(1)
+            crossings = t_dm[(prev < 70) & (t_dm['dm_smoothed'] >= 70)]
+            if not crossings.empty:
+                # Use most recent crossing
+                breakout_dates[ticker] = crossings['date'].iloc[-1].strftime('%Y-%m-%d')
+
+    # Take last N trading days BEFORE each ticker's breakout date
+    filtered = []
+    for ticker in validation_tickers:
+        t_df = df[df['ticker'] == ticker].sort_values('date')
+        if ticker in breakout_dates:
+            # Filter to only data on or before the breakout date
+            t_df = t_df[t_df['date'] <= breakout_dates[ticker]]
+        filtered.append(t_df.tail(last_n_days))
+
+    if not filtered:
+        logger.warning("No validation data to export.")
+        return
+
+    export_df = pd.concat(filtered, ignore_index=True)
+
+    # Build export
+    rows = []
+    for _, r in export_df.iterrows():
+        rows.append({
+            'Ticker': r['ticker'],
+            'Date': r['date'].strftime('%Y-%m-%d'),
+            'HMS_Score': round(r['hms_score'], 4),
+            'HMS_C1_Compression': round(r['comp1_norm'], 4),
+            'HMS_C2_Absorption': round(r['comp2_norm'], 4),
+            'HMS_C3_Flow': round(r['comp3_norm'], 4),
+            'HMS_C4_Fragmentation': round(r['comp4_norm'], 4),
+            'Close': round(r['close'], 2),
+            'Volume': int(r['volume']) if pd.notna(r['volume']) else 0,
+            'HMS_Version': r.get('hms_version', 'v1'),
+            'HMS_Valid': bool(r.get('hms_valid', True)),
+            'DM_Breakout_Date': breakout_dates.get(r['ticker'], ''),
+        })
+
+    out_df = pd.DataFrame(rows)
+    tickers_str = '_'.join(validation_tickers)
+    filename = f"hms_validation_{tickers_str}.csv"
+    out_df.to_csv(filename, index=False)
+    logger.info(f"  Exported {len(out_df)} rows to {filename}")
+    logger.info(f"  DM breakout dates: {breakout_dates}")
 
 
 # ============================================================
@@ -582,7 +1075,7 @@ def export_backtest_csv(df, filename="hms_backtest.csv"):
 def main():
     parser = argparse.ArgumentParser(description="Hidden Money Score (HMS) Calculator")
     parser.add_argument("--validate", action="store_true",
-                        help="Validation run: NVDA, AMAT, VST only")
+                        help="Validation run: NVDA, CEG, VST (full-universe normalization)")
     parser.add_argument("--backtest", action="store_true",
                         help="Full backtest 2020-2025, export CSV")
     parser.add_argument("--tickers", type=str, default=None,
@@ -599,25 +1092,32 @@ def main():
 
     # Determine tickers and date range
     if args.validate:
-        tickers = VALIDATION_TICKERS
+        # Use FULL universe for cross-sectional normalization, filter output to validation tickers
+        # Ensure validation tickers are included in universe even if not in PRIORITY_TICKERS
+        tickers = list(set(PRIORITY_TICKERS + VALIDATION_TICKERS))
+        output_tickers = VALIDATION_TICKERS
         start_date = "2023-06-01"
         fetch_trades = not args.no_fragmentation
     elif args.backtest:
         tickers = PRIORITY_TICKERS
+        output_tickers = None
         start_date = "2019-06-01"  # extra lookback for 2020 start
         fetch_trades = False  # too many API calls for full backtest
         logger.info("Backtest mode: Component 4 disabled (too many API calls)")
     elif args.tickers:
         tickers = [t.strip().upper() for t in args.tickers.split(",")]
+        output_tickers = None
         start_date = "2024-01-01"
         fetch_trades = not args.no_fragmentation
     else:
         tickers = PRIORITY_TICKERS
+        output_tickers = None
         start_date = "2024-01-01"
         fetch_trades = not args.no_fragmentation
 
-    # Compute
-    df = compute_hms(tickers, start_date=start_date, fetch_trade_data=fetch_trades)
+    # Compute (output_tickers filters after full-universe normalization)
+    df = compute_hms(tickers, start_date=start_date, fetch_trade_data=fetch_trades,
+                     output_tickers=output_tickers)
 
     if df.empty:
         logger.error("No HMS results.")
@@ -627,11 +1127,15 @@ def main():
     print_latest_hms(df)
 
     if args.backtest:
-        export_backtest_csv(df, "hms_backtest.csv")
+        export_backtest_csv(df, "hms_backtest_v2.csv")
+
+    if args.validate:
+        # Export validation CSV with DM breakout comparison
+        export_validation_csv(df, VALIDATION_TICKERS)
 
     if not args.dry_run and not args.validate and not args.backtest:
         write_hms_to_supabase(df)
-        write_hms_to_sheets(df)
+        write_all_sheets(df)
     elif args.dry_run:
         logger.info("DRY RUN - results NOT written to database")
 
