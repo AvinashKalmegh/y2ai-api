@@ -408,6 +408,8 @@ def compute_hms(tickers, start_date="2019-06-01", fetch_trade_data=True, dry_run
         return group
 
     combined = combined.groupby('date', group_keys=False).apply(normalize_day)
+    if 'date' not in combined.columns:
+        combined = combined.reset_index()
 
     # 5. Compute final HMS
     if has_fragmentation:

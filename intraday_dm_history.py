@@ -56,13 +56,12 @@ RETURN_PERIOD = 19
 # Supabase table
 SUPA_TABLE = "dm_intraday_history"
 
-# Google Sheets — open by key (spreadsheet ID)
-SPREADSHEET_KEY = "15iT_ubT8xZWts6H4s5PsLY_AYP_txcQ7Uedx2OTR_tQ"
-
-# Split into two tabs to stay under 10M cell limit
+# Google Sheets — each partition in its own spreadsheet (10M cell limit per spreadsheet)
 SHEETS_PARTITIONS = [
-    {"tab": "DM_Intraday_2016_2019", "start": "2016-01-01", "end": "2019-12-31"},
-    {"tab": "DM_Intraday_2020_Current", "start": "2020-01-01", "end": "2099-12-31"},
+    {"tab": "DM_Intraday_2016_2019", "start": "2016-01-01", "end": "2019-12-31",
+     "key": "15iT_ubT8xZWts6H4s5PsLY_AYP_txcQ7Uedx2OTR_tQ"},
+    {"tab": "DM_Intraday_2020_Current", "start": "2020-01-01", "end": "2099-12-31",
+     "key": "1FpVM1UCwpdzzJwUnV4Yyczo-Bho30nTrFVX2Euyz3K0"},
 ]
 
 SECTOR_ETF_MAP = {
@@ -386,12 +385,6 @@ def push_to_sheets(df=None):
     creds = ServiceAccountCredentials.from_json_keyfile_name(CREDS_FILE, scope)
     client = gspread.authorize(creds)
 
-    try:
-        spreadsheet = client.open_by_key(SPREADSHEET_KEY)
-    except Exception as e:
-        logger.error(f"  Cannot open spreadsheet: {e}")
-        return
-
     HEADERS = ['Date', 'Ticker', 'DM_Raw', 'DM_EMA5', 'Price',
                'Volume', 'Vol_Z', 'Return_20d', 'ETF_Ret_20d', 'SPY_Ret_20d']
 
@@ -399,6 +392,7 @@ def push_to_sheets(df=None):
         tab_name = partition["tab"]
         start = partition["start"]
         end = partition["end"]
+        sheet_key = partition["key"]
 
         # Filter data for this partition
         part_df = df[(df['date'] >= start) & (df['date'] <= end)]
@@ -410,6 +404,12 @@ def push_to_sheets(df=None):
         part_df = part_df.sort_values(['date', 'dm_ema5'], ascending=[False, False])
 
         logger.info(f"Pushing {len(part_df)} rows to {tab_name}...")
+
+        try:
+            spreadsheet = client.open_by_key(sheet_key)
+        except Exception as e:
+            logger.error(f"  Cannot open spreadsheet {sheet_key}: {e}")
+            continue
 
         sheet_rows = []
         for _, r in part_df.iterrows():
