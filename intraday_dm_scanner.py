@@ -11,9 +11,12 @@ DM = (RelStr vs ETF * 0.50) + (RelStr vs SPY * 0.30) + (VolumeZ * 0.20)
 Uses the SAME formula as Dm_historical_pipeline.py — only the price
 and volume inputs change from EOD closes to live values.
 
+Default universe: full scanner_universe (~580 tickers) from Supabase.
+
 Usage:
-    python intraday_dm_scanner.py                  # Run scan (full priority universe)
-    python intraday_dm_scanner.py --marketplace     # 18 Marketplace Watchlist only
+    python intraday_dm_scanner.py                  # Run scan (full universe ~580 tickers)
+    python intraday_dm_scanner.py --priority        # 51 priority tickers only
+    python intraday_dm_scanner.py --marketplace     # 26 Marketplace Watchlist only
     python intraday_dm_scanner.py --flowos          # 26 FlowOS universe only
     python intraday_dm_scanner.py --tickers NVDA,TSLA,UPWK  # Custom tickers
     python intraday_dm_scanner.py --dry-run         # Print results, don't write to DB
@@ -131,7 +134,7 @@ FLOWOS_TICKERS = [
     "SMCI",
 ]
 
-# Combined priority universe (44 unique tickers)
+# Combined priority universe (51 unique tickers)
 PRIORITY_TICKERS = sorted(set(MARKETPLACE_TICKERS + FLOWOS_TICKERS))
 
 
@@ -147,6 +150,41 @@ def get_supabase():
         from supabase import create_client
         _supabase_client = create_client(SUPABASE_URL, SUPABASE_KEY)
     return _supabase_client
+
+
+def load_full_universe():
+    """
+    Load all tickers + sectors from scanner_universe table.
+    Returns: (list of tickers, dict of {ticker: sector})
+    """
+    supabase = get_supabase()
+    logger.info("Loading full universe from scanner_universe...")
+
+    all_rows = []
+    offset = 0
+    batch = 1000
+    while True:
+        result = supabase.table("scanner_universe") \
+            .select("ticker,sector") \
+            .range(offset, offset + batch - 1) \
+            .execute()
+        if not result.data:
+            break
+        all_rows.extend(result.data)
+        if len(result.data) < batch:
+            break
+        offset += batch
+
+    tickers = []
+    sector_map = {}
+    for row in all_rows:
+        t = row.get('ticker', '').strip()
+        if t:
+            tickers.append(t)
+            sector_map[t] = row.get('sector', 'Technology')
+
+    logger.info(f"  Loaded {len(tickers)} tickers from scanner_universe")
+    return tickers, sector_map
 
 
 # ============================================================
@@ -292,14 +330,17 @@ def load_ticker_sectors(tickers):
     supabase = get_supabase()
     sector_map = {}
 
+    batch_size = 50
     try:
-        result = supabase.table("scanner_universe") \
-            .select("ticker,sector") \
-            .in_("ticker", tickers) \
-            .execute()
-        if result.data:
-            for row in result.data:
-                sector_map[row['ticker']] = row.get('sector', 'Technology')
+        for i in range(0, len(tickers), batch_size):
+            batch = tickers[i:i + batch_size]
+            result = supabase.table("scanner_universe") \
+                .select("ticker,sector") \
+                .in_("ticker", batch) \
+                .execute()
+            if result.data:
+                for row in result.data:
+                    sector_map[row['ticker']] = row.get('sector', 'Technology')
     except Exception as e:
         logger.warning(f"  Could not load sectors: {e}")
 
@@ -375,7 +416,7 @@ def get_minutes_since_open():
 # MAIN SCAN
 # ============================================================
 
-def run_intraday_scan(tickers, dry_run=False):
+def run_intraday_scan(tickers, dry_run=False, sector_map=None):
     """
     Execute one intraday DM scan for the given tickers.
 
@@ -399,7 +440,8 @@ def run_intraday_scan(tickers, dry_run=False):
     snapshot = fetch_snapshot_all()
 
     # Determine all needed tickers (our universe + their ETFs + SPY)
-    sector_map = load_ticker_sectors(tickers)
+    if sector_map is None:
+        sector_map = load_ticker_sectors(tickers)
     ticker_etf_map = {}
     needed_etfs = set(["SPY"])
     for t in tickers:
@@ -591,7 +633,7 @@ def push_results_to_sheets(results):
 
     GOOGLE_SHEETS_CREDS_FILE = 'credentials.json'
     SPREADSHEET_NAME = "copy-dm-history 2024-current"
-    TAB_NAME = "DM_Intraday"
+    TAB_NAME = "DM_Intraday_Full"
 
     HEADERS = [
         'Scan_Time', 'Ticker', 'DM_Raw', 'DM_EMA5', 'Price',
@@ -687,8 +729,10 @@ def push_results_to_sheets(results):
 
 def main():
     parser = argparse.ArgumentParser(description="Intraday DM Scanner")
+    parser.add_argument("--priority", action="store_true",
+                        help="Scan 51 priority tickers only (old default)")
     parser.add_argument("--marketplace", action="store_true",
-                        help="Scan 18 Marketplace Watchlist tickers only")
+                        help="Scan 26 Marketplace Watchlist tickers only")
     parser.add_argument("--flowos", action="store_true",
                         help="Scan 26 FlowOS production tickers only")
     parser.add_argument("--tickers", type=str, default=None,
@@ -706,17 +750,21 @@ def main():
         sys.exit(1)
 
     # Determine ticker list
+    sector_map = None
     if args.tickers:
         tickers = [t.strip().upper() for t in args.tickers.split(",")]
     elif args.marketplace:
         tickers = MARKETPLACE_TICKERS
     elif args.flowos:
         tickers = FLOWOS_TICKERS
-    else:
+    elif args.priority:
         tickers = PRIORITY_TICKERS
+    else:
+        # Default: full universe from scanner_universe
+        tickers, sector_map = load_full_universe()
 
     logger.info(f"Universe: {len(tickers)} tickers")
-    run_intraday_scan(tickers, dry_run=args.dry_run)
+    run_intraday_scan(tickers, dry_run=args.dry_run, sector_map=sector_map)
 
 
 if __name__ == "__main__":
