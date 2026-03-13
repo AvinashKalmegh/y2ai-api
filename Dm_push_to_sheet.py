@@ -349,7 +349,20 @@ def push_daily():
     # Get newest date from GS (row 2, since data is newest-first)
     all_dates = history_sheet.col_values(1)
     if len(all_dates) > 1:
-        newest_gs_date = all_dates[1]  # Row 2 = most recent date (newest-first order)
+        raw_date = all_dates[1]  # Row 2 = most recent date (newest-first order)
+        # Clean up: strip apostrophe prefix and whitespace, normalize format
+        newest_gs_date = str(raw_date).strip().lstrip("'")
+        # Handle possible date object from GS (e.g., after manual sort)
+        try:
+            from datetime import datetime as _dt
+            parsed = _dt.strptime(newest_gs_date, "%Y-%m-%d")
+            newest_gs_date = parsed.strftime("%Y-%m-%d")
+        except ValueError:
+            try:
+                parsed = _dt.strptime(newest_gs_date, "%m/%d/%Y")
+                newest_gs_date = parsed.strftime("%Y-%m-%d")
+            except ValueError:
+                pass  # Use as-is
         logger.info(f"Newest date in GS {tab_name}: {newest_gs_date}")
     else:
         logger.info(f"{tab_name} is empty. Running full partition push.")
@@ -386,28 +399,9 @@ def push_daily():
 
     sheet_rows = rows_to_sheet_data(new_rows)
 
-    # Expand sheet if needed
-    total_rows = len(all_dates) + len(sheet_rows)
-    if total_rows > history_sheet.row_count:
-        new_size = total_rows + 5000
-        history_sheet.resize(rows=new_size)
-        logger.info(f"  Expanded sheet to {new_size} rows")
-
-    # Insert blank rows at row 2 to make space for new data
-    history_sheet.insert_rows(values=[], row=2, number_of_rows=len(sheet_rows))
-    logger.info(f"  Inserted {len(sheet_rows)} blank rows at top")
-
-    # Write new data at row 2 (newest-first, already sorted desc from Supabase)
-    BATCH_SIZE = 5000
-    for i in range(0, len(sheet_rows), BATCH_SIZE):
-        batch = sheet_rows[i:i + BATCH_SIZE]
-        start_row = 2 + i
-        try:
-            history_sheet.update(range_name=f'A{start_row}', values=batch, value_input_option='USER_ENTERED')
-            logger.info(f"  Written {min(i + BATCH_SIZE, len(sheet_rows))}/{len(sheet_rows)} rows")
-        except Exception as e:
-            logger.error(f"  Write error at row {start_row}: {e}")
-        time.sleep(1)
+    # Insert new rows at row 2 with data (pushes existing rows down)
+    history_sheet.insert_rows(sheet_rows, row=2, value_input_option='USER_ENTERED')
+    logger.info(f"  Prepended {len(sheet_rows)} rows at top of {tab_name}")
 
     logger.info(f"Daily push complete. Prepended {len(new_rows)} history rows.")
 

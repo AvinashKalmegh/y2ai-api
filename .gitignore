@@ -1,2 +1,29 @@
 .env
 credentials.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Data / generated files
+*.csv
+*.log
+*.db
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Docs (consumed/duplicate)
+HMS_Backtest_Review_*.docx
+HMS_Developer_Brief*.docx
+
+# Empty ticker artifacts
+SMH
+SPY
+XL[A-Z]*
