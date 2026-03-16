@@ -24,6 +24,8 @@ TICKERS_TO_ADD = {
     "RBLX":  "Communication Services",
     "BILL":  "Software",
     "DOCN":  "Software",
+    # Universe Scanner candidate promotion
+    "NBIS":  "Information Technology",
 }
 
 # ── Step 1: Check existing universe ──

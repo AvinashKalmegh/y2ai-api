@@ -11,7 +11,11 @@
       "Bash(cd \"C:\\\\Users\\\\avina\\\\OneDrive\\\\Desktop\\\\New folder\\\\y2ai-fast-api\" && python3 -c \"\nimport pandas as pd\nimport os\n\nif not os.path.exists\\('hms_backtest.csv'\\):\n    print\\('hms_backtest.csv not found'\\)\nelse:\n    df = pd.read_csv\\('hms_backtest.csv'\\)\n    print\\(f'Backtest: {len\\(df\\)} rows, {df[\\\\\"Ticker\\\\\"].nunique\\(\\)} tickers'\\)\n    print\\(f'Columns: {list\\(df.columns\\)}'\\)\n    print\\(f'HMS_Score range: {df[\\\\\"HMS_Score\\\\\"].min\\(\\):.3f} - {df[\\\\\"HMS_Score\\\\\"].max\\(\\):.3f}'\\)\n    print\\(f'Rows with HMS >= 0.75: {len\\(df[df[\\\\\"HMS_Score\\\\\"] >= 0.75]\\)}'\\)\n    print\\(f'Rows with HMS >= 0.70: {len\\(df[df[\\\\\"HMS_Score\\\\\"] >= 0.70]\\)}'\\)\n    print\\(f'Rows with HMS >= 0.65: {len\\(df[df[\\\\\"HMS_Score\\\\\"] >= 0.65]\\)}'\\)\n    print\\(f'Rows with HMS >= 0.55: {len\\(df[df[\\\\\"HMS_Score\\\\\"] >= 0.55]\\)}'\\)\n\")",
       "Bash(ls /c/Users/avina/OneDrive/Desktop/\"New folder\"/y2ai-fast-api/*.js)",
       "Bash(find /c/Users/avina/OneDrive/Desktop/\"New folder\"/y2ai-fast-api -name \"*.docx\" -o -name \"*.md\" | xargs ls -lh 2>/dev/null)",
-      "Bash(ls /c/Users/avina/OneDrive/Desktop/\"New folder\"/y2ai-fast-api/*.md /c/Users/avina/OneDrive/Desktop/\"New folder\"/y2ai-fast-api/*.docx 2>/dev/null)"
+      "Bash(ls /c/Users/avina/OneDrive/Desktop/\"New folder\"/y2ai-fast-api/*.md /c/Users/avina/OneDrive/Desktop/\"New folder\"/y2ai-fast-api/*.docx 2>/dev/null)",
+      "WebFetch(domain:ark-funds.com)",
+      "WebFetch(domain:www.invesco.com)",
+      "Read(//c/Users/avina/OneDrive/Desktop/New folder/y2ai-fast-api/**)",
+      "Bash(python3 -c \":*)"
     ]
   }
 }

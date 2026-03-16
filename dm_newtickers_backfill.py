@@ -29,6 +29,8 @@ TICKERS_TO_BACKFILL = [
     # Marketplace Watchlist + Intraday Scanner additions
     "FVRR", "GTLB", "HUBS", "TWLO", "UPWK",
     "RBLX", "BILL", "DOCN",
+    # Universe Scanner candidate promotion
+    "NBIS",
 ]
 
 START_DATE = "2016-01-01"

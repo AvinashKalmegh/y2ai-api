@@ -712,8 +712,8 @@ def push_results_to_sheets(results):
         sheet.update(range_name='A1', values=all_data, value_input_option='USER_ENTERED')
         sheet.format('1:1', {'textFormat': {'bold': True}})
     else:
-        # Append below existing data (add blank separator row)
-        start_row = len(existing_data) + 2
+        # Append below existing data (no gap between runs)
+        start_row = len(existing_data) + 1
         # Expand if needed
         rows_needed = start_row + len(sheet_rows)
         if rows_needed > sheet.row_count:
