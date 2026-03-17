@@ -445,21 +445,16 @@ def compute_hms(tickers, start_date="2019-06-01", fetch_trade_data=True, dry_run
     WATCH_THRESHOLD = 0.55
     ALERT_CONSECUTIVE = 3
 
-    def compute_signal(group):
-        group = group.sort_values('date')
-        is_watch = group['hms_score'] >= WATCH_THRESHOLD
-        # Count consecutive WATCH days using cumsum trick
-        consecutive = is_watch.groupby((~is_watch).cumsum()).cumcount() + 1
-        consecutive = consecutive.where(is_watch, 0)
-        group['hms_signal'] = 'NONE'
-        group.loc[is_watch, 'hms_signal'] = 'WATCH'
-        group.loc[consecutive >= ALERT_CONSECUTIVE, 'hms_signal'] = 'ALERT'
-        group['hms_consecutive_days'] = consecutive.astype(int)
-        return group
-
-    combined = combined.groupby('ticker', group_keys=False).apply(compute_signal)
-    if 'ticker' not in combined.columns:
-        combined = combined.reset_index()
+    combined = combined.sort_values(['ticker', 'date']).reset_index(drop=True)
+    is_watch = combined['hms_score'] >= WATCH_THRESHOLD
+    # Count consecutive WATCH days per ticker using cumsum trick
+    streak_break = (~is_watch) | (combined['ticker'] != combined['ticker'].shift(1))
+    consecutive = is_watch.groupby(streak_break.cumsum()).cumcount() + 1
+    consecutive = consecutive.where(is_watch, 0)
+    combined['hms_signal'] = 'NONE'
+    combined.loc[is_watch, 'hms_signal'] = 'WATCH'
+    combined.loc[consecutive >= ALERT_CONSECUTIVE, 'hms_signal'] = 'ALERT'
+    combined['hms_consecutive_days'] = consecutive.astype(int)
 
     # Drop rows with NaN HMS
     combined = combined.dropna(subset=['hms_score'])
