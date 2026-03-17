@@ -394,30 +394,24 @@ def compute_hms(tickers, start_date="2019-06-01", fetch_trade_data=True, dry_run
     # 4. Cross-sectional normalization per day (cross-universe, not per-ticker)
     logger.info("Normalizing across universe per day...")
 
-    def normalize_day(group):
-        group = group.copy()
-        # Finding 1 fix: use percentile rank for C1 and C2 to prevent outlier domination
-        group['comp1_norm'] = normalize_cross_sectional_percentile(group['comp1_raw'].fillna(0))
-        group['comp2_norm'] = normalize_cross_sectional_percentile(group['comp2_raw'].fillna(0))
-        group['comp3_norm'] = normalize_cross_sectional_minmax(group['comp3_raw'].fillna(0))
-        if has_fragmentation:
-            group['comp4_raw'] = group['comp4_raw'].fillna(0)
-            group['comp4_norm'] = normalize_cross_sectional_minmax(group['comp4_raw'])
-        else:
-            group['comp4_norm'] = 0.0
-        return group
-
-    combined = combined.groupby('date', group_keys=False).apply(normalize_day)
-    # Pandas versions differ on whether 'date' stays as column or moves to index
-    if 'date' not in combined.columns:
-        combined = combined.reset_index()
-    if 'date' not in combined.columns and combined.index.name == 'date':
-        combined = combined.reset_index()
-    # If date ended up as a level in a MultiIndex, flatten it
-    if isinstance(combined.index, pd.MultiIndex):
-        combined = combined.reset_index(drop=False)
-        # Drop duplicate columns if any
-        combined = combined.loc[:, ~combined.columns.duplicated()]
+    # Use transform instead of apply to avoid pandas index/column issues across versions
+    by_date = combined.groupby('date')
+    combined['comp1_norm'] = by_date['comp1_raw'].transform(
+        lambda x: normalize_cross_sectional_percentile(x.fillna(0))
+    )
+    combined['comp2_norm'] = by_date['comp2_raw'].transform(
+        lambda x: normalize_cross_sectional_percentile(x.fillna(0))
+    )
+    combined['comp3_norm'] = by_date['comp3_raw'].transform(
+        lambda x: normalize_cross_sectional_minmax(x.fillna(0))
+    )
+    if has_fragmentation:
+        combined['comp4_raw'] = combined['comp4_raw'].fillna(0)
+        combined['comp4_norm'] = by_date['comp4_raw'].transform(
+            lambda x: normalize_cross_sectional_minmax(x)
+        )
+    else:
+        combined['comp4_norm'] = 0.0
 
     # 5. Compute final HMS
     if has_fragmentation:
