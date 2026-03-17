@@ -408,8 +408,16 @@ def compute_hms(tickers, start_date="2019-06-01", fetch_trade_data=True, dry_run
         return group
 
     combined = combined.groupby('date', group_keys=False).apply(normalize_day)
+    # Pandas versions differ on whether 'date' stays as column or moves to index
     if 'date' not in combined.columns:
         combined = combined.reset_index()
+    if 'date' not in combined.columns and combined.index.name == 'date':
+        combined = combined.reset_index()
+    # If date ended up as a level in a MultiIndex, flatten it
+    if isinstance(combined.index, pd.MultiIndex):
+        combined = combined.reset_index(drop=False)
+        # Drop duplicate columns if any
+        combined = combined.loc[:, ~combined.columns.duplicated()]
 
     # 5. Compute final HMS
     if has_fragmentation:
@@ -1109,12 +1117,12 @@ def main():
     elif args.tickers:
         tickers = [t.strip().upper() for t in args.tickers.split(",")]
         output_tickers = None
-        start_date = "2024-01-01"
+        start_date = "2023-01-01"
         fetch_trades = not args.no_fragmentation
     else:
         tickers = PRIORITY_TICKERS
         output_tickers = None
-        start_date = "2024-01-01"
+        start_date = "2023-01-01"
         fetch_trades = not args.no_fragmentation
 
     # Compute (output_tickers filters after full-universe normalization)

@@ -69,25 +69,6 @@ jobs:
           echo "DM Pipeline completed at $(date)"
 
       # ════════════════════════════════════════════════════════
-      # HMS PIPELINE (runs after DM so price_history is current)
-      # ════════════════════════════════════════════════════════
-
-      - name: "HMS Pipeline: Calculate HMS + Push to Supabase & Sheets"
-        run: |
-          export PYTHONPATH=$PYTHONPATH:.
-          echo "========================================"
-          echo "HMS DAILY — Calculate + Push (52 tickers)"
-          echo "Started at $(date)"
-          echo "========================================"
-          python hms_calculator.py
-        continue-on-error: true
-
-      - name: "HMS Pipeline checkpoint"
-        if: always()
-        run: |
-          echo "HMS Pipeline completed at $(date)"
-
-      # ════════════════════════════════════════════════════════
       # SUMMARY
       # ════════════════════════════════════════════════════════
 
@@ -101,5 +82,4 @@ jobs:
           echo "Pipelines executed:"
           echo "  DM Historical  — Polygon (price fetch + DM calc)"
           echo "  DM Push        — Push DM Latest + History to Sheets"
-          echo "  HMS Daily      — Calculate HMS + Push to Supabase & Sheets"
           echo "========================================"

@@ -200,7 +200,16 @@ def fetch_snapshot_all():
     params = {"apiKey": POLYGON_API_KEY}
 
     logger.info("Fetching Polygon snapshot (all US tickers)...")
-    response = requests.get(url, params=params, timeout=30)
+    for attempt in range(1, 4):
+        try:
+            response = requests.get(url, params=params, timeout=60)
+            break
+        except requests.exceptions.ReadTimeout:
+            if attempt < 3:
+                logger.warning(f"Polygon snapshot timeout (attempt {attempt}/3), retrying...")
+                time.sleep(2 * attempt)
+            else:
+                raise
     data = response.json()
 
     if data.get("status") != "OK":

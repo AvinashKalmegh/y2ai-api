@@ -1,0 +1,53 @@
+name: HMS Daily Pipeline (Post-Market)
+
+on:
+  schedule:
+    # 5:15 PM ET (22:15 UTC) weekdays — runs after DM pipeline
+    - cron: "15 22 * * 1-5"
+  workflow_dispatch: {}
+
+jobs:
+  run-hms-pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      TZ: America/New_York
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
+      POLYGON_API_KEY: ${{ secrets.POLYGON_API_KEY }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Create Google credentials.json
+        run: |
+          echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > credentials.json
+
+      - name: "HMS Pipeline: Calculate HMS + Push to Supabase & Sheets"
+        run: |
+          export PYTHONPATH=$PYTHONPATH:.
+          echo "========================================"
+          echo "HMS DAILY — Calculate + Push (52 tickers)"
+          echo "Started at $(date)"
+          echo "========================================"
+          python hms_calculator.py
+
+      - name: Log completion
+        if: always()
+        run: |
+          echo "========================================"
+          echo "HMS Pipeline completed at $(date)"
+          echo "========================================"
