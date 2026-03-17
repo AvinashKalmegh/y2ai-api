@@ -458,6 +458,8 @@ def compute_hms(tickers, start_date="2019-06-01", fetch_trade_data=True, dry_run
         return group
 
     combined = combined.groupby('ticker', group_keys=False).apply(compute_signal)
+    if 'ticker' not in combined.columns:
+        combined = combined.reset_index()
 
     # Drop rows with NaN HMS
     combined = combined.dropna(subset=['hms_score'])
