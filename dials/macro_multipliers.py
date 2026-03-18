@@ -91,6 +91,9 @@ LABOR_MULTIPLIERS = {
 # Minimum combined multiplier (floor)
 MIN_MULTIPLIER = 0.30
 
+# Institutional exit signature modifier (DevBrief: Options Skew EXTREME + DM declining + Borrow elevated)
+INST_EXIT_REDUCTION = 0.75  # reduce position by 25%
+
 
 # =============================================================================
 # DATA CLASSES
@@ -117,8 +120,11 @@ class MultiplierData:
     raw_multiplier: float
     final_multiplier: float
     floor_applied: bool
+    # Institutional exit signature
+    inst_exit_tickers: list = None
+    inst_exit_applied: bool = False
     # Interpretation
-    interpretation: str
+    interpretation: str = ""
 
 
 # =============================================================================
@@ -217,6 +223,82 @@ class MacroMultiplierCalculator:
         mult = BREADTH_MULTIPLIERS.get(regime, 0.85)
         return regime, breadth_value, mult
     
+    def get_institutional_exit_tickers(self) -> list:
+        """
+        Detect institutional exit signature:
+        Options Skew EXTREME + DM declining + Borrow rate elevated on same ticker.
+        Returns list of tickers matching this pattern.
+        """
+        if not self.supabase:
+            return []
+
+        try:
+            # Get tickers with EXTREME options skew (latest date)
+            skew_result = self.supabase.table("options_skew") \
+                .select("ticker,date") \
+                .eq("signal", "EXTREME") \
+                .order("date", desc=True) \
+                .limit(50) \
+                .execute()
+
+            if not skew_result.data:
+                return []
+
+            latest_date = skew_result.data[0].get("date")
+            extreme_tickers = set(
+                r["ticker"] for r in skew_result.data if r.get("date") == latest_date
+            )
+
+            if not extreme_tickers:
+                return []
+
+            # Get DM scores for these tickers — declining = dm_smoothed < 50
+            dm_result = self.supabase.table("dm_history") \
+                .select("ticker,dm_smoothed") \
+                .eq("date", latest_date) \
+                .in_("ticker", list(extreme_tickers)) \
+                .execute()
+
+            declining_tickers = set(
+                r["ticker"] for r in (dm_result.data or [])
+                if r.get("dm_smoothed") is not None and r["dm_smoothed"] < 50
+            )
+
+            if not declining_tickers:
+                return []
+
+            # Get borrow rates for these tickers — elevated = HTB or EXTREME
+            borrow_result = self.supabase.table("borrow_rates") \
+                .select("ticker,classification") \
+                .in_("ticker", list(declining_tickers)) \
+                .in_("classification", ["ELEVATED", "HTB", "EXTREME"]) \
+                .order("date", desc=True) \
+                .limit(50) \
+                .execute()
+
+            if not borrow_result.data:
+                return []
+
+            borrow_latest = borrow_result.data[0].get("date") if borrow_result.data else None
+            elevated_tickers = set(
+                r["ticker"] for r in borrow_result.data if r.get("date") == borrow_latest
+            )
+
+            # Intersection: all three signals on same ticker
+            exit_tickers = list(declining_tickers & elevated_tickers)
+
+            if exit_tickers:
+                logger.warning(
+                    f"INSTITUTIONAL EXIT SIGNATURE detected on {len(exit_tickers)} tickers: "
+                    f"{', '.join(exit_tickers)} — applying 25% size reduction"
+                )
+
+            return exit_tickers
+
+        except Exception as e:
+            logger.warning(f"Failed to check institutional exit: {e}")
+            return []
+
     def get_labor_regime(self) -> tuple:
         """Get labor regime and multiplier."""
         data = self._get_latest("labor_dial_daily")
@@ -244,14 +326,23 @@ class MacroMultiplierCalculator:
         
         # Calculate raw combined multiplier
         raw_multiplier = corr_mult * vix_mult * credit_mult * breadth_mult * labor_mult
-        
+
         # Apply floor
         final_multiplier = max(MIN_MULTIPLIER, raw_multiplier)
         floor_applied = raw_multiplier < MIN_MULTIPLIER
-        
+
+        # Check for institutional exit signature
+        inst_exit_tickers = self.get_institutional_exit_tickers()
+        inst_exit_applied = len(inst_exit_tickers) > 0
+        if inst_exit_applied:
+            final_multiplier = round(final_multiplier * INST_EXIT_REDUCTION, 2)
+            final_multiplier = max(MIN_MULTIPLIER, final_multiplier)
+
         # Interpretation
         interpretation = self._get_interpretation(final_multiplier, floor_applied)
-        
+        if inst_exit_applied:
+            interpretation += f" | INST EXIT on {', '.join(inst_exit_tickers)} — 25% size reduction applied."
+
         result = MultiplierData(
             date=date_str,
             corr_regime=corr_regime,
@@ -269,10 +360,12 @@ class MacroMultiplierCalculator:
             raw_multiplier=round(raw_multiplier, 3),
             final_multiplier=round(final_multiplier, 2),
             floor_applied=floor_applied,
+            inst_exit_tickers=inst_exit_tickers,
+            inst_exit_applied=inst_exit_applied,
             interpretation=interpretation
         )
-        
-        logger.info(f"Final multiplier: {final_multiplier:.2f} (floor applied: {floor_applied})")
+
+        logger.info(f"Final multiplier: {final_multiplier:.2f} (floor applied: {floor_applied}, inst exit: {inst_exit_applied})")
         
         return result
     

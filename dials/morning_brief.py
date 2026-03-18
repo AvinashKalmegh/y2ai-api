@@ -148,6 +148,12 @@ class MorningBriefGenerator:
         vix = self._get_latest("vix_dial_daily") or {}
         pillar = self._get_latest("pillar_index_daily") or {}
         portfolio = self._get_latest("portfolio_nav_daily") or {}
+
+        # New signal data
+        skew_alerts = self._get_signal_alerts("options_skew", "signal", ["EXTREME", "ELEVATED"])
+        etf_alerts = self._get_signal_alerts("etf_flows", "flow_signal", ["SIGNIFICANT", "NOTABLE"])
+        borrow_alerts = self._get_borrow_alerts()
+        divergence_alerts = self._get_divergence_alerts()
         
         # Key metrics
         amri_score = amri.get("amri_score", 0)
@@ -186,14 +192,15 @@ class MorningBriefGenerator:
         # Build sections
         regime_section = self._build_regime_section(regime, regime_changed, prev_regime, amri_score, bubble_index, mci_score, vix_level)
         signals_section = self._build_signals_section(top_bullish, top_bearish, len(bullish), len(bearish))
+        new_signals_section = self._build_new_signals_section(skew_alerts, etf_alerts, borrow_alerts, divergence_alerts)
         pillar_section = self._build_pillar_section(pillar_signals, leading, lagging)
         risk_section = self._build_risk_section(risk_level, key_risks)
         action_section = self._build_action_section(actions)
-        
+
         # Full brief
         full_brief = self._compile_brief(
             date_str, weekday, headline, regime_section, signals_section,
-            pillar_section, risk_section, action_section
+            new_signals_section, pillar_section, risk_section, action_section
         )
         
         return MorningBrief(
@@ -219,6 +226,98 @@ class MorningBriefGenerator:
             full_brief=full_brief
         )
     
+    def _get_signal_alerts(self, table: str, signal_col: str, alert_values: List[str]) -> List[Dict]:
+        """Get tickers with elevated signals from a table (latest date)."""
+        if not self.supabase:
+            return []
+        try:
+            result = self.supabase.table(table) \
+                .select(f"ticker,{signal_col},date") \
+                .in_(signal_col, alert_values) \
+                .order("date", desc=True) \
+                .limit(20) \
+                .execute()
+            if result.data:
+                latest_date = result.data[0].get("date")
+                return [r for r in result.data if r.get("date") == latest_date]
+        except Exception:
+            pass
+        return []
+
+    def _get_borrow_alerts(self) -> List[Dict]:
+        """Get tickers with borrow_zscore > 2.5."""
+        if not self.supabase:
+            return []
+        try:
+            result = self.supabase.table("borrow_rates") \
+                .select("ticker,borrow_rate_annualized,borrow_zscore,classification,date") \
+                .in_("classification", ["HTB", "EXTREME"]) \
+                .order("date", desc=True) \
+                .limit(20) \
+                .execute()
+            if result.data:
+                latest_date = result.data[0].get("date")
+                return [r for r in result.data if r.get("date") == latest_date]
+        except Exception:
+            pass
+        return []
+
+    def _get_divergence_alerts(self) -> List[Dict]:
+        """Get recent credit divergence events."""
+        if not self.supabase:
+            return []
+        try:
+            result = self.supabase.table("credit_divergence") \
+                .select("ticker,divergence_type,severity,dm_smoothed,date") \
+                .order("date", desc=True) \
+                .limit(20) \
+                .execute()
+            if result.data:
+                latest_date = result.data[0].get("date")
+                return [r for r in result.data if r.get("date") == latest_date]
+        except Exception:
+            pass
+        return []
+
+    def _build_new_signals_section(self, skew_alerts, etf_alerts, borrow_alerts, divergence_alerts) -> str:
+        """Build new signals alert section."""
+        lines = ["NEW SIGNAL ALERTS", "-" * 40]
+
+        # Options Skew
+        if skew_alerts:
+            extreme = [a for a in skew_alerts if a.get("signal") == "EXTREME"]
+            elevated = [a for a in skew_alerts if a.get("signal") == "ELEVATED"]
+            label = "EXTREME" if extreme else "ELEVATED"
+            top3 = (extreme or elevated)[:3]
+            names = ", ".join(a["ticker"] for a in top3)
+            lines.append(f"  Options Skew:     [{label}] — {names}")
+        else:
+            lines.append(f"  Options Skew:     [NORMAL]")
+
+        # ETF Flows
+        if etf_alerts:
+            top3 = etf_alerts[:3]
+            moves = ", ".join(f"{a['ticker']}({a.get('flow_signal','')})" for a in top3)
+            lines.append(f"  ETF Flow:         {moves}")
+        else:
+            lines.append(f"  ETF Flow:         [NORMAL]")
+
+        # Borrow Rates
+        if borrow_alerts:
+            names = ", ".join(a["ticker"] for a in borrow_alerts[:3])
+            lines.append(f"  Borrow Rate:      [ALERT] — {names}")
+        else:
+            lines.append(f"  Borrow Rate:      [NORMAL]")
+
+        # Credit Divergence
+        if divergence_alerts:
+            names = ", ".join(f"{a['ticker']}({a.get('divergence_type','')[:20]})" for a in divergence_alerts[:3])
+            lines.append(f"  Credit Divergence:{names}")
+        else:
+            lines.append(f"  Credit Divergence:[NONE]")
+
+        return "\n".join(lines)
+
     def _generate_headline(self, regime: str, mci: float, changed: bool, prev_regime: str) -> str:
         """Generate headline based on current conditions."""
         if changed and regime in ["FRAGILE", "BREAK"]:
@@ -388,7 +487,7 @@ class MorningBriefGenerator:
         
         return "\n".join(lines)
     
-    def _compile_brief(self, date: str, weekday: str, headline: str, regime: str, signals: str, pillars: str, risk: str, actions: str) -> str:
+    def _compile_brief(self, date: str, weekday: str, headline: str, regime: str, signals: str, new_signals: str, pillars: str, risk: str, actions: str) -> str:
         """Compile full brief."""
         return f"""
 {'='*60}
@@ -401,6 +500,8 @@ Y2AI MORNING BRIEF
 {regime}
 
 {signals}
+
+{new_signals}
 
 {pillars}
 

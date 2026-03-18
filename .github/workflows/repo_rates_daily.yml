@@ -1,0 +1,47 @@
+name: Repo Rates Daily (Pre-Market)
+
+on:
+  schedule:
+    # 9:30 AM ET (14:30 UTC) weekdays — NY Fed publishes ~8 AM ET
+    - cron: "30 14 * * 1-5"
+  workflow_dispatch: {}
+
+jobs:
+  run-repo-rates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      TZ: America/New_York
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: "Repo Rates: Fetch NY Fed + Push to Supabase"
+        run: |
+          export PYTHONPATH=$PYTHONPATH:.
+          echo "========================================"
+          echo "REPO RATES — Daily Fetch (Pre-Market)"
+          echo "Started at $(date)"
+          echo "========================================"
+          python repo_rates.py daily
+
+      - name: Log completion
+        if: always()
+        run: |
+          echo "========================================"
+          echo "Repo Rates Pipeline completed at $(date)"
+          echo "========================================"

@@ -1334,21 +1334,32 @@ def load_recent_prices(lookback_days=120, cache_csv="price_cache.csv"):
     all_rows = []
     page_size = 1000
     offset = 0
-    
+    max_retries = 3
+
     while True:
-        result = supabase.table("price_history") \
-            .select("date,ticker,close,volume") \
-            .gte("date", start_date) \
-            .order("date") \
-            .range(offset, offset + page_size - 1) \
-            .execute()
-        
+        for attempt in range(max_retries):
+            try:
+                result = supabase.table("price_history") \
+                    .select("date,ticker,close,volume") \
+                    .gte("date", start_date) \
+                    .order("date") \
+                    .range(offset, offset + page_size - 1) \
+                    .execute()
+                break
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    wait = 2 ** (attempt + 1)
+                    logger.warning(f"  Supabase request failed (offset={offset}, attempt {attempt+1}): {e}. Retrying in {wait}s...")
+                    time.sleep(wait)
+                else:
+                    raise
+
         if not result.data:
             break
-        
+
         all_rows.extend(result.data)
         offset += page_size
-        
+
         if len(result.data) < page_size:
             break
     

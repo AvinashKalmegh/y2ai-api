@@ -1,0 +1,48 @@
+name: Options Skew Daily (Post-Market)
+
+on:
+  schedule:
+    # 4:30 PM ET (21:30 UTC) weekdays — after market close
+    - cron: "30 21 * * 1-5"
+  workflow_dispatch: {}
+
+jobs:
+  run-options-skew:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      TZ: America/New_York
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      POLYGON_API_KEY: ${{ secrets.POLYGON_API_KEY }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: "Options Skew: Fetch Polygon + Push to Supabase"
+        run: |
+          export PYTHONPATH=$PYTHONPATH:.
+          echo "========================================"
+          echo "OPTIONS SKEW — Daily Fetch (Post-Market)"
+          echo "Started at $(date)"
+          echo "========================================"
+          python options_skew.py daily
+
+      - name: Log completion
+        if: always()
+        run: |
+          echo "========================================"
+          echo "Options Skew Pipeline completed at $(date)"
+          echo "========================================"

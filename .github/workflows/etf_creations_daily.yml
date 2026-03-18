@@ -1,0 +1,48 @@
+name: ETF Creations Daily (Pre-Market)
+
+on:
+  schedule:
+    # 8:00 AM ET (13:00 UTC) weekdays — sponsors publish overnight
+    - cron: "0 13 * * 1-5"
+  workflow_dispatch: {}
+
+jobs:
+  run-etf-creations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      TZ: America/New_York
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      POLYGON_API_KEY: ${{ secrets.POLYGON_API_KEY }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: "ETF Creations: Fetch Polygon + Push to Supabase"
+        run: |
+          export PYTHONPATH=$PYTHONPATH:.
+          echo "========================================"
+          echo "ETF CREATIONS — Daily Fetch (Pre-Market)"
+          echo "Started at $(date)"
+          echo "========================================"
+          python etf_creations.py daily
+
+      - name: Log completion
+        if: always()
+        run: |
+          echo "========================================"
+          echo "ETF Creations Pipeline completed at $(date)"
+          echo "========================================"

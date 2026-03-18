@@ -1,0 +1,47 @@
+name: Borrow Rates Daily (Pre-Market)
+
+on:
+  schedule:
+    # 7:00 AM ET (12:00 UTC) weekdays — IBKR publishes overnight
+    - cron: "0 12 * * 1-5"
+  workflow_dispatch: {}
+
+jobs:
+  run-borrow-rates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      TZ: America/New_York
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: "Borrow Rates: Fetch IBKR + Push to Supabase"
+        run: |
+          export PYTHONPATH=$PYTHONPATH:.
+          echo "========================================"
+          echo "BORROW RATES — Daily Fetch (Pre-Market)"
+          echo "Started at $(date)"
+          echo "========================================"
+          python borrow_rates.py daily
+
+      - name: Log completion
+        if: always()
+        run: |
+          echo "========================================"
+          echo "Borrow Rates Pipeline completed at $(date)"
+          echo "========================================"

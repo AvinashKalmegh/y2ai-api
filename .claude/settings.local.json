@@ -15,7 +15,9 @@
       "WebFetch(domain:ark-funds.com)",
       "WebFetch(domain:www.invesco.com)",
       "Read(//c/Users/avina/OneDrive/Desktop/New folder/y2ai-fast-api/**)",
-      "Bash(python3 -c \":*)"
+      "Bash(python3 -c \":*)",
+      "WebFetch(domain:ndcdyn.interactivebrokers.com)",
+      "WebFetch(domain:www.interactivebrokers.com)"
     ]
   }
 }
