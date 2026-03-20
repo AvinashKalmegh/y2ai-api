@@ -111,6 +111,31 @@ def get_supabase():
 
 
 # ============================================================
+# UNIVERSE LOADING
+# ============================================================
+
+def load_universe():
+    """Load all tickers from scanner_universe table."""
+    sb = get_supabase()
+    all_rows = []
+    offset = 0
+    batch = 1000
+    while True:
+        result = sb.table("scanner_universe") \
+            .select("ticker") \
+            .range(offset, offset + batch - 1) \
+            .execute()
+        if not result.data:
+            break
+        all_rows.extend(result.data)
+        if len(result.data) < batch:
+            break
+        offset += batch
+    tickers = sorted(set(r['ticker'].strip() for r in all_rows if r.get('ticker', '').strip()))
+    return tickers
+
+
+# ============================================================
 # DATA LOADING
 # ============================================================
 
@@ -562,7 +587,7 @@ def write_hms_to_sheets(df):
         return
 
     CREDS_FILE = 'credentials.json'
-    SPREADSHEET = "copy-dm-history 2024-current"
+    SPREADSHEET_KEY = "1YhEhsssJ1kEKm3x-qHGDbysJXx1ej6I9dA-UIv8vgs4"
     TAB = "HMS_Daily"
 
     if not os.path.exists(CREDS_FILE):
@@ -591,13 +616,15 @@ def write_hms_to_sheets(df):
     except Exception as e:
         logger.warning(f"  Could not load DM scores: {e}")
 
-    # Push full history sorted by date desc, then by HMS desc within each date
-    sorted_df = df.sort_values(['date', 'hms_score'], ascending=[False, False])
+    # Only push latest date's data (append to existing sheet)
+    latest_date = df['date'].max()
+    latest_df = df[df['date'] == latest_date].sort_values('hms_score', ascending=False)
+    logger.info(f"  Pushing {len(latest_df)} rows for {latest_date.strftime('%Y-%m-%d')} to Sheets")
 
-    rows = [HEADERS]
-    for _, r in sorted_df.iterrows():
+    new_rows = []
+    for _, r in latest_df.iterrows():
         dm_val = r.get('dm_score') if 'dm_score' in r.index and pd.notna(r.get('dm_score')) else dm_scores.get(r['ticker'])
-        rows.append([
+        new_rows.append([
             r['ticker'],
             r['date'].strftime('%Y-%m-%d') if hasattr(r['date'], 'strftime') else str(r['date']),
             round(r['hms_score'], 4),
@@ -619,22 +646,23 @@ def write_hms_to_sheets(df):
     client = gspread.authorize(creds)
 
     try:
-        spreadsheet = client.open(SPREADSHEET)
+        spreadsheet = client.open_by_key(SPREADSHEET_KEY)
     except Exception as e:
         logger.error(f"  Spreadsheet not found: {e}")
         return
 
     try:
         sheet = spreadsheet.worksheet(TAB)
-        sheet.clear()
-    except Exception:
-        sheet = spreadsheet.add_worksheet(title=TAB, rows=max(len(rows)+10, 200), cols=len(HEADERS))
+    except gspread.WorksheetNotFound:
+        sheet = spreadsheet.add_worksheet(title=TAB, rows=1000, cols=len(HEADERS))
+        sheet.update(range_name='A1', values=[HEADERS], value_input_option='USER_ENTERED')
+        sheet.format('1:1', {'textFormat': {'bold': True}})
+        sheet.freeze(rows=1)
 
-    sheet.update(range_name='A1', values=rows, value_input_option='USER_ENTERED')
-    sheet.format('1:1', {'textFormat': {'bold': True}})
-    sheet.freeze(rows=1)
+    # Append new rows after existing data
+    sheet.append_rows(new_rows, value_input_option='USER_ENTERED')
 
-    logger.info(f"  Pushed {len(rows)-1} rows to GS {TAB}")
+    logger.info(f"  Appended {len(new_rows)} rows to GS {TAB}")
 
 
 def _get_sheets_client():
@@ -1079,28 +1107,74 @@ def main():
                         help="Validation run: NVDA, CEG, VST (full-universe normalization)")
     parser.add_argument("--backtest", action="store_true",
                         help="Full backtest 2020-2025, export CSV")
+    parser.add_argument("--backfill", action="store_true",
+                        help="Backfill full universe from 2023, write to Supabase + Sheets")
     parser.add_argument("--tickers", type=str, default=None,
                         help="Comma-separated custom ticker list")
     parser.add_argument("--dry-run", action="store_true",
                         help="Print results without writing to DB")
     parser.add_argument("--no-fragmentation", action="store_true",
                         help="Skip Component 4 (trade count)")
+    parser.add_argument("--sheets-only", action="store_true",
+                        help="Load HMS from Supabase and push to Sheets (no recompute)")
     args = parser.parse_args()
 
     if not SUPABASE_URL or not SUPABASE_KEY:
         logger.error("SUPABASE_URL/SUPABASE_KEY not set")
         sys.exit(1)
 
+    # Sheets-only mode: load from Supabase, push to Sheets, exit
+    if args.sheets_only:
+        logger.info("Sheets-only mode: loading HMS from Supabase...")
+        sb = get_supabase()
+        all_rows = []
+        offset = 0
+        while True:
+            result = sb.table("hms_daily").select("*") \
+                .gte("date", "2023-01-01") \
+                .order("date", desc=True) \
+                .range(offset, offset + 999) \
+                .execute()
+            if not result.data:
+                break
+            all_rows.extend(result.data)
+            if len(result.data) < 1000:
+                break
+            offset += 1000
+        logger.info(f"  Loaded {len(all_rows)} rows from hms_daily")
+        if all_rows:
+            df = pd.DataFrame(all_rows)
+            df['date'] = pd.to_datetime(df['date'])
+            # Map column names to what write_hms_to_sheets expects
+            col_map = {
+                'comp1_compression': 'comp1_norm',
+                'comp2_absorption': 'comp2_norm',
+                'comp3_flow': 'comp3_norm',
+                'comp4_fragmentation': 'comp4_norm',
+                'hms_score': 'hms_score',
+            }
+            for old, new in col_map.items():
+                if old in df.columns and new not in df.columns:
+                    df[new] = df[old]
+            write_all_sheets(df)
+            logger.info("Sheets push complete")
+        return
+
     # Determine tickers and date range
     if args.validate:
         # Use FULL universe for cross-sectional normalization, filter output to validation tickers
-        # Ensure validation tickers are included in universe even if not in PRIORITY_TICKERS
-        tickers = list(set(PRIORITY_TICKERS + VALIDATION_TICKERS))
+        tickers = load_universe()
         output_tickers = VALIDATION_TICKERS
         start_date = "2023-06-01"
         fetch_trades = not args.no_fragmentation
+    elif args.backfill:
+        tickers = load_universe()
+        output_tickers = None
+        start_date = "2022-06-01"  # extra lookback for 2023-01-01 rolling windows
+        fetch_trades = False  # too many API calls for full backfill
+        logger.info(f"Backfill mode: {len(tickers)} tickers, Component 4 disabled")
     elif args.backtest:
-        tickers = PRIORITY_TICKERS
+        tickers = load_universe()
         output_tickers = None
         start_date = "2019-06-01"  # extra lookback for 2020 start
         fetch_trades = False  # too many API calls for full backtest
@@ -1111,7 +1185,7 @@ def main():
         start_date = "2023-01-01"
         fetch_trades = not args.no_fragmentation
     else:
-        tickers = PRIORITY_TICKERS
+        tickers = load_universe()
         output_tickers = None
         start_date = "2023-01-01"
         fetch_trades = not args.no_fragmentation
@@ -1134,7 +1208,11 @@ def main():
         # Export validation CSV with DM breakout comparison
         export_validation_csv(df, VALIDATION_TICKERS)
 
-    if not args.dry_run and not args.validate and not args.backtest:
+    if args.backfill and not args.dry_run:
+        write_hms_to_supabase(df)
+        write_all_sheets(df)
+        logger.info("Backfill complete — Supabase + Sheets updated")
+    elif not args.dry_run and not args.validate and not args.backtest:
         write_hms_to_supabase(df)
         write_all_sheets(df)
     elif args.dry_run:

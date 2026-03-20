@@ -9,7 +9,7 @@ on:
 jobs:
   run-hms-pipeline:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
 
     env:
       TZ: America/New_York
@@ -40,7 +40,7 @@ jobs:
         run: |
           export PYTHONPATH=$PYTHONPATH:.
           echo "========================================"
-          echo "HMS DAILY — Calculate + Push (52 tickers)"
+          echo "HMS DAILY — Calculate + Push (Full Universe)"
           echo "Started at $(date)"
           echo "========================================"
           python hms_calculator.py
