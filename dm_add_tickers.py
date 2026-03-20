@@ -26,6 +26,11 @@ TICKERS_TO_ADD = {
     "DOCN":  "Software",
     # Universe Scanner candidate promotion
     "NBIS":  "Information Technology",
+    # Neocloud cluster — GPU-native AI data centers (DevBrief Mar 16)
+    "CRWV":  "Information Technology",
+    "ARM":   "Semiconductors",
+    "VRT":   "Information Technology",
+    "SMCI":  "Information Technology",
 }
 
 # ── Step 1: Check existing universe ──

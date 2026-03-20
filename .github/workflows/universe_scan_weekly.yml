@@ -1,0 +1,52 @@
+name: Universe Candidate Scan (Weekly)
+
+on:
+  schedule:
+    # Monday 8:00 AM ET (13:00 UTC)
+    - cron: "0 13 * * 1"
+  workflow_dispatch: {}
+
+jobs:
+  run-universe-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      TZ: America/New_York
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Create Google credentials.json
+        run: |
+          echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > credentials.json
+
+      - name: "Universe Scan: EDGAR + Listings Check"
+        run: |
+          export PYTHONPATH=$PYTHONPATH:.
+          echo "========================================"
+          echo "UNIVERSE CANDIDATE SCAN — Weekly"
+          echo "Started at $(date)"
+          echo "========================================"
+          python universe_candidates.py scan
+
+      - name: Log completion
+        if: always()
+        run: |
+          echo "========================================"
+          echo "Universe Scan completed at $(date)"
+          echo "========================================"
