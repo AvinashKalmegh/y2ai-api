@@ -1,0 +1,156 @@
+
+=================================================================
+  PATH ANALYSIS SUMMARY
+  HMS → DM → Returns: Sequential Wave Hypothesis
+=================================================================
+
+  Total path analyses run: 3705
+  Tickers analyzed:        412
+  Lag/horizon combinations: 3 × 3
+
+  ── HMS lag 10d → Return horizon 20d ──────────────────
+     Tickers: 412
+     β₁ HMS→DM significant:      143/412 (35%)
+     β₃ DM→Returns significant:  14/412 (3%)
+     β₄ HMS direct significant:  17/412 (4%)
+     Sobel indirect significant: 0/412 (0%)
+     Mediation types:
+       NO_MEDIATION        :  269 (65%)
+       NO_DM_EFFECT        :  139 (34%)
+       UNCLEAR             :    4 (1%)
+
+  ── HMS lag 10d → Return horizon 40d ──────────────────
+     Tickers: 412
+     β₁ HMS→DM significant:      145/412 (35%)
+     β₃ DM→Returns significant:  17/412 (4%)
+     β₄ HMS direct significant:  20/412 (5%)
+     Sobel indirect significant: 3/412 (1%)
+     Mediation types:
+       NO_MEDIATION        :  267 (65%)
+       NO_DM_EFFECT        :  138 (33%)
+       UNCLEAR             :    4 (1%)
+       COMPLETE            :    3 (1%)
+
+  ── HMS lag 10d → Return horizon 60d ──────────────────
+     Tickers: 412
+     β₁ HMS→DM significant:      150/412 (36%)
+     β₃ DM→Returns significant:  11/412 (3%)
+     β₄ HMS direct significant:  19/412 (5%)
+     Sobel indirect significant: 0/412 (0%)
+     Mediation types:
+       NO_MEDIATION        :  262 (64%)
+       NO_DM_EFFECT        :  146 (35%)
+       UNCLEAR             :    4 (1%)
+
+  ── HMS lag 20d → Return horizon 20d ──────────────────
+     Tickers: 412
+     β₁ HMS→DM significant:      372/412 (90%)
+     β₃ DM→Returns significant:  15/412 (4%)
+     β₄ HMS direct significant:  24/412 (6%)
+     Sobel indirect significant: 5/412 (1%)
+     Mediation types:
+       NO_DM_EFFECT        :  358 (87%)
+       NO_MEDIATION        :   40 (10%)
+       UNCLEAR             :    9 (2%)
+       COMPLETE            :    5 (1%)
+
+  ── HMS lag 20d → Return horizon 40d ──────────────────
+     Tickers: 412
+     β₁ HMS→DM significant:      373/412 (91%)
+     β₃ DM→Returns significant:  16/412 (4%)
+     β₄ HMS direct significant:  18/412 (4%)
+     Sobel indirect significant: 7/412 (2%)
+     Mediation types:
+       NO_DM_EFFECT        :  360 (87%)
+       NO_MEDIATION        :   39 (9%)
+       COMPLETE            :    7 (2%)
+       UNCLEAR             :    6 (1%)
+
+  ── HMS lag 20d → Return horizon 60d ──────────────────
+     Tickers: 411
+     β₁ HMS→DM significant:      372/411 (91%)
+     β₃ DM→Returns significant:  13/411 (3%)
+     β₄ HMS direct significant:  16/411 (4%)
+     Sobel indirect significant: 7/411 (2%)
+     Mediation types:
+       NO_DM_EFFECT        :  361 (88%)
+       NO_MEDIATION        :   39 (9%)
+       COMPLETE            :    7 (2%)
+       UNCLEAR             :    4 (1%)
+
+  ── HMS lag 40d → Return horizon 20d ──────────────────
+     Tickers: 412
+     β₁ HMS→DM significant:      115/412 (28%)
+     β₃ DM→Returns significant:  15/412 (4%)
+     β₄ HMS direct significant:  17/412 (4%)
+     Sobel indirect significant: 0/412 (0%)
+     Mediation types:
+       NO_MEDIATION        :  297 (72%)
+       NO_DM_EFFECT        :  111 (27%)
+       UNCLEAR             :    4 (1%)
+
+  ── HMS lag 40d → Return horizon 40d ──────────────────
+     Tickers: 411
+     β₁ HMS→DM significant:      116/411 (28%)
+     β₃ DM→Returns significant:  19/411 (5%)
+     β₄ HMS direct significant:  17/411 (4%)
+     Sobel indirect significant: 0/411 (0%)
+     Mediation types:
+       NO_MEDIATION        :  295 (72%)
+       NO_DM_EFFECT        :  114 (28%)
+       UNCLEAR             :    2 (0%)
+
+  ── HMS lag 40d → Return horizon 60d ──────────────────
+     Tickers: 411
+     β₁ HMS→DM significant:      111/411 (27%)
+     β₃ DM→Returns significant:  12/411 (3%)
+     β₄ HMS direct significant:  15/411 (4%)
+     Sobel indirect significant: 0/411 (0%)
+     Mediation types:
+       NO_MEDIATION        :  300 (73%)
+       NO_DM_EFFECT        :  108 (26%)
+       UNCLEAR             :    3 (1%)
+
+  ── COMPLETE MEDIATION TICKERS (strongest examples) ────────
+  (HMS effect on returns flows entirely through DM)
+  TRGP   lag20d/fwd40d | β₁=-3.186 β₃=-0.000 indirect=+0.0003 Sobel p=0.0112
+  BF.B   lag20d/fwd40d | β₁=-3.294 β₃=+0.000 indirect=-0.0002 Sobel p=0.0168
+  DELL   lag20d/fwd60d | β₁=-4.214 β₃=-0.000 indirect=+0.0003 Sobel p=0.0170
+  VZ     lag20d/fwd60d | β₁=-2.842 β₃=-0.000 indirect=+0.0001 Sobel p=0.0199
+  PCG    lag20d/fwd60d | β₁=-3.513 β₃=-0.000 indirect=+0.0003 Sobel p=0.0246
+  APA    lag10d/fwd40d | β₁=+3.875 β₃=-0.000 indirect=-0.0003 Sobel p=0.0274
+  NWS    lag20d/fwd20d | β₁=-2.070 β₃=-0.000 indirect=+0.0001 Sobel p=0.0288
+  ADSK   lag20d/fwd20d | β₁=-3.694 β₃=-0.000 indirect=+0.0002 Sobel p=0.0291
+  LRCX   lag20d/fwd60d | β₁=-2.769 β₃=+0.000 indirect=-0.0002 Sobel p=0.0298
+  APP    lag20d/fwd20d | β₁=-7.396 β₃=+0.000 indirect=-0.0008 Sobel p=0.0302
+  WDC    lag20d/fwd60d | β₁=-6.187 β₃=+0.000 indirect=-0.0003 Sobel p=0.0338
+  FANG   lag20d/fwd40d | β₁=-2.847 β₃=-0.000 indirect=+0.0002 Sobel p=0.0349
+  TRGP   lag10d/fwd40d | β₁=+1.999 β₃=-0.000 indirect=-0.0002 Sobel p=0.0392
+  APA    lag20d/fwd40d | β₁=-3.569 β₃=-0.000 indirect=+0.0003 Sobel p=0.0406
+  DAL    lag10d/fwd40d | β₁=+2.427 β₃=-0.000 indirect=-0.0001 Sobel p=0.0423
+
+=================================================================
+  INTERPRETATION
+=================================================================
+
+  Primary test: HMS lag 20d → DM → Returns fwd 40d
+  (412 tickers)
+
+  β₁ (HMS→DM):        91% of tickers significant
+  β₃ (DM→Returns):    4% of tickers significant
+  β₄ (HMS direct):    4% of tickers significant
+  Complete mediation: 2% of tickers
+  Partial mediation:  0% of tickers
+
+  ✗  WEAK at primary test parameters.
+  Check results at other lag/horizon combinations above.
+  HMS and DM may operate at different time horizons than tested.
+
+  PATH COEFFICIENT INTERPRETATION:
+  β₁ > 0: HMS elevation predicts DM elevation k days later
+  β₃ > 0: DM elevation predicts positive returns n days later
+  β₄ ≈ 0: HMS has no effect on returns beyond what DM captures
+  Indirect = β₁×β₃: The mediated effect (the chain)
+  Sobel p < 0.05: The chain is statistically significant
+
+=================================================================

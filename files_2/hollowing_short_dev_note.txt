@@ -1,0 +1,33 @@
+DEVELOPER NOTE — hollowing_short_sim.py
+March 23, 2026 | ARGUS Research
+
+This mirrors the T1C long sim you ran this morning, inverted for shorts.
+
+WHAT IT DOES
+Tests whether DM falling below 35 with 5d MA declining produces a
+reliable short signal across AI-displaced sectors (consulting, wealth
+management, SaaS tools, insurers, staffing, defense services).
+Runs two universes in parallel — 16 current live positions (narrow)
+and ~50 tickers across all affected forces (broad).
+
+WHAT WE WANT TO KNOW
+1. Does the short signal work at all historically (hit rate, avg return)?
+2. Narrow vs broad — does expanding the universe improve or dilute results?
+3. Per-ticker breakdown — which names drive the thesis, which are noise?
+4. Exit quality — are DM recoveries the right exit or does time stop dominate?
+
+DATA NEEDED
+Same dm_daily table as the long sim. No HMS required for shorts.
+Confirm exact column names and adjust CONFIG at top if different.
+
+RUN SEQUENCE
+python hollowing_short_sim.py --year all              # full decade both universes
+python hollowing_short_sim.py --year 2020 --universe narrow   # quick single year test
+python hollowing_short_sim.py --year all --universe broad     # broad only
+
+PLEASE RETURN
+Full console output for both universes, full decade.
+Specifically flag: hit rate, CAGR, time stop % vs DM exit %,
+and the per-ticker breakdown table at the bottom.
+
+No rush — same priority as the Sharpe ratio runs from this morning.

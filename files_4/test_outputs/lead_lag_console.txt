@@ -1,0 +1,99 @@
+
+=================================================================
+  ARGUS LEAD-LAG ANALYSIS
+  Does the DM signal lead price or follow it?
+=================================================================
+
+Loaded 1,203 trades from trades_strategy_5_momentum_confirm_cf_65_5d_ma_.csv
+Connected to Supabase.
+
+  Processing trade 1/1203 — EQIX 2016-02-02
+  Processing trade 51/1203 — OKE 2016-05-09
+  Processing trade 101/1203 — J 2016-12-01
+  Processing trade 151/1203 — CMG 2017-04-20
+  Processing trade 201/1203 — ANET 2017-08-25
+  Processing trade 251/1203 — DECK 2018-02-09
+  Processing trade 301/1203 — ZS 2018-09-05
+  Processing trade 351/1203 — REGN 2018-12-31
+  Processing trade 401/1203 — PCG 2019-06-27
+  Processing trade 451/1203 — IBP 2019-10-18
+  Processing trade 501/1203 — AMD 2019-11-22
+  Processing trade 551/1203 — BF.B 2020-09-08
+  Processing trade 601/1203 — DNN 2020-12-15
+  Processing trade 651/1203 — JKS 2021-06-17
+  Processing trade 701/1203 — INTU 2021-12-03
+  Processing trade 751/1203 — IONS 2022-04-19
+  Processing trade 801/1203 — LW 2022-06-27
+  Processing trade 851/1203 — IBP 2022-12-20
+  Processing trade 901/1203 — BX 2023-07-24
+  Processing trade 951/1203 — COIN 2023-11-17
+  Processing trade 1001/1203 — PDD 2024-05-24
+  Processing trade 1051/1203 — TPL 2024-06-13
+  Processing trade 1101/1203 — AZEK 2025-04-11
+  Processing trade 1151/1203 — RF 2025-07-29
+  Processing trade 1201/1203 — PH 2025-11-14
+
+Results written to lead_lag_results.csv
+=================================================================
+  LEAD-LAG ANALYSIS RESULTS
+=================================================================
+
+  Total trades analyzed:     1,203
+  Signal date found:         462 (38%)
+  Price confirmed (>5.0%):    371 (31%)
+
+  ── SIGNAL LEAD TIME ───────────────────────────────
+  (Days from first DM crossing to trade entry)
+  Mean lead days:   50.5
+  Median lead days: 51.5
+  Min lead days:    2
+  Max lead days:    90
+
+  Lead distribution:
+    0 days (entered on signal day):   0
+    1-5 days after signal:            13
+    6-14 days after signal:           94
+    15-30 days after signal:          67
+    >30 days after signal:            288
+
+  ── PRICE CONFIRMATION TIME ────────────────────────
+  (Days from entry until price rose >5.0%)
+  Mean confirm days:   33.1
+  Median confirm days: 24.0
+
+  Confirmed on winning trades:  251
+  Confirmed on losing trades:   120
+
+  ── TOP 10 TRADES WITH LONGEST SIGNAL LEAD ─────────
+  (These are the strongest lead-lag examples)
+  IRM    Signal: 2016-02-02  Entry: 2016-05-02  Lead: 90.0d  Return: +3.9%
+  KEYS   Signal: 2016-02-26  Entry: 2016-05-26  Lead: 90.0d  Return: -5.2%
+  CPRT   Signal: 2016-03-09  Entry: 2016-06-07  Lead: 90.0d  Return: +0.8%
+  MRCY   Signal: 2016-04-01  Entry: 2016-06-30  Lead: 90.0d  Return: -6.9%
+  HUBS   Signal: 2016-05-10  Entry: 2016-08-08  Lead: 90.0d  Return: -4.5%
+  NTAP   Signal: 2016-05-27  Entry: 2016-08-25  Lead: 90.0d  Return: -4.3%
+  NDSN   Signal: 2016-05-27  Entry: 2016-08-25  Lead: 90.0d  Return: -4.0%
+  MU     Signal: 2016-06-14  Entry: 2016-09-12  Lead: 90.0d  Return: +2.3%
+  SHOP   Signal: 2016-04-21  Entry: 2016-07-20  Lead: 90.0d  Return: +29.9%
+  EXPE   Signal: 2016-07-26  Entry: 2016-10-24  Lead: 90.0d  Return: -4.4%
+
+  ── EARLY SIGNAL ENTRIES (lead ≤ 1 day) ───────────
+  0 trades entered within 1 day of first DM crossing
+  These are the purest 'signal before price' examples
+
+=================================================================
+  MOMENTUM CRITICISM ASSESSMENT
+=================================================================
+
+  ✓✓  MEDIAN LEAD = 52 days
+  Signal fires well before entry on average.
+  Strong counter to momentum criticism.
+Traceback (most recent call last):
+  File "C:\Users\avina\OneDrive\Desktop\New folder\y2ai-fast-api\files_4\lead_lag_analysis.py", line 361, in <module>
+    run()
+  File "C:\Users\avina\OneDrive\Desktop\New folder\y2ai-fast-api\files_4\lead_lag_analysis.py", line 354, in run
+    f.write(summary)
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode characters in position 286-287: character maps to <undefined>

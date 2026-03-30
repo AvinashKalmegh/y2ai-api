@@ -1,0 +1,64 @@
+
+=================================================================
+  HMS → DM GRANGER CAUSALITY RESULTS
+  Does slow money (HMS) predict fast money (DM)?
+=================================================================
+
+  Tickers tested: 412
+  Lags tested:    [5, 10, 20, 40] trading days
+
+  ── HMS → DM (Main Hypothesis) ─────────────────────────────
+  % of tickers where HMS significantly Granger-causes DM:
+
+  Lag  5d:   69/412  tickers (17%) significant  |  avg p-value: 0.3291
+  Lag 10d:  183/412  tickers (44%) significant  |  avg p-value: 0.1681
+  Lag 20d:  402/412  tickers (98%) significant  |  avg p-value: 0.0106
+  Lag 40d:  380/412  tickers (92%) significant  |  avg p-value: 0.0242
+
+  ── DM → HMS (Reverse — should be weaker) ──────────────────
+  % of tickers where DM significantly Granger-causes HMS:
+
+  Lag  5d:  124/412  tickers (30%) significant  |  avg p-value: 0.2447
+  Lag 10d:  327/412  tickers (79%) significant  |  avg p-value: 0.0549
+  Lag 20d:  357/412  tickers (87%) significant  |  avg p-value: 0.0346
+  Lag 40d:  328/412  tickers (80%) significant  |  avg p-value: 0.0533
+
+=================================================================
+  ASYMMETRY ANALYSIS — KEY FINDING
+=================================================================
+
+  The sequential wave hypothesis predicts:
+  HMS→DM significance > DM→HMS significance
+  Especially at longer lags (20-40 days)
+
+  Lag  5d: HMS→DM 17%  vs  DM→HMS 30%  →  ✗ DM leads
+  Lag 10d: HMS→DM 44%  vs  DM→HMS 79%  →  ✗ DM leads
+  Lag 20d: HMS→DM 98%  vs  DM→HMS 87%  →  ✓ HMS leads
+  Lag 40d: HMS→DM 92%  vs  DM→HMS 80%  →  ✓ HMS leads
+
+  ── TOP 10 TICKERS — Strongest HMS→DM Signal (Lag 20d) ────
+  AAPL    HMS→DM p=0.0000  significant at: 10d, 20d, 40d
+  ABBV    HMS→DM p=0.0000  significant at: 10d, 20d, 40d
+  ABCB    HMS→DM p=0.0000  significant at: 10d, 20d, 40d
+  ABNB    HMS→DM p=0.0000  significant at: 10d, 20d, 40d
+  ABT     HMS→DM p=0.0000  significant at: 20d, 40d
+  ACGL    HMS→DM p=0.0000  significant at: 20d, 40d
+  ADBE    HMS→DM p=0.0000  significant at: 10d, 20d, 40d
+  ADM     HMS→DM p=0.0000  significant at: 10d, 20d, 40d
+  ADSK    HMS→DM p=0.0000  significant at: 20d, 40d
+  AES     HMS→DM p=0.0000  significant at: 20d, 40d
+
+=================================================================
+  INTERPRETATION & IMPLICATIONS
+=================================================================
+
+  ✓  MODERATE: Some support for sequential wave hypothesis.
+  HMS→DM (98%) moderately stronger than DM→HMS (87%)
+  Hypothesis partially confirmed — worth further investigation.
+
+  NOTE: Even if hypothesis is not confirmed at these lags,
+  HMS may still add value as a universe pre-selector.
+  The simulation tested HMS as a simultaneous filter — not
+  as a sequential leading indicator. These are different uses.
+
+=================================================================

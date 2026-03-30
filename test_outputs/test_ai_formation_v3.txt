@@ -1,0 +1,50 @@
+
+T1C AI FORMATION PERIOD — v3 (Sharpe enabled)
+Production Spec: DM>=65, 5d MA rising, Exit MA20<50, DM-tiered sizing
+Period: 2023-01-01 → 2026-03-15
+
+  Loading DM 2023...
+  DM: 7,102 rows | 27 tickers
+  Skipped (no DM data): ALAB
+  Computing signals...
+
+  2023 | NAV: $  14,631,491 | Return:   +46.3% | Trades:    58 | Hit:  29.3% | AvgHold:    62d | ZeroD:    0
+  Loading DM 2024...
+  DM: 7,523 rows | 28 tickers
+  Computing signals...
+
+  2024 | NAV: $  21,978,769 | Return:   +50.2% | Trades:    63 | Hit:  33.3% | AvgHold:    64d | ZeroD:    0
+  Loading DM 2025...
+  DM: 7,588 rows | 28 tickers
+  Computing signals...
+
+  2025 | NAV: $  23,924,909 | Return:    +8.9% | Trades:    62 | Hit:  32.3% | AvgHold:    62d | ZeroD:    0
+  Loading DM 2026...
+  DM: 2,156 rows | 28 tickers
+  Computing signals...
+
+  2026 | NAV: $  24,714,831 | Return:    +3.3% | Trades:     9 | Hit:  22.2% | AvgHold:    49d | ZeroD:    0
+
+============================================================
+AI FORMATION PERIOD RESULTS
+============================================================
+  CAGR:            25.4%
+  Total Return:    147.1%
+  Final NAV:       $24,714,831
+  Max Drawdown:    0.0%
+  Hit Rate:        31.2%
+  Total Trades:    192
+  Avg Return:      10.3%
+  Avg Hold:        62 days
+
+  ── RISK-ADJUSTED ──────────────────────────────────
+  Sharpe Ratio:    1.68  (>1.0 good, >2.0 excellent)
+  Sortino Ratio:   2.9
+  Calmar Ratio:    3.85  (CAGR / |max DD|)
+
+  YEARLY NAV:
+    2023: $14,631,491 (+46.3%)
+    2024: $21,978,769 (+50.2%)
+    2025: $23,924,909 (+8.9%)
+    2026: $24,714,831 (+3.3%)
+============================================================

@@ -1,0 +1,54 @@
+=================================================================
+  LEAD-LAG ANALYSIS RESULTS
+=================================================================
+
+  Total trades analyzed:     1,203
+  Signal date found:         522 (43%)
+  Price confirmed (>5.0%):    371 (31%)
+
+  ── SIGNAL LEAD TIME ───────────────────────────────
+  (Days from first DM crossing to trade entry)
+  Mean lead days:   182.0
+  Median lead days: 207.0
+  Min lead days:    5
+  Max lead days:    252
+
+  Lead distribution:
+    0 days (entered on signal day):   0
+    1-5 days after signal:            4
+    6-14 days after signal:           24
+    15-30 days after signal:          16
+    >30 days after signal:            478
+
+  ── PRICE CONFIRMATION TIME ────────────────────────
+  (Days from entry until price rose >5.0%)
+  Mean confirm days:   33.1
+  Median confirm days: 24.0
+
+  Confirmed on winning trades:  251
+  Confirmed on losing trades:   120
+
+  ── TOP 10 TRADES WITH LONGEST SIGNAL LEAD ─────────
+  (These are the strongest lead-lag examples)
+  FANG   Signal: 2016-02-11  Entry: 2016-10-20  Lead: 252.0d  Return: -4.6%
+  DPZ    Signal: 2016-02-16  Entry: 2016-10-25  Lead: 252.0d  Return: +0.8%
+  CHKP   Signal: 2016-02-26  Entry: 2016-11-04  Lead: 252.0d  Return: +2.3%
+  MLM    Signal: 2016-03-09  Entry: 2016-11-16  Lead: 252.0d  Return: +1.9%
+  J      Signal: 2016-03-24  Entry: 2016-12-01  Lead: 252.0d  Return: -5.6%
+  ODFL   Signal: 2016-02-19  Entry: 2016-10-28  Lead: 252.0d  Return: +15.9%
+  CZR    Signal: 2016-03-31  Entry: 2016-12-08  Lead: 252.0d  Return: -6.3%
+  AMD    Signal: 2016-04-04  Entry: 2016-12-12  Lead: 252.0d  Return: -0.7%
+  KMX    Signal: 2016-04-14  Entry: 2016-12-22  Lead: 252.0d  Return: +7.1%
+  DNN    Signal: 2016-04-29  Entry: 2017-01-06  Lead: 252.0d  Return: +9.8%
+
+  ── EARLY SIGNAL ENTRIES (lead ≤ 1 day) ───────────
+  0 trades entered within 1 day of first DM crossing
+  These are the purest 'signal before price' examples
+
+=================================================================
+  MOMENTUM CRITICISM ASSESSMENT
+=================================================================
+
+  ✓✓  MEDIAN LEAD = 207 days
+  Signal fires well before entry on average.
+  Strong counter to momentum criticism.

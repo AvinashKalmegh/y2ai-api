@@ -1,0 +1,123 @@
+
+=================================================================
+  TEST 4 — TIGHTER EXIT | DM 65 | HMS 0.45 | Exit MA20 < 45
+  Entry DM >= 65 | Exit MA20 < 45 | HMS >= 0.45
+=================================================================
+Connected to Supabase.
+  Loading DM 2016...
+  DM: 120,195 rows | 521 tickers
+  Loading HMS 2016...
+  HMS: 129,590 rows | 519 tickers
+  Computing signals...
+
+  2016 | NAV: $   1,314,644 | Return:   +31.5% | Trades:    88 | Hit:  15.9% | AvgHold:    60d | ZeroDays:    0
+  Loading DM 2017...
+  DM: 142,227 rows | 524 tickers
+  Loading HMS 2017...
+  HMS: 141,745 rows | 522 tickers
+  Computing signals...
+
+  2017 | NAV: $   1,908,126 | Return:   +45.1% | Trades:   100 | Hit:  31.0% | AvgHold:    77d | ZeroDays:    0
+  Loading DM 2018...
+  DM: 142,792 rows | 530 tickers
+  Loading HMS 2018...
+  HMS: 142,208 rows | 528 tickers
+  Computing signals...
+
+  2018 | NAV: $   4,087,984 | Return:  +114.2% | Trades:    93 | Hit:  21.5% | AvgHold:    76d | ZeroDays:    0
+  Loading DM 2019...
+  DM: 144,629 rows | 541 tickers
+  Loading HMS 2019...
+  HMS: 144,039 rows | 539 tickers
+  Computing signals...
+
+  2019 | NAV: $   4,806,584 | Return:   +17.6% | Trades:   104 | Hit:  24.0% | AvgHold:    73d | ZeroDays:    0
+  Loading DM 2020...
+  DM: 149,664 rows | 553 tickers
+  Loading HMS 2020...
+  HMS: 147,776 rows | 547 tickers
+  Computing signals...
+
+  2020 | NAV: $   9,091,153 | Return:   +89.1% | Trades:   101 | Hit:  29.7% | AvgHold:    68d | ZeroDays:    0
+  Loading DM 2021...
+  DM: 156,611 rows | 581 tickers
+  Loading HMS 2021...
+  HMS: 154,029 rows | 569 tickers
+  Computing signals...
+
+  2021 | NAV: $  13,572,173 | Return:   +49.3% | Trades:   111 | Hit:  31.5% | AvgHold:    73d | ZeroDays:    0
+  Loading DM 2022...
+  DM: 158,787 rows | 582 tickers
+  Loading HMS 2022...
+  HMS: 155,541 rows | 571 tickers
+  Computing signals...
+
+  2022 | NAV: $   9,942,336 | Return:   -26.7% | Trades:   109 | Hit:  11.0% | AvgHold:    63d | ZeroDays:    0
+  Loading DM 2023...
+  DM: 158,272 rows | 587 tickers
+  Loading HMS 2023...
+  HMS: 156,115 rows | 579 tickers
+  Computing signals...
+
+  2023 | NAV: $  13,002,311 | Return:   +30.8% | Trades:   112 | Hit:  20.5% | AvgHold:    66d | ZeroDays:    0
+  Loading DM 2024...
+  DM: 160,699 rows | 594 tickers
+  Loading HMS 2024...
+  HMS: 158,656 rows | 586 tickers
+  Computing signals...
+
+  2024 | NAV: $  33,757,699 | Return:  +159.6% | Trades:   104 | Hit:  27.9% | AvgHold:    67d | ZeroDays:    0
+  Loading DM 2025...
+  DM: 160,778 rows | 596 tickers
+  Loading HMS 2025...
+  HMS: 158,804 rows | 587 tickers
+  Computing signals...
+
+  2025 | NAV: $  52,416,107 | Return:   +55.3% | Trades:   109 | Hit:  29.4% | AvgHold:    69d | ZeroDays:    0
+  Loading DM 2026...
+  DM: 45,653 rows | 599 tickers
+  Loading HMS 2026...
+  HMS: 45,107 rows | 587 tickers
+  Computing signals...
+
+  2026 | NAV: $  61,064,358 | Return:   +16.5% | Trades:    19 | Hit:  36.8% | AvgHold:    91d | ZeroDays:    0
+
+=================================================================
+  TEST 4 — TIGHTER EXIT | DM 65 | HMS 0.45 | Exit MA20 < 45
+  Entry DM: 65 | Exit MA20: 45 | HMS: 0.45
+=================================================================
+
+  Year            NAV     Ret%  Trades   Hit%  AvgHold  ZeroD
+  ---------------------------------------------------------
+  2016   $  1,314,644   +31.5%      88  15.9%      60d      0
+  2017   $  1,908,126   +45.1%     100  31.0%      77d      0
+  2018   $  4,087,984  +114.2%      93  21.5%      76d      0
+  2019   $  4,806,584   +17.6%     104  24.0%      73d      0
+  2020   $  9,091,153   +89.1%     101  29.7%      68d      0
+  2021   $ 13,572,173   +49.3%     111  31.5%      73d      0
+  2022   $  9,942,336   -26.7%     109  11.0%      63d      0
+  2023   $ 13,002,311   +30.8%     112  20.5%      66d      0
+  2024   $ 33,757,699  +159.6%     104  27.9%      67d      0
+  2025   $ 52,416,107   +55.3%     109  29.4%      69d      0
+  2026   $ 61,064,358   +16.5%      19  36.8%      91d      0
+
+  Total trades:    1,050
+  Avg return:      7.60%
+  Avg hold days:   70
+  Zero-day holds:  0 (0.0%)
+  Max drawdown:    -26.7%
+
+  FINAL NAV:   $61,064,358
+  TOTAL RETURN: +6006.4%
+  CAGR:         45.3% per year
+
+  ── RISK-ADJUSTED ──────────────────────────────────
+  Sharpe Ratio:    0.95  (>1.0 good, >2.0 excellent)
+  Sortino Ratio:   0.95
+  Calmar Ratio:    1.69  (CAGR / |max DD|)
+
+  (Raw — apply 15-20% survivorship bias discount)
+=================================================================
+
+DONE.
+

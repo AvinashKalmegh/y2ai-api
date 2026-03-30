@@ -1,0 +1,86 @@
+
+=================================================================
+  STRATEGY 5 — MOMENTUM CONFIRM | CF>=65 | 5d MA rising | Price>MA20 | Exit MA20<50 | Equal weight
+  Entry DM: 65 | Exit MA20: 50 | Sizing: equal_weight | MA5 rising: True | Price>MA20: True
+=================================================================
+
+Connected to Supabase.
+  Loading 2016...
+  DM: 120,195 rows | 521 tickers
+  2016 | NAV: $   1,381,002 | Return:   +38.1% | Trades:   100 | Hit:  17.0% | AvgHold:    57d | ZeroD:    0
+  Loading 2017...
+  DM: 142,227 rows | 524 tickers
+  2017 | NAV: $   2,008,289 | Return:   +45.4% | Trades:   120 | Hit:  27.5% | AvgHold:    64d | ZeroD:    0
+  Loading 2018...
+  DM: 142,792 rows | 530 tickers
+  2018 | NAV: $   4,670,911 | Return:  +132.6% | Trades:   113 | Hit:  17.7% | AvgHold:    64d | ZeroD:    0
+  Loading 2019...
+  DM: 144,629 rows | 541 tickers
+  2019 | NAV: $   6,180,447 | Return:   +32.3% | Trades:   121 | Hit:  21.5% | AvgHold:    60d | ZeroD:    0
+  Loading 2020...
+  DM: 149,664 rows | 553 tickers
+  2020 | NAV: $   9,587,052 | Return:   +55.1% | Trades:   121 | Hit:  28.1% | AvgHold:    59d | ZeroD:    0
+  Loading 2021...
+  DM: 156,611 rows | 581 tickers
+  2021 | NAV: $  14,703,317 | Return:   +53.4% | Trades:   125 | Hit:  29.6% | AvgHold:    63d | ZeroD:    0
+  Loading 2022...
+  DM: 158,787 rows | 582 tickers
+  2022 | NAV: $  10,665,050 | Return:   -27.5% | Trades:   116 | Hit:  11.2% | AvgHold:    58d | ZeroD:    0
+  Loading 2023...
+  DM: 158,272 rows | 587 tickers
+  2023 | NAV: $  14,320,046 | Return:   +34.3% | Trades:   124 | Hit:  17.7% | AvgHold:    59d | ZeroD:    0
+  Loading 2024...
+  DM: 160,699 rows | 594 tickers
+  2024 | NAV: $  62,513,640 | Return:  +336.5% | Trades:   114 | Hit:  28.1% | AvgHold:    61d | ZeroD:    0
+  Loading 2025...
+  DM: 160,778 rows | 596 tickers
+  2025 | NAV: $ 112,387,450 | Return:   +79.8% | Trades:   122 | Hit:  28.7% | AvgHold:    63d | ZeroD:    0
+  Loading 2026...
+  DM: 46,246 rows | 599 tickers
+  2026 | NAV: $ 129,962,253 | Return:   +15.6% | Trades:    27 | Hit:  37.0% | AvgHold:    71d | ZeroD:    0
+
+=================================================================
+  STRATEGY 5 — MOMENTUM CONFIRM | CF>=65 | 5d MA rising | Price>MA20 | Exit MA20<50 | Equal weight
+=================================================================
+
+  Year            NAV     Ret%  Trades   Hit%  AvgHold  ZeroD
+  ---------------------------------------------------------
+  2016   $  1,381,002   +38.1%     100  17.0%      57d      0
+  2017   $  2,008,289   +45.4%     120  27.5%      64d      0
+  2018   $  4,670,911  +132.6%     113  17.7%      64d      0
+  2019   $  6,180,447   +32.3%     121  21.5%      60d      0
+  2020   $  9,587,052   +55.1%     121  28.1%      59d      0
+  2021   $ 14,703,317   +53.4%     125  29.6%      63d      0
+  2022   $ 10,665,050   -27.5%     116  11.2%      58d      0
+  2023   $ 14,320,046   +34.3%     124  17.7%      59d      0
+  2024   $ 62,513,640  +336.5%     114  28.1%      61d      0
+  2025   $112,387,450   +79.8%     122  28.7%      63d      0
+  2026   $129,962,253   +15.6%      27  37.0%      71d      0
+
+  Total trades:    1,203
+  Avg return:      7.83%
+  Avg hold days:   61
+  Zero-day holds:  0 (0.0%)
+  Max drawdown:    -27.5%
+
+  ── RISK-ADJUSTED ──────────────────────────────────
+  Sharpe Ratio:    0.91  (>1.0 good, >2.0 excellent)
+  Sortino Ratio:   1.28
+  Calmar Ratio:    1.01  (CAGR / |max DD|)
+  Max DD (daily):  -60.6%
+  Trading days:    2,587
+
+  FINAL NAV:    $129,962,253
+  TOTAL RETURN: +12896.2%
+  CAGR:         55.7% per year
+  (Raw — apply 15-20% survivorship bias discount)
+=================================================================
+
+  ── OUTPUT FILES ────────────────────────────────────
+  [Trade log] trades_strategy_5_momentum_confirm_cf_65_5d_ma_.csv — 1,203 trades | 636 winners | Total P&L: $63,149,706
+  [NAV log]   nav_strategy_5_momentum_confirm_cf_65_5d_ma_.csv — 2,588 trading days
+  Files written to: C:\Users\avina\OneDrive\Desktop\New folder\y2ai-fast-api\files_3
+=================================================================
+
+DONE.
+

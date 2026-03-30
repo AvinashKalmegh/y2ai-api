@@ -1,0 +1,47 @@
+=================================================================
+  GRANGER CAUSALITY RESULTS
+  Does DM Granger-cause price returns?
+=================================================================
+
+  Tickers tested:  420
+  Lags tested:     [20, 40, 60, 90] trading days
+  Significance:    p < 0.05
+
+  ── PER-TICKER RESULTS ─────────────────────────────────────
+  % of tickers where DM significantly Granger-causes returns:
+
+  Lag 20d:   138/420  tickers significant (33%)  |  avg p-value: 0.2582
+  Lag 40d:   188/420  tickers significant (45%)  |  avg p-value: 0.2047
+  Lag 60d:   185/420  tickers significant (44%)  |  avg p-value: 0.2075
+  Lag 90d:   164/419  tickers significant (39%)  |  avg p-value: 0.2194
+
+  ── TOP 15 TICKERS — Strongest Granger Signal (Lag 5d) ────
+
+  ── POOLED UNIVERSE RESULTS ────────────────────────────────
+  (Median DM and returns across full universe, 2551 daily obs)
+
+  Lag 20d:  p=0.0363  F=1.64  ✓ SIGNIFICANT
+  Lag 40d:  p=0.0055  F=1.67  ✓ SIGNIFICANT
+  Lag 60d:  p=0.0000  F=2.15  ✓ SIGNIFICANT
+  Lag 90d:  p=0.0000  F=1.72  ✓ SIGNIFICANT
+
+=================================================================
+  INTERPRETATION
+=================================================================
+
+  NOTE ON INTERPRETATION:
+  Granger causality is NOT true causality — it is predictive precedence.
+  'DM Granger-causes returns' means: past DM scores improve the prediction
+  of future returns beyond what past returns alone predict.
+  This is the correct statistical framing for 'signal leads price'.
+
+  COMBINED WITH LEAD-LAG ANALYSIS:
+  If Granger test is significant AND lead-lag shows positive lead days,
+  this is the strongest possible evidence that DM detects accumulation
+  BEFORE price momentum develops.
+
+=================================================================
+
+Summary written to granger_summary.txt
+DONE.
+

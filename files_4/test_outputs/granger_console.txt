@@ -1,0 +1,108 @@
+
+=================================================================
+  ARGUS — GRANGER CAUSALITY ANALYSIS
+  Does DM predict returns beyond momentum?
+=================================================================
+
+Loaded 420 tickers from Strategy 5 trade file.
+Connected to Supabase.
+
+Running Granger tests for 420 tickers at lags [1, 5, 10, 20]...
+
+  Processing 1/420 — AAPL
+  Processing 21/420 — AMAT
+  Processing 41/420 — AVY
+  Processing 61/420 — BSX
+  Processing 81/420 — CMG
+  Processing 101/420 — CZR
+  Processing 121/420 — DPZ
+  Processing 141/420 — EXPE
+  Processing 161/420 — GIS
+  Processing 181/420 — HPE
+  Processing 201/420 — IONQ
+  Processing 221/420 — KTOS
+  Processing 241/420 — MAR
+  Processing 261/420 — MRK
+  Processing 281/420 — NRG
+  Processing 301/420 — PAYX
+  Processing 321/420 — PYPL
+  Processing 341/420 — SBAC
+  Processing 361/420 — TEAM
+  Processing 381/420 — UBER
+  Processing 401/420 — WAT
+
+Per-ticker results written to granger_results.csv
+
+Running pooled Granger causality across full universe...
+
+=================================================================
+  GRANGER CAUSALITY RESULTS
+  Does DM Granger-cause price returns?
+=================================================================
+
+  Tickers tested:  420
+  Lags tested:     [1, 5, 10, 20] trading days
+  Significance:    p < 0.05
+
+  ── PER-TICKER RESULTS ─────────────────────────────────────
+  % of tickers where DM significantly Granger-causes returns:
+
+  Lag  1d:    20/420  tickers significant (5%)  |  avg p-value: 0.5127
+  Lag  5d:    65/420  tickers significant (15%)  |  avg p-value: 0.3663
+  Lag 10d:   130/420  tickers significant (31%)  |  avg p-value: 0.2579
+  Lag 20d:   138/420  tickers significant (33%)  |  avg p-value: 0.2582
+
+  ── TOP 15 TICKERS — Strongest Granger Signal (Lag 5d) ────
+  ACGL    p=0.0000  F=5.84  significant at: 5d, 10d, 20d
+  FER     p=0.0000  F=5.85  significant at: 5d, 10d, 20d
+  ZBH     p=0.0000  F=5.58  significant at: 1d, 5d, 10d, 20d
+  CTRE    p=0.0001  F=5.23  significant at: 5d, 10d, 20d
+  EG      p=0.0001  F=5.44  significant at: 1d, 5d, 10d, 20d
+  PFE     p=0.0001  F=5.45  significant at: 5d, 10d, 20d
+  QUBT    p=0.0003  F=4.66  significant at: 5d, 10d, 20d
+  CDNS    p=0.0005  F=4.47  significant at: 5d, 10d
+  CBOE    p=0.0006  F=4.35  significant at: 1d, 5d, 10d, 20d
+  DDOG    p=0.0006  F=4.36  significant at: 5d, 10d
+  SNPS    p=0.0006  F=4.35  significant at: 5d, 10d, 20d
+  VICI    p=0.0013  F=3.99  significant at: 5d, 10d, 20d
+  HSY     p=0.0014  F=3.95  significant at: 5d, 10d
+  MHK     p=0.0024  F=3.70  significant at: 5d, 10d, 20d
+  CPRT    p=0.0025  F=3.68  significant at: 5d, 10d, 20d
+
+  ── POOLED UNIVERSE RESULTS ────────────────────────────────
+  (Median DM and returns across full universe, 2551 daily obs)
+
+  Lag  1d:  p=0.6333  F=0.23  ✗ not significant
+  Lag  5d:  p=0.2585  F=1.31  ✗ not significant
+  Lag 10d:  p=0.4818  F=0.95  ✗ not significant
+  Lag 20d:  p=0.0363  F=1.64  ✓ SIGNIFICANT
+
+=================================================================
+  INTERPRETATION
+=================================================================
+
+  ✗  WEAK: Only 15% of tickers show Granger causality at 5d lag.
+  Momentum may explain most of the DM signal's predictive power.
+  Focus defense on temporal stability and lead-lag evidence instead.
+
+  NOTE ON INTERPRETATION:
+  Granger causality is NOT true causality — it is predictive precedence.
+  'DM Granger-causes returns' means: past DM scores improve the prediction
+  of future returns beyond what past returns alone predict.
+  This is the correct statistical framing for 'signal leads price'.
+
+  COMBINED WITH LEAD-LAG ANALYSIS:
+  If Granger test is significant AND lead-lag shows positive lead days,
+  this is the strongest possible evidence that DM detects accumulation
+  BEFORE price momentum develops.
+
+=================================================================
+Traceback (most recent call last):
+  File "C:\Users\avina\OneDrive\Desktop\New folder\y2ai-fast-api\files_4\granger_causality.py", line 475, in <module>
+    run()
+  File "C:\Users\avina\OneDrive\Desktop\New folder\y2ai-fast-api\files_4\granger_causality.py", line 468, in run
+    f.write(summary)
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode characters in position 312-313: character maps to <undefined>

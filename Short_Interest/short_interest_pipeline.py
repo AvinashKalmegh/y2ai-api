@@ -372,10 +372,10 @@ def push_to_sheets():
 # ============================================================
 # COMMANDS
 # ============================================================
-def run_backfill():
-    """Full backfill from 2020 to present for all tickers."""
+def run_backfill(start_date="2020-01-01"):
+    """Full backfill from start_date to present for all tickers."""
     logger.info("=" * 60)
-    logger.info("SHORT INTEREST — FULL BACKFILL")
+    logger.info(f"SHORT INTEREST — FULL BACKFILL from {start_date}")
     logger.info("=" * 60)
 
     if not POLYGON_API_KEY:
@@ -383,7 +383,6 @@ def run_backfill():
         return
 
     tickers = get_ticker_universe()
-    start_date = "2020-01-01"
 
     total_records = 0
     failed_tickers = []
@@ -624,7 +623,8 @@ Prerequisites:
         ticker = sys.argv[2].upper() if len(sys.argv) > 2 else "AAPL"
         run_test(ticker)
     elif cmd == "backfill":
-        run_backfill()
+        start = sys.argv[2] if len(sys.argv) > 2 else "2020-01-01"
+        run_backfill(start_date=start)
     elif cmd == "daily":
         run_daily()
     elif cmd == "push":

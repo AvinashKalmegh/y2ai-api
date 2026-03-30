@@ -1,0 +1,86 @@
+
+=================================================================
+  STRATEGY 4 — CONVICTION SIZING | CF>=65 | 5d MA rising | Exit MA20<50 | DM-tiered
+  Entry DM: 65 | Exit MA20: 50 | Sizing: dm_tiered | MA5 rising: True | Price>MA20: False
+=================================================================
+
+Connected to Supabase.
+  Loading 2016...
+  DM: 120,195 rows | 521 tickers
+  2016 | NAV: $   1,312,997 | Return:   +31.3% | Trades:    94 | Hit:  11.7% | AvgHold:    55d | ZeroD:    0
+  Loading 2017...
+  DM: 142,227 rows | 524 tickers
+  2017 | NAV: $   1,922,294 | Return:   +46.4% | Trades:   122 | Hit:  27.0% | AvgHold:    63d | ZeroD:    0
+  Loading 2018...
+  DM: 142,792 rows | 530 tickers
+  2018 | NAV: $   3,046,344 | Return:   +58.5% | Trades:   113 | Hit:  17.7% | AvgHold:    64d | ZeroD:    0
+  Loading 2019...
+  DM: 144,629 rows | 541 tickers
+  2019 | NAV: $   3,542,744 | Return:   +16.3% | Trades:   119 | Hit:  21.0% | AvgHold:    61d | ZeroD:    0
+  Loading 2020...
+  DM: 149,664 rows | 553 tickers
+  2020 | NAV: $   4,745,939 | Return:   +34.0% | Trades:   117 | Hit:  28.2% | AvgHold:    62d | ZeroD:    0
+  Loading 2021...
+  DM: 156,611 rows | 581 tickers
+  2021 | NAV: $   5,809,116 | Return:   +22.4% | Trades:   129 | Hit:  27.1% | AvgHold:    61d | ZeroD:    0
+  Loading 2022...
+  DM: 158,787 rows | 582 tickers
+  2022 | NAV: $   5,252,549 | Return:    -9.6% | Trades:   121 | Hit:  12.4% | AvgHold:    57d | ZeroD:    0
+  Loading 2023...
+  DM: 158,272 rows | 587 tickers
+  2023 | NAV: $   5,724,276 | Return:    +9.0% | Trades:   125 | Hit:  17.6% | AvgHold:    57d | ZeroD:    0
+  Loading 2024...
+  DM: 160,699 rows | 594 tickers
+  2024 | NAV: $   9,445,372 | Return:   +65.0% | Trades:   115 | Hit:  27.8% | AvgHold:    60d | ZeroD:    0
+  Loading 2025...
+  DM: 160,778 rows | 596 tickers
+  2025 | NAV: $  12,175,710 | Return:   +28.9% | Trades:   124 | Hit:  29.8% | AvgHold:    62d | ZeroD:    0
+  Loading 2026...
+  DM: 46,246 rows | 599 tickers
+  2026 | NAV: $  12,537,566 | Return:    +3.0% | Trades:    27 | Hit:  22.2% | AvgHold:    65d | ZeroD:    0
+
+=================================================================
+  STRATEGY 4 — CONVICTION SIZING | CF>=65 | 5d MA rising | Exit MA20<50 | DM-tiered
+=================================================================
+
+  Year            NAV     Ret%  Trades   Hit%  AvgHold  ZeroD
+  ---------------------------------------------------------
+  2016   $  1,312,997   +31.3%      94  11.7%      55d      0
+  2017   $  1,922,294   +46.4%     122  27.0%      63d      0
+  2018   $  3,046,344   +58.5%     113  17.7%      64d      0
+  2019   $  3,542,744   +16.3%     119  21.0%      61d      0
+  2020   $  4,745,939   +34.0%     117  28.2%      62d      0
+  2021   $  5,809,116   +22.4%     129  27.1%      61d      0
+  2022   $  5,252,549    -9.6%     121  12.4%      57d      0
+  2023   $  5,724,276    +9.0%     125  17.6%      57d      0
+  2024   $  9,445,372   +65.0%     115  27.8%      60d      0
+  2025   $ 12,175,710   +28.9%     124  29.8%      62d      0
+  2026   $ 12,537,566    +3.0%      27  22.2%      65d      0
+
+  Total trades:    1,206
+  Avg return:      7.58%
+  Avg hold days:   60
+  Zero-day holds:  0 (0.0%)
+  Max drawdown:    -9.6%
+
+  ── RISK-ADJUSTED ──────────────────────────────────
+  Sharpe Ratio:    0.7  (>1.0 good, >2.0 excellent)
+  Sortino Ratio:   0.87
+  Calmar Ratio:    0.71  (CAGR / |max DD|)
+  Max DD (daily):  -39.7%
+  Trading days:    2,587
+
+  FINAL NAV:    $12,537,566
+  TOTAL RETURN: +1153.8%
+  CAGR:         25.8% per year
+  (Raw — apply 15-20% survivorship bias discount)
+=================================================================
+
+  ── OUTPUT FILES ────────────────────────────────────
+  [Trade log] trades_strategy_4_conviction_sizing_cf_65_5d_ma.csv — 1,206 trades | 626 winners | Total P&L: $6,618,128
+  [NAV log]   nav_strategy_4_conviction_sizing_cf_65_5d_ma.csv — 2,588 trading days
+  Files written to: C:\Users\avina\OneDrive\Desktop\New folder\y2ai-fast-api\files_3
+=================================================================
+
+DONE.
+

@@ -1,0 +1,86 @@
+
+=================================================================
+  STRATEGY 3 — CAPITAL PROTECTION | CF>=65 | 5d MA rising | Exit MA20<55 | Equal weight
+  Entry DM: 65 | Exit MA20: 55 | Sizing: equal_weight | MA5 rising: True | Price>MA20: False
+=================================================================
+
+Connected to Supabase.
+  Loading 2016...
+  DM: 120,195 rows | 521 tickers
+  2016 | NAV: $   1,386,826 | Return:   +38.7% | Trades:   118 | Hit:  15.3% | AvgHold:    49d | ZeroD:    0
+  Loading 2017...
+  DM: 142,227 rows | 524 tickers
+  2017 | NAV: $   1,968,198 | Return:   +41.9% | Trades:   142 | Hit:  23.2% | AvgHold:    53d | ZeroD:    0
+  Loading 2018...
+  DM: 142,792 rows | 530 tickers
+  2018 | NAV: $   2,221,577 | Return:   +12.9% | Trades:   140 | Hit:  14.3% | AvgHold:    52d | ZeroD:    0
+  Loading 2019...
+  DM: 144,629 rows | 541 tickers
+  2019 | NAV: $   2,899,107 | Return:   +30.5% | Trades:   149 | Hit:  19.5% | AvgHold:    50d | ZeroD:    0
+  Loading 2020...
+  DM: 149,664 rows | 553 tickers
+  2020 | NAV: $   5,474,740 | Return:   +88.8% | Trades:   135 | Hit:  25.2% | AvgHold:    51d | ZeroD:    0
+  Loading 2021...
+  DM: 156,611 rows | 581 tickers
+  2021 | NAV: $  10,053,762 | Return:   +83.6% | Trades:   141 | Hit:  20.6% | AvgHold:    56d | ZeroD:    0
+  Loading 2022...
+  DM: 158,787 rows | 582 tickers
+  2022 | NAV: $   6,725,412 | Return:   -33.1% | Trades:   142 | Hit:  12.7% | AvgHold:    50d | ZeroD:    0
+  Loading 2023...
+  DM: 158,272 rows | 587 tickers
+  2023 | NAV: $   8,832,256 | Return:   +31.3% | Trades:   142 | Hit:  19.7% | AvgHold:    49d | ZeroD:    0
+  Loading 2024...
+  DM: 160,699 rows | 594 tickers
+  2024 | NAV: $  30,052,267 | Return:  +240.3% | Trades:   130 | Hit:  26.9% | AvgHold:    56d | ZeroD:    0
+  Loading 2025...
+  DM: 160,778 rows | 596 tickers
+  2025 | NAV: $  45,749,937 | Return:   +52.2% | Trades:   141 | Hit:  23.4% | AvgHold:    54d | ZeroD:    0
+  Loading 2026...
+  DM: 46,246 rows | 599 tickers
+  2026 | NAV: $  47,787,938 | Return:    +4.5% | Trades:    34 | Hit:  11.8% | AvgHold:    52d | ZeroD:    0
+
+=================================================================
+  STRATEGY 3 — CAPITAL PROTECTION | CF>=65 | 5d MA rising | Exit MA20<55 | Equal weight
+=================================================================
+
+  Year            NAV     Ret%  Trades   Hit%  AvgHold  ZeroD
+  ---------------------------------------------------------
+  2016   $  1,386,826   +38.7%     118  15.3%      49d      0
+  2017   $  1,968,198   +41.9%     142  23.2%      53d      0
+  2018   $  2,221,577   +12.9%     140  14.3%      52d      0
+  2019   $  2,899,107   +30.5%     149  19.5%      50d      0
+  2020   $  5,474,740   +88.8%     135  25.2%      51d      0
+  2021   $ 10,053,762   +83.6%     141  20.6%      56d      0
+  2022   $  6,725,412   -33.1%     142  12.7%      50d      0
+  2023   $  8,832,256   +31.3%     142  19.7%      49d      0
+  2024   $ 30,052,267  +240.3%     130  26.9%      56d      0
+  2025   $ 45,749,937   +52.2%     141  23.4%      54d      0
+  2026   $ 47,787,938    +4.5%      34  11.8%      52d      0
+
+  Total trades:    1,414
+  Avg return:      5.77%
+  Avg hold days:   52
+  Zero-day holds:  0 (0.0%)
+  Max drawdown:    -33.1%
+
+  ── RISK-ADJUSTED ──────────────────────────────────
+  Sharpe Ratio:    0.85  (>1.0 good, >2.0 excellent)
+  Sortino Ratio:   1.14
+  Calmar Ratio:    0.87  (CAGR / |max DD|)
+  Max DD (daily):  -53.1%
+  Trading days:    2,587
+
+  FINAL NAV:    $47,787,938
+  TOTAL RETURN: +4678.8%
+  CAGR:         42.1% per year
+  (Raw — apply 15-20% survivorship bias discount)
+=================================================================
+
+  ── OUTPUT FILES ────────────────────────────────────
+  [Trade log] trades_strategy_3_capital_protection_cf_65_5d_m.csv — 1,414 trades | 729 winners | Total P&L: $20,374,029
+  [NAV log]   nav_strategy_3_capital_protection_cf_65_5d_m.csv — 2,588 trading days
+  Files written to: C:\Users\avina\OneDrive\Desktop\New folder\y2ai-fast-api\files_3
+=================================================================
+
+DONE.
+

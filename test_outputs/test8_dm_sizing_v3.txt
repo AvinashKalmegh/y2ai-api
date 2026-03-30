@@ -1,0 +1,91 @@
+
+TEST 8 v3 - DM SIZING | Full Universe | Sharpe/Sortino/Calmar
+Production Spec: DM>=65, 5d MA rising, Exit MA20<50, DM-tiered sizing
+Period: 2016-01-01 to 2026-03-20
+
+  Loading DM 2016...
+  DM: 120,195 rows | 521 tickers
+  Computing signals...
+
+  2016 | NAV: $   1,312,997 | Return:   +31.3% | Trades:    94 | Hit:  11.7% | AvgHold:    55d | ZeroD:    0
+  Loading DM 2017...
+  DM: 142,227 rows | 524 tickers
+  Computing signals...
+
+  2017 | NAV: $   1,922,294 | Return:   +46.4% | Trades:   122 | Hit:  27.0% | AvgHold:    63d | ZeroD:    0
+  Loading DM 2018...
+  DM: 142,792 rows | 530 tickers
+  Computing signals...
+
+  2018 | NAV: $   3,046,344 | Return:   +58.5% | Trades:   113 | Hit:  17.7% | AvgHold:    64d | ZeroD:    0
+  Loading DM 2019...
+  DM: 144,629 rows | 541 tickers
+  Computing signals...
+
+  2019 | NAV: $   3,542,744 | Return:   +16.3% | Trades:   119 | Hit:  21.0% | AvgHold:    61d | ZeroD:    0
+  Loading DM 2020...
+  DM: 149,664 rows | 553 tickers
+  Computing signals...
+
+  2020 | NAV: $   4,745,939 | Return:   +34.0% | Trades:   117 | Hit:  28.2% | AvgHold:    62d | ZeroD:    0
+  Loading DM 2021...
+  DM: 156,611 rows | 581 tickers
+  Computing signals...
+
+  2021 | NAV: $   5,809,116 | Return:   +22.4% | Trades:   129 | Hit:  27.1% | AvgHold:    61d | ZeroD:    0
+  Loading DM 2022...
+  DM: 158,787 rows | 582 tickers
+  Computing signals...
+
+  2022 | NAV: $   5,252,549 | Return:    -9.6% | Trades:   121 | Hit:  12.4% | AvgHold:    57d | ZeroD:    0
+  Loading DM 2023...
+  DM: 158,272 rows | 587 tickers
+  Computing signals...
+
+  2023 | NAV: $   5,724,276 | Return:    +9.0% | Trades:   125 | Hit:  17.6% | AvgHold:    57d | ZeroD:    0
+  Loading DM 2024...
+  DM: 160,699 rows | 594 tickers
+  Computing signals...
+
+  2024 | NAV: $   9,445,372 | Return:   +65.0% | Trades:   115 | Hit:  27.8% | AvgHold:    60d | ZeroD:    0
+  Loading DM 2025...
+  DM: 160,778 rows | 596 tickers
+  Computing signals...
+
+  2025 | NAV: $  12,175,710 | Return:   +28.9% | Trades:   124 | Hit:  29.8% | AvgHold:    62d | ZeroD:    0
+  Loading DM 2026...
+  DM: 45,653 rows | 599 tickers
+  Computing signals...
+
+  2026 | NAV: $  12,487,802 | Return:    +2.6% | Trades:    27 | Hit:  22.2% | AvgHold:    65d | ZeroD:    0
+
+=================================================================
+TEST 8 — DM SIZING (PRODUCTION SPEC) — RISK-ADJUSTED METRICS
+=================================================================
+  CAGR:            25.8%
+  Total Return:    1148.8%
+  Final NAV:       $12,487,802
+  Max Drawdown:    -9.6%
+  Hit Rate:        22.3%
+  Total Trades:    1206
+  Avg Return:      7.6%
+  Avg Hold:        60 days
+
+  -- RISK-ADJUSTED --
+  Sharpe Ratio:    0.7
+  Sortino Ratio:   0.87
+  Calmar Ratio:    0.71
+
+  YEARLY NAV:
+    2016: $1,312,997 (+31.3%)
+    2017: $1,922,294 (+46.4%)
+    2018: $3,046,344 (+58.5%)
+    2019: $3,542,744 (+16.3%)
+    2020: $4,745,939 (+34.0%)
+    2021: $5,809,116 (+22.4%)
+    2022: $5,252,549 (-9.6%)
+    2023: $5,724,276 (+9.0%)
+    2024: $9,445,372 (+65.0%)
+    2025: $12,175,710 (+28.9%)
+    2026: $12,487,802 (+2.6%)
+=================================================================

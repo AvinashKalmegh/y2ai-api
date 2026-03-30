@@ -1,0 +1,109 @@
+
+=================================================================
+  TEST 10 — INSIDER FILTER | DM 65 | No insider selling 30d | DM-tiered sizing
+=================================================================
+Connected to Supabase.
+  Loading DM 2016...
+  DM: 120,195 rows | 521 tickers
+  Loading insider transactions 2016...
+  Computing signals...
+
+  2016 | NAV: $   1,312,997 | Return:   +31.3% | Trades:    94 | Hit:  11.7% | AvgHold:    55d | ZeroD:    0
+  Loading DM 2017...
+  DM: 142,227 rows | 524 tickers
+  Loading insider transactions 2017...
+  Computing signals...
+
+  2017 | NAV: $   1,939,843 | Return:   +47.7% | Trades:   121 | Hit:  27.3% | AvgHold:    64d | ZeroD:    0
+  Loading DM 2018...
+  DM: 142,792 rows | 530 tickers
+  Loading insider transactions 2018...
+  Computing signals...
+
+  2018 | NAV: $   3,384,027 | Return:   +74.4% | Trades:   113 | Hit:  17.7% | AvgHold:    63d | ZeroD:    0
+  Loading DM 2019...
+  DM: 144,629 rows | 541 tickers
+  Loading insider transactions 2019...
+  Computing signals...
+
+  2019 | NAV: $   4,477,117 | Return:   +32.3% | Trades:   118 | Hit:  22.0% | AvgHold:    61d | ZeroD:    0
+  Loading DM 2020...
+  DM: 149,664 rows | 553 tickers
+  Loading insider transactions 2020...
+  Computing signals...
+
+  2020 | NAV: $   7,688,525 | Return:   +71.7% | Trades:   110 | Hit:  27.3% | AvgHold:    62d | ZeroD:    0
+  Loading DM 2021...
+  DM: 156,611 rows | 581 tickers
+  Loading insider transactions 2021...
+  Computing signals...
+
+  2021 | NAV: $  11,902,280 | Return:   +54.8% | Trades:   129 | Hit:  27.1% | AvgHold:    62d | ZeroD:    0
+  Loading DM 2022...
+  DM: 158,787 rows | 582 tickers
+  Loading insider transactions 2022...
+  Computing signals...
+
+  2022 | NAV: $   8,446,970 | Return:   -29.0% | Trades:   114 | Hit:  11.4% | AvgHold:    57d | ZeroD:    0
+  Loading DM 2023...
+  DM: 158,272 rows | 587 tickers
+  Loading insider transactions 2023...
+  Insider sells: 0 rows
+  Computing signals...
+
+  2023 | NAV: $  11,076,073 | Return:   +31.1% | Trades:   117 | Hit:  15.4% | AvgHold:    57d | ZeroD:    0
+  Loading DM 2024...
+  DM: 160,699 rows | 594 tickers
+  Loading insider transactions 2024...
+  Insider sells: 5,057 rows
+  Computing signals...
+
+  2024 | NAV: $  42,475,393 | Return:  +283.5% | Trades:   115 | Hit:  27.8% | AvgHold:    62d | ZeroD:    0
+  Loading DM 2025...
+  DM: 160,778 rows | 596 tickers
+  Loading insider transactions 2025...
+  Insider sells: 4,645 rows
+  Computing signals...
+
+  2025 | NAV: $  77,138,538 | Return:   +81.6% | Trades:   118 | Hit:  28.8% | AvgHold:    63d | ZeroD:    0
+  Loading DM 2026...
+  DM: 45,653 rows | 599 tickers
+  Loading insider transactions 2026...
+  Insider sells: 5,110 rows
+  Computing signals...
+
+  2026 | NAV: $  90,012,900 | Return:   +16.7% | Trades:    25 | Hit:  32.0% | AvgHold:    69d | ZeroD:    0
+
+=================================================================
+  TEST 10 — INSIDER FILTER | DM 65 | No insider selling 30d | DM-tiered sizing
+  Entry DM: 65 | Exit MA20: 50 | HMS entry: None | HMS exit: DISABLED
+=================================================================
+
+  Year            NAV     Ret%  Trades   Hit%  AvgHold  ZeroD
+  ---------------------------------------------------------
+  2016   $  1,312,997   +31.3%      94  11.7%      55d      0
+  2017   $  1,939,843   +47.7%     121  27.3%      64d      0
+  2018   $  3,384,027   +74.4%     113  17.7%      63d      0
+  2019   $  4,477,117   +32.3%     118  22.0%      61d      0
+  2020   $  7,688,525   +71.7%     110  27.3%      62d      0
+  2021   $ 11,902,280   +54.8%     129  27.1%      62d      0
+  2022   $  8,446,970   -29.0%     114  11.4%      57d      0
+  2023   $ 11,076,073   +31.1%     117  15.4%      57d      0
+  2024   $ 42,475,393  +283.5%     115  27.8%      62d      0
+  2025   $ 77,138,538   +81.6%     118  28.8%      63d      0
+  2026   $ 90,012,900   +16.7%      25  32.0%      69d      0
+
+  Total trades:    1,174
+  Avg return:      7.84%
+  Avg hold days:   61
+  Zero-day holds:  0 (0.0%)
+  Max drawdown:    -29.0%
+
+  FINAL NAV:    $90,012,900
+  TOTAL RETURN: +8901.3%
+  CAGR:         50.5% per year
+  (Raw — apply 15-20% survivorship bias discount)
+=================================================================
+
+DONE.
+

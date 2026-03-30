@@ -1,0 +1,86 @@
+
+=================================================================
+  STRATEGY 1 — PURE SIGNAL | CF>=65 | 5d MA rising | Exit MA20<50 | Equal weight
+  Entry DM: 65 | Exit MA20: 50 | Sizing: equal_weight | MA5 rising: True | Price>MA20: False
+=================================================================
+
+Connected to Supabase.
+  Loading 2016...
+  DM: 120,195 rows | 521 tickers
+  2016 | NAV: $   1,345,960 | Return:   +34.6% | Trades:   106 | Hit:  13.2% | AvgHold:    53d | ZeroD:    0
+  Loading 2017...
+  DM: 142,227 rows | 524 tickers
+  2017 | NAV: $   2,019,480 | Return:   +50.0% | Trades:   120 | Hit:  27.5% | AvgHold:    64d | ZeroD:    0
+  Loading 2018...
+  DM: 142,792 rows | 530 tickers
+  2018 | NAV: $   3,893,814 | Return:   +92.8% | Trades:   113 | Hit:  17.7% | AvgHold:    63d | ZeroD:    0
+  Loading 2019...
+  DM: 144,629 rows | 541 tickers
+  2019 | NAV: $   5,319,269 | Return:   +36.6% | Trades:   119 | Hit:  21.0% | AvgHold:    61d | ZeroD:    0
+  Loading 2020...
+  DM: 149,664 rows | 553 tickers
+  2020 | NAV: $   9,190,290 | Return:   +72.8% | Trades:   117 | Hit:  28.2% | AvgHold:    62d | ZeroD:    0
+  Loading 2021...
+  DM: 156,611 rows | 581 tickers
+  2021 | NAV: $  14,460,376 | Return:   +57.3% | Trades:   129 | Hit:  27.1% | AvgHold:    61d | ZeroD:    0
+  Loading 2022...
+  DM: 158,787 rows | 582 tickers
+  2022 | NAV: $   9,849,981 | Return:   -31.9% | Trades:   121 | Hit:  12.4% | AvgHold:    57d | ZeroD:    0
+  Loading 2023...
+  DM: 158,272 rows | 587 tickers
+  2023 | NAV: $  12,691,126 | Return:   +28.8% | Trades:   125 | Hit:  17.6% | AvgHold:    57d | ZeroD:    0
+  Loading 2024...
+  DM: 160,699 rows | 594 tickers
+  2024 | NAV: $  57,993,510 | Return:  +357.0% | Trades:   115 | Hit:  27.8% | AvgHold:    60d | ZeroD:    0
+  Loading 2025...
+  DM: 160,778 rows | 596 tickers
+  2025 | NAV: $ 103,124,177 | Return:   +77.8% | Trades:   124 | Hit:  29.8% | AvgHold:    62d | ZeroD:    0
+  Loading 2026...
+  DM: 46,246 rows | 599 tickers
+  2026 | NAV: $ 117,289,503 | Return:   +13.7% | Trades:    27 | Hit:  22.2% | AvgHold:    65d | ZeroD:    0
+
+=================================================================
+  STRATEGY 1 — PURE SIGNAL | CF>=65 | 5d MA rising | Exit MA20<50 | Equal weight
+=================================================================
+
+  Year            NAV     Ret%  Trades   Hit%  AvgHold  ZeroD
+  ---------------------------------------------------------
+  2016   $  1,345,960   +34.6%     106  13.2%      53d      0
+  2017   $  2,019,480   +50.0%     120  27.5%      64d      0
+  2018   $  3,893,814   +92.8%     113  17.7%      63d      0
+  2019   $  5,319,269   +36.6%     119  21.0%      61d      0
+  2020   $  9,190,290   +72.8%     117  28.2%      62d      0
+  2021   $ 14,460,376   +57.3%     129  27.1%      61d      0
+  2022   $  9,849,981   -31.9%     121  12.4%      57d      0
+  2023   $ 12,691,126   +28.8%     125  17.6%      57d      0
+  2024   $ 57,993,510  +357.0%     115  27.8%      60d      0
+  2025   $103,124,177   +77.8%     124  29.8%      62d      0
+  2026   $117,289,503   +13.7%      27  22.2%      65d      0
+
+  Total trades:    1,216
+  Avg return:      7.62%
+  Avg hold days:   60
+  Zero-day holds:  0 (0.0%)
+  Max drawdown:    -31.9%
+
+  ── RISK-ADJUSTED ──────────────────────────────────
+  Sharpe Ratio:    0.93  (>1.0 good, >2.0 excellent)
+  Sortino Ratio:   1.29
+  Calmar Ratio:    1.19  (CAGR / |max DD|)
+  Max DD (daily):  -50.4%
+  Trading days:    2,587
+
+  FINAL NAV:    $117,289,503
+  TOTAL RETURN: +11629.0%
+  CAGR:         54.2% per year
+  (Raw — apply 15-20% survivorship bias discount)
+=================================================================
+
+  ── OUTPUT FILES ────────────────────────────────────
+  [Trade log] trades_strategy_1_pure_signal_cf_65_5d_ma_risin.csv — 1,216 trades | 636 winners | Total P&L: $47,299,375
+  [NAV log]   nav_strategy_1_pure_signal_cf_65_5d_ma_risin.csv — 2,588 trading days
+  Files written to: C:\Users\avina\OneDrive\Desktop\New folder\y2ai-fast-api\files_3
+=================================================================
+
+DONE.
+

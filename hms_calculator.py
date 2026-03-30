@@ -369,7 +369,7 @@ def compute_hms(tickers, start_date="2019-06-01", fetch_trade_data=True, dry_run
     has_fragmentation = False
     if fetch_trade_data and POLYGON_API_KEY:
         logger.info("Fetching trade counts from Polygon...")
-        tc_start = (datetime.now() - timedelta(days=90)).strftime("%Y-%m-%d")
+        tc_start = start_date
         tc_end = datetime.now().strftime("%Y-%m-%d")
         trade_counts = fetch_trade_counts_polygon(tickers, tc_start, tc_end)
         has_fragmentation = len(trade_counts) > 0
@@ -659,8 +659,8 @@ def write_hms_to_sheets(df):
         sheet.format('1:1', {'textFormat': {'bold': True}})
         sheet.freeze(rows=1)
 
-    # Append new rows after existing data
-    sheet.append_rows(new_rows, value_input_option='USER_ENTERED')
+    # Insert new rows at the top (after header) so sheet stays new-to-old
+    sheet.insert_rows(new_rows, row=2, value_input_option='USER_ENTERED')
 
     logger.info(f"  Appended {len(new_rows)} rows to GS {TAB}")
 
@@ -968,6 +968,115 @@ def write_all_sheets(df):
         logger.error(f"  HMS_DM_Correlation error: {e}")
 
 
+# HMS history spreadsheet partitions
+HMS_SHEET_PARTITIONS = [
+    {
+        "key": "19R-VP94Z-OKOSaMTGyEBmNhJnfTSbiYaLpBR5Q-HuxU",
+        "tab": "HMS_2016_2019",
+        "start": "2016-01-01",
+        "end": "2019-12-31",
+    },
+    {
+        "key": "1J8J3voMLjtHE2U1fUnwoAiRS8N7OgCOPVXhcq0PktzM",
+        "tab": "HMS_2020_2022",
+        "start": "2020-01-01",
+        "end": "2022-12-31",
+    },
+    {
+        "key": "1YhEhsssJ1kEKm3x-qHGDbysJXx1ej6I9dA-UIv8vgs4",
+        "tab": "HMS_Daily",
+        "start": "2023-01-01",
+        "end": "2099-12-31",
+    },
+]
+
+
+def write_hms_backfill_to_sheets(df):
+    """Push HMS backfill data to partitioned Google Sheets (full rewrite per partition)."""
+    try:
+        import gspread
+        from oauth2client.service_account import ServiceAccountCredentials
+    except ImportError:
+        logger.warning("  gspread not installed. Skipping GS push.")
+        return
+
+    CREDS_FILE = 'credentials.json'
+    if not os.path.exists(CREDS_FILE):
+        creds_json = os.getenv('GOOGLE_CREDENTIALS_JSON')
+        if creds_json:
+            with open(CREDS_FILE, 'w') as f:
+                f.write(creds_json)
+        else:
+            logger.warning("  No Google credentials. Skipping GS push.")
+            return
+
+    HEADERS = ['Ticker', 'Date', 'HMS_Score', 'HMS_C1_Compression', 'HMS_C2_Absorption',
+               'HMS_C3_Flow', 'HMS_C4_Fragmentation', 'Close', 'Volume',
+               'HMS_Version', 'HMS_Valid', 'HMS_Signal', 'HMS_Consecutive_Days']
+
+    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+    creds = ServiceAccountCredentials.from_json_keyfile_name(CREDS_FILE, scope)
+    client = gspread.authorize(creds)
+
+    df['date'] = pd.to_datetime(df['date'])
+
+    for partition in HMS_SHEET_PARTITIONS:
+        p_start = pd.Timestamp(partition["start"])
+        p_end = pd.Timestamp(partition["end"])
+        part_df = df[(df['date'] >= p_start) & (df['date'] <= p_end)]
+
+        if part_df.empty:
+            logger.info(f"  {partition['tab']}: no data in range, skipping")
+            continue
+
+        sorted_df = part_df.sort_values(['date', 'hms_score'], ascending=[False, False])
+        logger.info(f"  {partition['tab']}: {len(sorted_df)} rows ({partition['start']} to {partition['end']})")
+
+        rows = [HEADERS]
+        for _, r in sorted_df.iterrows():
+            rows.append([
+                r['ticker'],
+                r['date'].strftime('%Y-%m-%d'),
+                round(float(r['hms_score']), 4),
+                round(float(r['comp1_norm']), 4),
+                round(float(r['comp2_norm']), 4),
+                round(float(r['comp3_norm']), 4),
+                round(float(r['comp4_norm']), 4) if pd.notna(r.get('comp4_norm')) else 0.0,
+                round(float(r['close']), 2),
+                int(r['volume']) if pd.notna(r['volume']) else 0,
+                r.get('hms_version', 'v1'),
+                bool(r.get('hms_valid', True)),
+                r.get('hms_signal', 'NONE'),
+                int(r.get('hms_consecutive_days', 0)),
+            ])
+
+        try:
+            spreadsheet = client.open_by_key(partition["key"])
+        except Exception as e:
+            logger.error(f"  Could not open spreadsheet {partition['key']}: {e}")
+            continue
+
+        try:
+            sheet = spreadsheet.worksheet(partition["tab"])
+            sheet.clear()
+        except gspread.WorksheetNotFound:
+            sheet = spreadsheet.add_worksheet(title=partition["tab"], rows=max(len(rows)+10, 200), cols=len(HEADERS))
+
+        # Batch upload in chunks
+        CHUNK = 50000
+        for i in range(0, len(rows), CHUNK):
+            chunk = rows[i:i + CHUNK]
+            start_row = i + 1
+            end_row = start_row + len(chunk) - 1
+            end_col = chr(ord('A') + len(HEADERS) - 1)
+            sheet.update(range_name=f'A{start_row}:{end_col}{end_row}', values=chunk, value_input_option='USER_ENTERED')
+            logger.info(f"    Pushed rows {start_row}-{end_row}")
+
+        sheet.format('1:1', {'textFormat': {'bold': True}})
+        sheet.freeze(rows=1)
+        logger.info(f"  Done: {partition['tab']}")
+
+
 def export_backtest_csv(df, filename="hms_backtest.csv"):
     """Export backtest data as CSV."""
     # Load DM history for comparison
@@ -1108,7 +1217,9 @@ def main():
     parser.add_argument("--backtest", action="store_true",
                         help="Full backtest 2020-2025, export CSV")
     parser.add_argument("--backfill", action="store_true",
-                        help="Backfill full universe from 2023, write to Supabase + Sheets")
+                        help="Backfill full universe, write to Supabase + Sheets")
+    parser.add_argument("--start", type=str, default=None,
+                        help="Start date for backfill (default: 2022-06-01)")
     parser.add_argument("--tickers", type=str, default=None,
                         help="Comma-separated custom ticker list")
     parser.add_argument("--dry-run", action="store_true",
@@ -1170,9 +1281,9 @@ def main():
     elif args.backfill:
         tickers = load_universe()
         output_tickers = None
-        start_date = "2022-06-01"  # extra lookback for 2023-01-01 rolling windows
-        fetch_trades = False  # too many API calls for full backfill
-        logger.info(f"Backfill mode: {len(tickers)} tickers, Component 4 disabled")
+        start_date = args.start or "2022-06-01"
+        fetch_trades = not args.no_fragmentation
+        logger.info(f"Backfill mode: {len(tickers)} tickers from {start_date}, 4 components")
     elif args.backtest:
         tickers = load_universe()
         output_tickers = None
@@ -1209,8 +1320,18 @@ def main():
         export_validation_csv(df, VALIDATION_TICKERS)
 
     if args.backfill and not args.dry_run:
-        write_hms_to_supabase(df)
-        write_all_sheets(df)
+        # If backfilling historical data, only write rows before 2023 to avoid overwriting existing data
+        if args.start and args.start < "2023-01-01":
+            backfill_end = pd.Timestamp("2022-12-31")
+            df_new = df[df['date'] <= backfill_end]
+            df_existing = df[df['date'] > backfill_end]
+            logger.info(f"  Backfill: {len(df_new)} new rows (pre-2023), skipping {len(df_existing)} existing rows")
+            if not df_new.empty:
+                write_hms_to_supabase(df_new)
+                write_hms_backfill_to_sheets(df_new)
+        else:
+            write_hms_to_supabase(df)
+            write_hms_backfill_to_sheets(df)
         logger.info("Backfill complete — Supabase + Sheets updated")
     elif not args.dry_run and not args.validate and not args.backtest:
         write_hms_to_supabase(df)

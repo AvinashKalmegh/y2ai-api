@@ -1,0 +1,116 @@
+
+=================================================================
+  TEST 9 — MACRO REGIME SIZING | DM 65 | DM-tiered + VIX cap | Exit MA20 < 50
+=================================================================
+Connected to Supabase.
+  Loading DM 2016...
+  DM: 120,195 rows | 521 tickers
+  Loading macro 2016...
+  Macro: 346 rows
+  Computing signals...
+
+  2016 | NAV: $   1,336,489 | Return:   +33.6% | Trades:    97 | Hit:  16.5% | AvgHold:    54d | ZeroD:    0
+  Loading DM 2017...
+  DM: 142,227 rows | 524 tickers
+  Loading macro 2017...
+  Macro: 365 rows
+  Computing signals...
+
+  2017 | NAV: $   1,942,379 | Return:   +45.3% | Trades:   121 | Hit:  27.3% | AvgHold:    63d | ZeroD:    0
+  Loading DM 2018...
+  DM: 142,792 rows | 530 tickers
+  Loading macro 2018...
+  Macro: 365 rows
+  Computing signals...
+
+  2018 | NAV: $   3,389,892 | Return:   +74.5% | Trades:   113 | Hit:  17.7% | AvgHold:    64d | ZeroD:    0
+  Loading DM 2019...
+  DM: 144,629 rows | 541 tickers
+  Loading macro 2019...
+  Macro: 365 rows
+  Computing signals...
+
+  2019 | NAV: $   4,421,266 | Return:   +30.4% | Trades:   116 | Hit:  21.6% | AvgHold:    62d | ZeroD:    0
+  Loading DM 2020...
+  DM: 149,664 rows | 553 tickers
+  Loading macro 2020...
+  Macro: 366 rows
+  Computing signals...
+
+  2020 | NAV: $   6,830,369 | Return:   +54.5% | Trades:   116 | Hit:  27.6% | AvgHold:    61d | ZeroD:    0
+  Loading DM 2021...
+  DM: 156,611 rows | 581 tickers
+  Loading macro 2021...
+  Macro: 365 rows
+  Computing signals...
+
+  2021 | NAV: $   9,411,987 | Return:   +37.8% | Trades:   129 | Hit:  27.1% | AvgHold:    62d | ZeroD:    0
+  Loading DM 2022...
+  DM: 158,787 rows | 582 tickers
+  Loading macro 2022...
+  Macro: 365 rows
+  Computing signals...
+
+  2022 | NAV: $   6,867,124 | Return:   -27.0% | Trades:   118 | Hit:  11.9% | AvgHold:    58d | ZeroD:    0
+  Loading DM 2023...
+  DM: 158,272 rows | 587 tickers
+  Loading macro 2023...
+  Macro: 365 rows
+  Computing signals...
+
+  2023 | NAV: $   9,138,146 | Return:   +33.1% | Trades:   125 | Hit:  19.2% | AvgHold:    58d | ZeroD:    0
+  Loading DM 2024...
+  DM: 160,699 rows | 594 tickers
+  Loading macro 2024...
+  Macro: 366 rows
+  Computing signals...
+
+  2024 | NAV: $  32,360,103 | Return:  +254.1% | Trades:   114 | Hit:  29.8% | AvgHold:    61d | ZeroD:    0
+  Loading DM 2025...
+  DM: 160,778 rows | 596 tickers
+  Loading macro 2025...
+  Macro: 360 rows
+  Computing signals...
+
+  2025 | NAV: $  55,198,204 | Return:   +70.6% | Trades:   122 | Hit:  29.5% | AvgHold:    63d | ZeroD:    0
+  Loading DM 2026...
+  DM: 45,653 rows | 599 tickers
+  Loading macro 2026...
+  Macro: 72 rows
+  Computing signals...
+
+  2026 | NAV: $  64,805,512 | Return:   +17.4% | Trades:    24 | Hit:  33.3% | AvgHold:    66d | ZeroD:    0
+
+=================================================================
+  TEST 9 — MACRO REGIME SIZING | DM 65 | DM-tiered + VIX cap | Exit MA20 < 50
+  Entry DM: 65 | Exit MA20: 50 | HMS entry: None | HMS exit: DISABLED
+=================================================================
+
+  Year            NAV     Ret%  Trades   Hit%  AvgHold  ZeroD
+  ---------------------------------------------------------
+  2016   $  1,336,489   +33.6%      97  16.5%      54d      0
+  2017   $  1,942,379   +45.3%     121  27.3%      63d      0
+  2018   $  3,389,892   +74.5%     113  17.7%      64d      0
+  2019   $  4,421,266   +30.4%     116  21.6%      62d      0
+  2020   $  6,830,369   +54.5%     116  27.6%      61d      0
+  2021   $  9,411,987   +37.8%     129  27.1%      62d      0
+  2022   $  6,867,124   -27.0%     118  11.9%      58d      0
+  2023   $  9,138,146   +33.1%     125  19.2%      58d      0
+  2024   $ 32,360,103  +254.1%     114  29.8%      61d      0
+  2025   $ 55,198,204   +70.6%     122  29.5%      63d      0
+  2026   $ 64,805,512   +17.4%      24  33.3%      66d      0
+
+  Total trades:    1,195
+  Avg return:      7.93%
+  Avg hold days:   61
+  Zero-day holds:  0 (0.0%)
+  Max drawdown:    -27.0%
+
+  FINAL NAV:    $64,805,512
+  TOTAL RETURN: +6380.6%
+  CAGR:         46.1% per year
+  (Raw — apply 15-20% survivorship bias discount)
+=================================================================
+
+DONE.
+
