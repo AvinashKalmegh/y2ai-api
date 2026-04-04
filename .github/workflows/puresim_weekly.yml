@@ -1,0 +1,53 @@
+name: PureSim Universe Weekly Review (Saturday)
+
+on:
+  schedule:
+    # Saturday 8:00 AM ET (12:00 UTC)
+    - cron: "0 12 * * 6"
+  workflow_dispatch: {}
+
+jobs:
+  run-puresim-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      TZ: America/New_York
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Create Google credentials.json
+        run: |
+          echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > credentials.json
+
+      - name: "PureSim Universe: DM Crossover Hit Rate (3yr lookback)"
+        run: |
+          export PYTHONPATH=$PYTHONPATH:.
+          echo "========================================"
+          echo "PURESIM UNIVERSE WEEKLY REVIEW"
+          echo "Lookback: trailing 3 years"
+          echo "Started at $(date)"
+          echo "========================================"
+          python files_3/dm_crossover_hitrate.py --years 3 --push
+
+      - name: Log completion
+        if: always()
+        run: |
+          echo "========================================"
+          echo "PureSim Weekly Review completed at $(date)"
+          echo "========================================"
