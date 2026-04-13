@@ -42,7 +42,7 @@ CANDIDATES_TAB = "Universe_Candidates"
 
 CANDIDATES_HEADERS = [
     'Ticker', 'Company', 'Category', 'Trigger Type', 'Date Flagged',
-    'DM Status', 'Decision', 'Decision Date', 'Notes'
+    'DM Status', 'Decision', 'Decision Date', 'Notes', 'Last Updated'
 ]
 
 # Initial candidates from DevBrief
@@ -119,6 +119,8 @@ def push_candidates_to_sheet(candidates):
         )
 
     # Build data
+    from datetime import datetime
+    run_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     rows = [CANDIDATES_HEADERS]
     for c in candidates:
         rows.append([
@@ -131,10 +133,11 @@ def push_candidates_to_sheet(candidates):
             c.get("decision", ""),
             c.get("decision_date", ""),
             c.get("notes", ""),
+            run_ts,
         ])
 
     sheet.clear()
-    sheet.update(range_name=f"A1:I{len(rows)}", values=rows)
+    sheet.update(range_name=f"A1:J{len(rows)}", values=rows)
     logger.info(f"  Pushed {len(candidates)} candidates to {CANDIDATES_TAB}")
 
 

@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FlowMap T2 — Drill-Down Panel</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0e14; --card: #111820; --border: #1b2533; --border2: #243040;
+  --text: #c8d6e5; --dim: #5c7080; --muted: #3a4a5a;
+  --accent: #38bdf8; --s1: #10b981; --s2: #34d399; --s3: #f59e0b;
+  --s4: #f97316; --s5: #a78bfa; --s7: #ef4444; --s8: #dc2626;
+  --t2: #0694a2; --t2bg: rgba(6,148,162,0.06); --t2border: rgba(6,148,162,0.2);
+  --t1bg: rgba(56,189,248,0.04);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Outfit', sans-serif; background: var(--bg); color: var(--text); }
+.mono { font-family: 'JetBrains Mono', monospace; }
+
+.layout { display: flex; height: 100vh; }
+
+/* Canvas placeholder */
+.canvas { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; }
+.canvas-label { color: var(--muted); font-size: 12px; letter-spacing: 2px; text-transform: uppercase; }
+
+/* Drill-down panel */
+.panel {
+  width: 380px; background: var(--card); border-left: 1px solid var(--border);
+  overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--border2) transparent;
+}
+.panel::-webkit-scrollbar { width: 4px; }
+.panel::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+/* Panel header */
+.p-hdr {
+  padding: 14px 16px 10px; border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; background: var(--card); z-index: 10;
+}
+.p-ticker { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+.p-ticker .state-tag {
+  font-size: 8px; font-weight: 700; letter-spacing: 0.8px; padding: 2px 6px;
+  border-radius: 3px; vertical-align: middle; margin-left: 8px;
+}
+.p-sub { font-size: 10px; color: var(--dim); margin-top: 3px; }
+.p-price { font-size: 13px; font-weight: 600; margin-top: 2px; }
+
+/* Tier label */
+.tier-label {
+  font-size: 7px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
+  padding: 8px 16px 4px; color: var(--muted);
+}
+.tier-label.t2 { color: var(--t2); }
+
+/* Section blocks */
+.sec {
+  padding: 10px 16px; border-bottom: 1px solid var(--border);
+}
+.sec.t2 {
+  background: var(--t2bg); border-bottom-color: var(--t2border);
+}
+.sec-title {
+  font-size: 8px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+  color: var(--dim); margin-bottom: 8px;
+}
+.sec-title.t2 { color: var(--t2); }
+
+/* Four variables (T1) */
+.var-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.var-card {
+  background: rgba(56,189,248,0.03); border: 1px solid var(--border);
+  border-radius: 5px; padding: 8px 10px;
+}
+.var-label { font-size: 7px; color: var(--dim); letter-spacing: 0.5px; text-transform: uppercase; }
+.var-value { font-size: 16px; font-weight: 700; margin-top: 2px; }
+.var-qual { font-size: 8px; font-weight: 600; margin-top: 1px; }
+.var-bar { height: 3px; border-radius: 2px; margin-top: 4px; background: var(--border); }
+.var-bar-fill { height: 100%; border-radius: 2px; }
+
+/* State description */
+.state-box {
+  background: rgba(16,185,129,0.04); border: 1px solid rgba(16,185,129,0.15);
+  border-radius: 5px; padding: 10px 12px; margin-top: 8px;
+}
+.state-label { font-size: 9px; font-weight: 700; color: var(--s1); }
+.state-desc { font-size: 9px; color: var(--dim); margin-top: 3px; line-height: 1.5; }
+
+/* Earnings badge in T1 */
+.earnings-strip {
+  display: flex; align-items: center; gap: 6px; margin-top: 8px;
+  padding: 6px 10px; background: rgba(167,139,250,0.04); border: 1px solid rgba(167,139,250,0.12);
+  border-radius: 5px;
+}
+.earnings-badge {
+  font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 3px;
+  background: rgba(167,139,250,0.15); color: var(--s5);
+}
+.earnings-text { font-size: 8px; color: var(--dim); }
+
+/* ═══ T2 CONVICTION DEPTH ═══ */
+.conv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.conv-card {
+  background: rgba(6,148,162,0.04); border: 1px solid var(--t2border);
+  border-radius: 5px; padding: 8px 10px;
+}
+.conv-label { font-size: 7px; color: var(--t2); letter-spacing: 0.5px; text-transform: uppercase; }
+.conv-value { font-size: 16px; font-weight: 700; color: var(--text); margin-top: 2px; }
+.conv-sub { font-size: 8px; color: var(--dim); margin-top: 1px; }
+
+/* Z-score bar */
+.zscore-bar {
+  height: 20px; background: var(--border); border-radius: 3px; position: relative;
+  margin-top: 6px; overflow: hidden;
+}
+.zscore-fill {
+  position: absolute; top: 0; left: 0; height: 100%; border-radius: 3px;
+  transition: width 0.6s ease;
+}
+.zscore-marker {
+  position: absolute; top: -2px; width: 2px; height: 24px;
+  background: white; border-radius: 1px;
+}
+.zscore-labels {
+  display: flex; justify-content: space-between; font-size: 7px; color: var(--muted);
+  margin-top: 2px;
+}
+
+/* Density badge */
+.density-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 8px; border-radius: 4px; font-size: 8px; font-weight: 700;
+}
+.density-high { background: rgba(16,185,129,0.1); color: var(--s1); border: 1px solid rgba(16,185,129,0.2); }
+.density-mod { background: rgba(245,158,11,0.1); color: var(--s3); border: 1px solid rgba(245,158,11,0.2); }
+.density-sparse { background: rgba(239,68,68,0.1); color: var(--s7); border: 1px solid rgba(239,68,68,0.2); }
+
+/* Three-signal convergence */
+.convergence-row {
+  display: flex; gap: 6px; margin-top: 8px;
+}
+.signal-pill {
+  flex: 1; padding: 6px 8px; border-radius: 4px; text-align: center;
+  border: 1px solid var(--border);
+}
+.signal-pill .sig-icon { font-size: 14px; display: block; margin-bottom: 2px; }
+.signal-pill .sig-name { font-size: 7px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.5px; }
+.signal-pill .sig-status { font-size: 9px; font-weight: 700; margin-top: 2px; }
+.signal-pill.confirmed { background: rgba(16,185,129,0.06); border-color: rgba(16,185,129,0.2); }
+.signal-pill.confirmed .sig-status { color: var(--s1); }
+.signal-pill.pending { background: rgba(245,158,11,0.06); border-color: rgba(245,158,11,0.2); }
+.signal-pill.pending .sig-status { color: var(--s3); }
+.signal-pill.contra { background: rgba(239,68,68,0.06); border-color: rgba(239,68,68,0.2); }
+.signal-pill.contra .sig-status { color: var(--s7); }
+
+/* Momentum acceleration */
+.accel-row {
+  display: flex; align-items: center; gap: 8px; margin-top: 6px;
+}
+.accel-dots {
+  display: flex; gap: 3px;
+}
+.accel-dot {
+  width: 8px; height: 16px; border-radius: 2px; background: var(--border);
+}
+.accel-dot.active { background: var(--t2); }
+.accel-dot.strong { background: var(--s1); }
+
+/* PE Echo */
+.echo-box {
+  background: rgba(6,148,162,0.04); border: 1px solid var(--t2border);
+  border-radius: 5px; padding: 10px 12px; margin-top: 8px;
+}
+.echo-hdr { display: flex; justify-content: space-between; align-items: center; }
+.echo-label { font-size: 8px; font-weight: 700; color: var(--t2); letter-spacing: 0.5px; }
+.echo-status { font-size: 8px; font-weight: 600; padding: 2px 6px; border-radius: 3px; }
+.echo-timeline {
+  display: flex; align-items: center; gap: 0; margin-top: 8px; position: relative;
+  height: 24px;
+}
+.echo-track {
+  flex: 1; height: 2px; background: var(--border2); position: relative;
+}
+.echo-pe-dot {
+  position: absolute; left: 15%; top: 50%; transform: translate(-50%, -50%);
+  width: 10px; height: 10px; border-radius: 50%; background: var(--s5);
+  box-shadow: 0 0 6px rgba(167,139,250,0.4);
+}
+.echo-dm-dot {
+  position: absolute; left: 70%; top: 50%; transform: translate(-50%, -50%);
+  width: 10px; height: 10px; border-radius: 50%; background: var(--t2);
+  box-shadow: 0 0 6px rgba(6,148,162,0.4);
+}
+.echo-arrow {
+  position: absolute; left: 15%; width: 55%; top: 50%; height: 1px;
+  background: repeating-linear-gradient(to right, var(--t2) 0px, var(--t2) 4px, transparent 4px, transparent 8px);
+  transform: translateY(-50%);
+}
+.echo-week-labels {
+  display: flex; justify-content: space-between; font-size: 7px; color: var(--muted); margin-top: 4px;
+}
+.echo-legend {
+  display: flex; gap: 12px; margin-top: 6px; font-size: 7px; color: var(--dim);
+}
+.echo-legend-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin-right: 3px; }
+
+/* Divergence persistence */
+.div-persist {
+  display: flex; align-items: center; gap: 4px; margin-top: 6px;
+}
+.div-day {
+  width: 18px; height: 18px; border-radius: 3px; display: flex;
+  align-items: center; justify-content: center; font-size: 8px; font-weight: 700;
+  border: 1px solid var(--border);
+}
+.div-day.neg { background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.2); color: var(--s7); }
+.div-day.pos { background: rgba(16,185,129,0.1); border-color: rgba(16,185,129,0.2); color: var(--s1); }
+.div-day.flat { background: var(--border); color: var(--dim); }
+
+/* VMR gauge */
+.vmr-gauge {
+  height: 6px; background: var(--border); border-radius: 3px; margin-top: 6px;
+  position: relative; overflow: hidden;
+}
+.vmr-fill { height: 100%; border-radius: 3px; }
+.vmr-labels { display: flex; justify-content: space-between; font-size: 7px; color: var(--muted); margin-top: 2px; }
+
+/* Countdown ring (T2 visual) */
+.countdown-ring {
+  width: 44px; height: 44px; position: relative;
+}
+.countdown-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.countdown-ring .ring-bg { fill: none; stroke: var(--border); stroke-width: 3; }
+.countdown-ring .ring-fill { fill: none; stroke-width: 3; stroke-linecap: round; }
+.countdown-center {
+  position: absolute; inset: 0; display: flex; align-items: center;
+  justify-content: center; flex-direction: column;
+}
+.countdown-days { font-size: 13px; font-weight: 800; }
+.countdown-label { font-size: 5px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.5px; }
+
+/* T2 upgrade banner */
+.t2-banner {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px; margin: 0 16px 0;
+  background: linear-gradient(135deg, rgba(6,148,162,0.08), rgba(6,148,162,0.02));
+  border: 1px solid var(--t2border); border-radius: 4px;
+}
+.t2-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--t2); flex-shrink: 0; }
+.t2-banner-text { font-size: 8px; color: var(--t2); font-weight: 600; letter-spacing: 0.5px; }
+
+/* ═══ NEW: DM LEAD-LAG ANALYSIS ═══ */
+.ll-chart-wrap { margin-top: 8px; }
+.ll-legend {
+  display: flex; gap: 12px; margin-bottom: 6px;
+}
+.ll-leg-item {
+  display: flex; align-items: center; gap: 4px;
+  font-size: 7px; color: var(--dim); font-family: 'JetBrains Mono', monospace;
+}
+.ll-leg-line { width: 12px; height: 2px; border-radius: 1px; }
+.ll-leg-line.dm    { background: var(--t2); }
+.ll-leg-line.price { background: var(--s1); }
+.ll-leg-line.thresh{
+  background: transparent;
+  border-top: 1.5px dashed rgba(245,158,11,0.5);
+}
+.ll-chart-svg { width: 100%; height: 120px; display: block; }
+
+/* Lead callout strip */
+.ll-callout {
+  display: flex; align-items: center; gap: 0;
+  margin-top: 8px; border: 1px solid var(--t2border);
+  border-radius: 5px; overflow: hidden;
+}
+.ll-stat {
+  flex: 1; padding: 8px 10px; text-align: center;
+  border-right: 1px solid var(--t2border);
+  background: rgba(6,148,162,0.04);
+}
+.ll-stat:last-child { border-right: none; }
+.ll-stat-n { font-size: 18px; font-weight: 800; font-family: 'JetBrains Mono', monospace; color: var(--t2); line-height: 1; }
+.ll-stat-l { font-size: 6px; color: var(--dim); text-transform: uppercase; letter-spacing: .06em; margin-top: 2px; }
+.ll-stat-n.green { color: var(--s1); }
+
+/* Signal path timeline */
+.ll-timeline { position: relative; margin: 14px 0 28px; }
+.ll-track {
+  height: 4px; background: var(--border2); border-radius: 2px; position: relative;
+}
+.ll-fill {
+  position: absolute; left: 0; top: 0; height: 100%; border-radius: 2px;
+  background: linear-gradient(90deg, var(--t2) 0%, rgba(6,148,162,0.3) 100%);
+}
+.ll-node {
+  position: absolute; top: 50%; transform: translate(-50%,-50%);
+  width: 10px; height: 10px; border-radius: 50%;
+  border: 1.5px solid var(--card); z-index: 2;
+}
+.ll-node.signal { background: var(--t2); box-shadow: 0 0 6px rgba(6,148,162,0.5); }
+.ll-node.event  { background: #f59e0b; box-shadow: 0 0 6px rgba(245,158,11,0.4); }
+.ll-node.price  { background: var(--s1); box-shadow: 0 0 6px rgba(16,185,129,0.4); }
+.ll-node.today  { background: var(--accent); box-shadow: 0 0 8px rgba(56,189,248,0.6); width:12px; height:12px; }
+.ll-lbl {
+  position: absolute; font-size: 7px; font-family: 'JetBrains Mono', monospace;
+  white-space: nowrap; line-height: 1.3; text-align: center;
+  transform: translateX(-50%);
+}
+.ll-lbl.above { bottom: 100%; margin-bottom: 6px; }
+.ll-lbl.below { top: 100%; margin-top: 6px; }
+.ll-lbl .d { color: var(--muted); display: block; font-size: 6px; }
+.ll-lbl .v { font-weight: 700; display: block; }
+.ll-lbl .v.teal   { color: var(--t2); }
+.ll-lbl .v.green  { color: var(--s1); }
+.ll-lbl .v.yel    { color: #f59e0b; }
+.ll-lbl .v.accent { color: var(--accent); }
+.ll-gap {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  height: 1px; border-top: 1px dashed rgba(245,158,11,0.35);
+  display: flex; align-items: center; justify-content: center;
+}
+.ll-gap-badge {
+  background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.25);
+  border-radius: 3px; padding: 1px 5px; font-size: 6.5px;
+  font-family: 'JetBrains Mono', monospace; color: #f59e0b;
+  white-space: nowrap; position: relative; top: -1px;
+}
+
+/* Corr bars */
+.ll-corr-grid {
+  display: flex; align-items: flex-end; gap: 4px;
+  height: 60px; padding-bottom: 16px; position: relative; margin-top: 8px;
+}
+.ll-corr-grid::after {
+  content:''; position: absolute; bottom: 16px; left: 0; right: 0;
+  height: 1px; background: var(--border2);
+}
+.ll-bar-wrap {
+  display: flex; flex-direction: column; align-items: center;
+  flex: 1; height: 100%; justify-content: flex-end; gap: 2px;
+}
+.ll-bar { width: 100%; border-radius: 2px 2px 0 0; position: relative; }
+.ll-bar.hi { background: var(--t2); box-shadow: 0 0 6px rgba(6,148,162,0.3); }
+.ll-bar.lo { background: var(--muted); }
+.ll-bar-lbl {
+  position: absolute; bottom: -14px; left: 50%; transform: translateX(-50%);
+  font-size: 6px; font-family: 'JetBrains Mono', monospace;
+  color: var(--muted); white-space: nowrap;
+}
+.ll-bar-val {
+  font-size: 6px; font-family: 'JetBrains Mono', monospace; color: var(--dim);
+}
+.ll-corr-note {
+  font-size: 7.5px; color: var(--dim); margin-top: 10px; line-height: 1.5;
+}
+.ll-corr-note strong { color: var(--t2); }
+
+/* Bottom stats row */
+.ll-stats {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px;
+}
+.ll-stat-card {
+  padding: 7px 9px; background: rgba(6,148,162,0.04);
+  border: 1px solid var(--t2border); border-radius: 4px;
+}
+.ll-stat-card .lbl { font-size: 6.5px; color: var(--dim); text-transform: uppercase; letter-spacing: .06em; }
+.ll-stat-card .val { font-size: 13px; font-weight: 700; font-family: 'JetBrains Mono', monospace; color: var(--t2); line-height: 1.2; }
+.ll-stat-card .sub { font-size: 6.5px; color: var(--muted); margin-top: 1px; }
+.ll-stat-card .val.green { color: var(--s1); }
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- Left: Canvas placeholder -->
+  <div class="canvas">
+    <div style="text-align:center">
+      <div class="canvas-label">FlowMap Canvas</div>
+      <div style="font-size:9px;color:var(--muted);margin-top:4px">530 tickers · 8 forces · Click CEG to see drill-down →</div>
+    </div>
+
+    <!-- Mini canvas cell with countdown ring overlay (T2 visual) -->
+    <div style="position:absolute;top:40%;left:35%;display:flex;flex-direction:column;align-items:center">
+      <div style="position:relative">
+        <div style="width:64px;height:52px;background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.3);border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative">
+          <div style="font-size:10px;font-weight:800;color:var(--s1)">CEG</div>
+          <div style="font-size:7px;color:var(--s2)" class="mono">84 ↑</div>
+          <!-- Countdown ring (T2 overlay) -->
+          <div style="position:absolute;top:-8px;right:-8px">
+            <div class="countdown-ring" style="width:22px;height:22px">
+              <svg viewBox="0 0 36 36">
+                <circle class="ring-bg" cx="18" cy="18" r="14"/>
+                <circle class="ring-fill" cx="18" cy="18" r="14" stroke="var(--t2)" stroke-dasharray="88" stroke-dashoffset="18"/>
+              </svg>
+            </div>
+          </div>
+          <!-- Convergence badge (T2) -->
+          <div style="position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);background:var(--t2);color:var(--bg);font-size:6px;font-weight:800;padding:1px 4px;border-radius:2px;white-space:nowrap">3/3 ✓</div>
+        </div>
+      </div>
+      <div style="font-size:7px;color:var(--dim);margin-top:8px">T2 adds: ring + convergence badge</div>
+    </div>
+  </div>
+
+  <!-- Right: Drill-down panel -->
+  <div class="panel">
+
+    <!-- Panel Header -->
+    <div class="p-hdr">
+      <div class="p-ticker">
+        CEG
+        <span class="state-tag" style="background:rgba(16,185,129,0.12);color:var(--s1)">STATE 1: CONFIRMED ACCUMULATION</span>
+      </div>
+      <div class="p-sub">Constellation Energy · Energy & Commodities / Nuclear Utility</div>
+      <div class="p-price">
+        <span style="color:var(--text)">$319.06</span>
+        <span style="color:var(--s7);font-size:10px;margin-left:6px">-2.1%</span>
+        <span style="color:var(--dim);font-size:9px;margin-left:8px">Vol 5.2M</span>
+      </div>
+    </div>
+
+    <!-- ═══ T1 SECTION ═══ -->
+    <div class="tier-label">TIER 1 — CLASSIFICATION</div>
+
+    <!-- Four Variables -->
+    <div class="sec">
+      <div class="sec-title">Four Variables</div>
+      <div class="var-grid">
+        <div class="var-card">
+          <div class="var-label">Capital Flow Score</div>
+          <div class="var-value" style="color:var(--s1)">HIGH</div>
+          <div class="var-qual" style="color:var(--s2)">Strong institutional presence</div>
+          <div class="var-bar"><div class="var-bar-fill" style="width:84%;background:var(--s1)"></div></div>
+        </div>
+        <div class="var-card">
+          <div class="var-label">Flow Momentum</div>
+          <div class="var-value" style="color:var(--s1)">+23</div>
+          <div class="var-qual" style="color:var(--s2)">Accelerating</div>
+          <div class="var-bar"><div class="var-bar-fill" style="width:72%;background:var(--s2)"></div></div>
+        </div>
+        <div class="var-card">
+          <div class="var-label">Price Momentum</div>
+          <div class="var-value" style="color:var(--s7)">-2.1%</div>
+          <div class="var-qual" style="color:var(--dim)">Falling (divergent)</div>
+          <div class="var-bar"><div class="var-bar-fill" style="width:35%;background:var(--s7)"></div></div>
+        </div>
+        <div class="var-card">
+          <div class="var-label">Flow-Price Divergence</div>
+          <div class="var-value" style="color:var(--s3)">HIGH</div>
+          <div class="var-qual" style="color:var(--s3)">Institutions ahead of price</div>
+          <div class="var-bar"><div class="var-bar-fill" style="width:78%;background:var(--s3)"></div></div>
+        </div>
+      </div>
+
+      <!-- State box -->
+      <div class="state-box">
+        <div class="state-label">STATE 1: CONFIRMED ACCUMULATION</div>
+        <div class="state-desc">Institutional capital flow is elevated and rising. Price has not yet responded. This is the highest-conviction long setup — institutions are building positions while the market hasn't noticed. The divergence between flow and price is the edge.</div>
+      </div>
+
+      <!-- Earnings proximity -->
+      <div class="earnings-strip">
+        <div class="earnings-badge">ORCL 4d</div>
+        <div class="earnings-text">Cluster peer reporting Tuesday. Signal: RECOVERY. DM trend: 1/5 rising — trend gate NOT met</div>
+      </div>
+    </div>
+
+    <!-- ═══ T2 SECTION ═══ -->
+    <div class="t2-banner">
+      <div class="t2-dot"></div>
+      <div class="t2-banner-text">TIER 2 — CONVICTION DEPTH</div>
+    </div>
+
+    <!-- Z-Score + Density -->
+    <div class="sec t2">
+      <div class="sec-title t2">Signal Strength</div>
+
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div style="flex:1">
+          <div style="font-size:8px;color:var(--t2);font-weight:600;margin-bottom:2px">FLOW SCORE Z-SCORE</div>
+          <div style="font-size:22px;font-weight:800;color:var(--text)" class="mono">+1.87</div>
+          <div style="font-size:8px;color:var(--dim)">94th percentile vs 90-day history</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:8px;color:var(--t2);font-weight:600;margin-bottom:4px">SIGNAL DENSITY</div>
+          <div class="density-badge density-high">● HIGH (37 crossings)</div>
+          <div style="font-size:7px;color:var(--dim);margin-top:3px">48% hit rate tier [6f validated]</div>
+        </div>
+      </div>
+
+      <!-- Z-score visual bar -->
+      <div class="zscore-bar">
+        <div class="zscore-fill" style="width:94%;background:linear-gradient(to right, var(--border), var(--t2), var(--s1))"></div>
+        <div class="zscore-marker" style="left:94%"></div>
+        <div class="zscore-marker" style="left:50%;background:var(--dim);height:12px;top:4px;opacity:0.4"></div>
+      </div>
+      <div class="zscore-labels">
+        <span>0th</span>
+        <span>50th (median)</span>
+        <span>100th</span>
+      </div>
+    </div>
+
+    <!-- Conviction Depth metrics -->
+    <div class="sec t2">
+      <div class="sec-title t2">Conviction Metrics</div>
+      <div class="conv-grid">
+        <div class="conv-card">
+          <div class="conv-label">Momentum Acceleration</div>
+          <div class="conv-value" style="color:var(--s1)">↗ Accel</div>
+          <div class="conv-sub">2nd derivative positive</div>
+          <div class="accel-dots" style="margin-top:4px">
+            <div class="accel-dot active"></div>
+            <div class="accel-dot active"></div>
+            <div class="accel-dot strong"></div>
+            <div class="accel-dot strong"></div>
+            <div class="accel-dot"></div>
+          </div>
+        </div>
+        <div class="conv-card">
+          <div class="conv-label">Divergence Persistence</div>
+          <div class="conv-value" class="mono">8 days</div>
+          <div class="conv-sub">Flow ↑ Price ↓ sustained</div>
+          <div class="div-persist">
+            <div class="div-day neg">↑</div>
+            <div class="div-day neg">↑</div>
+            <div class="div-day neg">↑</div>
+            <div class="div-day neg">↑</div>
+            <div class="div-day neg">↑</div>
+            <div class="div-day pos">↑</div>
+            <div class="div-day pos">↑</div>
+            <div class="div-day pos">↑</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- VMR -->
+      <div style="margin-top:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="font-size:7px;color:var(--t2);font-weight:600;letter-spacing:0.5px;text-transform:uppercase">Velocity Mismatch Ratio</div>
+          <div style="font-size:12px;font-weight:700;color:var(--s1)" class="mono">2.4x</div>
+        </div>
+        <div class="vmr-gauge">
+          <div class="vmr-fill" style="width:72%;background:linear-gradient(to right, var(--t2), var(--s1))"></div>
+        </div>
+        <div class="vmr-labels">
+          <span>0.5x (normal)</span>
+          <span>1.0x</span>
+          <span>3.0x+ (extreme)</span>
+        </div>
+        <div style="font-size:7px;color:var(--dim);margin-top:2px">Institutions are 2.4x ahead of price movement. High VMR = strong conviction</div>
+      </div>
+
+      <!-- Countdown ring -->
+      <div style="display:flex;align-items:center;gap:12px;margin-top:10px;padding:8px 10px;background:rgba(6,148,162,0.04);border:1px solid var(--t2border);border-radius:5px">
+        <div class="countdown-ring">
+          <svg viewBox="0 0 36 36">
+            <circle class="ring-bg" cx="18" cy="18" r="14"/>
+            <circle class="ring-fill" cx="18" cy="18" r="14" stroke="var(--s1)" stroke-dasharray="88" stroke-dashoffset="8"/>
+          </svg>
+          <div class="countdown-center">
+            <div class="countdown-days" style="color:var(--s1)" class="mono">IN</div>
+            <div class="countdown-label">PHASE</div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:9px;font-weight:700;color:var(--s1)">ALREADY IN STRONG PHASE</div>
+          <div style="font-size:8px;color:var(--dim);margin-top:1px">Crossed threshold 6 trading days ago. Ring at 91% — deep in conviction zone</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Three-Signal Convergence -->
+    <div class="sec t2">
+      <div class="sec-title t2">Cross-Confirmation — Three Independent Sources</div>
+      <div class="convergence-row">
+        <div class="signal-pill confirmed">
+          <div class="sig-icon">📊</div>
+          <div class="sig-name">Flow Score</div>
+          <div class="sig-status">CONFIRMED</div>
+          <div style="font-size:7px;color:var(--dim);margin-top:2px">DM 84, S1</div>
+        </div>
+        <div class="signal-pill confirmed">
+          <div class="sig-icon">📈</div>
+          <div class="sig-name">Options</div>
+          <div class="sig-status">CONFIRMED</div>
+          <div style="font-size:7px;color:var(--dim);margin-top:2px">P/C 0.62 bullish</div>
+        </div>
+        <div class="signal-pill confirmed">
+          <div class="sig-icon">👤</div>
+          <div class="sig-name">Insider</div>
+          <div class="sig-status">CONFIRMED</div>
+          <div style="font-size:7px;color:var(--dim);margin-top:2px">CEO $2.1M buy</div>
+        </div>
+      </div>
+      <div style="margin-top:8px;padding:6px 10px;background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.15);border-radius:4px">
+        <div style="font-size:9px;font-weight:700;color:var(--s1)">3/3 CONVERGENCE — HIGHEST CONVICTION</div>
+        <div style="font-size:8px;color:var(--dim);margin-top:2px">All three independent sources confirm institutional accumulation. This is the strongest signal configuration in the system.</div>
+      </div>
+    </div>
+
+    <!-- PE Echo -->
+    <div class="sec t2">
+      <div class="sec-title t2">Capital Echo — Private → Public Confirmation</div>
+      <div class="echo-box">
+        <div class="echo-hdr">
+          <div class="echo-label">ENERGY & COMMODITIES</div>
+          <div class="echo-status" style="background:rgba(16,185,129,0.1);color:var(--s1)">ECHO ARRIVING</div>
+        </div>
+        <div style="font-size:8px;color:var(--dim);margin-top:4px">
+          Defense + Energy PE surged $110M two weeks ago. CEG DM began rising 11 days later. Echo lag: ~11 trading days. Within historical range for this sector (8-15 days).
+        </div>
+
+        <!-- Timeline -->
+        <div style="margin-top:10px">
+          <div class="echo-timeline">
+            <div class="echo-track">
+              <div class="echo-arrow"></div>
+              <div class="echo-pe-dot"></div>
+              <div class="echo-dm-dot"></div>
+            </div>
+          </div>
+          <div class="echo-week-labels">
+            <span>Wk -3</span>
+            <span>PE surge</span>
+            <span>Wk -1</span>
+            <span>DM response</span>
+            <span>Now</span>
+          </div>
+        </div>
+
+        <div class="echo-legend">
+          <span><span class="echo-legend-dot" style="background:var(--s5)"></span> PE deployment</span>
+          <span><span class="echo-legend-dot" style="background:var(--t2)"></span> DM response</span>
+          <span style="color:var(--t2);font-weight:600">Avg sector lag: 11d</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ NEW: DM LEAD-LAG ANALYSIS ═══ -->
+    <!-- DEVELOPER NOTE: New section. Insert between Capital Echo and Earnings History. -->
+    <!-- Shows: ① dual-axis DM vs Price chart ② signal path timeline ③ cross-correlation bars -->
+    <div class="sec t2" id="ll-section">
+      <div class="sec-title t2">DM → Price Lead-Lag Analysis</div>
+      <div style="font-size:8px;color:var(--dim);margin-bottom:8px;line-height:1.5">
+        DM detected institutional accumulation <strong style="color:var(--t2)" id="ll-lead-days">8 days</strong> before price moved.
+        <span id="ll-lead-desc">Nvidia $2B partnership confirmed what DM already knew.</span>
+      </div>
+
+      <!-- ① Dual-axis chart -->
+      <div class="ll-chart-wrap">
+        <div class="ll-legend">
+          <div class="ll-leg-item"><div class="ll-leg-line dm"></div>DM Score</div>
+          <div class="ll-leg-item"><div class="ll-leg-line price"></div>Price</div>
+          <div class="ll-leg-item"><div class="ll-leg-line thresh"></div>DM 70</div>
+        </div>
+        <svg class="ll-chart-svg" id="ll-chart" viewBox="0 0 348 120" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"></svg>
+      </div>
+
+      <!-- Lead callout strip -->
+      <div class="ll-callout">
+        <div class="ll-stat">
+          <div class="ll-stat-n" id="ll-stat-lead">8d</div>
+          <div class="ll-stat-l">DM led price</div>
+        </div>
+        <div class="ll-stat">
+          <div class="ll-stat-n green" id="ll-stat-gain">+10.4%</div>
+          <div class="ll-stat-l">price after signal</div>
+        </div>
+        <div class="ll-stat">
+          <div class="ll-stat-n" id="ll-stat-winrate">78%</div>
+          <div class="ll-stat-l">hist. win rate</div>
+        </div>
+      </div>
+
+      <!-- ② Signal path timeline -->
+      <div style="margin-top:12px">
+        <div style="font-size:7px;color:var(--t2);font-weight:700;letter-spacing:.8px;text-transform:uppercase;margin-bottom:4px">Signal Path — Current Trade</div>
+        <div style="position:relative;height:70px;" id="ll-timeline"></div>
+      </div>
+
+      <!-- ③ Cross-correlation -->
+      <div style="margin-top:10px">
+        <div style="font-size:7px;color:var(--t2);font-weight:700;letter-spacing:.8px;text-transform:uppercase;margin-bottom:4px">DM → Price Correlation by Lag</div>
+        <div class="ll-corr-grid" id="ll-corr"></div>
+        <div class="ll-corr-note" id="ll-corr-note"></div>
+      </div>
+
+      <!-- Stats row -->
+      <div class="ll-stats">
+        <div class="ll-stat-card">
+          <div class="lbl">Entry DM</div>
+          <div class="val" id="ll-entry-dm">90.1</div>
+          <div class="sub" id="ll-entry-date">Mar 23, 2026</div>
+        </div>
+        <div class="ll-stat-card">
+          <div class="lbl">Peak DM (90d)</div>
+          <div class="val" id="ll-peak-dm">94.2</div>
+          <div class="sub" id="ll-peak-sub">16 sessions above 65</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Earnings Base Rate (T2 depth) -->
+    <div class="sec t2">
+      <div class="sec-title t2">Earnings Configuration History</div>
+      <div style="padding:8px 10px;background:rgba(6,148,162,0.04);border:1px solid var(--t2border);border-radius:5px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-size:8px;color:var(--t2);font-weight:600">PRE-EARNINGS STATE 1 + HIGH DM</div>
+            <div style="font-size:8px;color:var(--dim);margin-top:2px">Historical match: 23 prior instances</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:16px;font-weight:800;color:var(--s1)" class="mono">68%</div>
+            <div style="font-size:7px;color:var(--dim)">positive outcome</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:12px;margin-top:8px">
+          <div style="flex:1">
+            <div style="font-size:7px;color:var(--dim)">Avg return (win)</div>
+            <div style="font-size:11px;font-weight:700;color:var(--s1)" class="mono">+8.3%</div>
+          </div>
+          <div style="flex:1">
+            <div style="font-size:7px;color:var(--dim)">Avg return (loss)</div>
+            <div style="font-size:11px;font-weight:700;color:var(--s7)" class="mono">-4.1%</div>
+          </div>
+          <div style="flex:1">
+            <div style="font-size:7px;color:var(--dim)">Expectancy</div>
+            <div style="font-size:11px;font-weight:700;color:var(--s2)" class="mono">+4.3%</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ CONTRADICTION EXAMPLE ═══ -->
+    <div class="sec t2" style="border-left:3px solid var(--s7)">
+      <div class="sec-title" style="color:var(--s7)">Contradiction Example — GOOGL</div>
+      <div style="font-size:8px;color:var(--dim);margin-bottom:8px;line-height:1.5">
+        When signals disagree, T2 flags the conflict. This is what a PM sees when clicking GOOGL instead of CEG. The border turns orange/red to warn before they read any detail.
+      </div>
+      <div class="convergence-row">
+        <div class="signal-pill confirmed">
+          <div class="sig-icon">📊</div>
+          <div class="sig-name">Flow Score</div>
+          <div class="sig-status">WEAK</div>
+          <div style="font-size:7px;color:var(--dim);margin-top:2px">DM 24.2, S8</div>
+        </div>
+        <div class="signal-pill contra">
+          <div class="sig-icon">📈</div>
+          <div class="sig-name">Options</div>
+          <div class="sig-status">CONTRADICTS</div>
+          <div style="font-size:7px;color:var(--dim);margin-top:2px">P/C 0.48 bullish</div>
+        </div>
+        <div class="signal-pill pending">
+          <div class="sig-icon">👤</div>
+          <div class="sig-name">Insider</div>
+          <div class="sig-status">NO DATA</div>
+          <div style="font-size:7px;color:var(--dim);margin-top:2px">No Form 4 filed</div>
+        </div>
+      </div>
+      <div style="margin-top:8px;padding:6px 10px;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.15);border-radius:4px">
+        <div style="font-size:9px;font-weight:700;color:var(--s7)">⚠ CONTRADICTION — REDUCE SIZE OR SKIP</div>
+        <div style="font-size:8px;color:var(--dim);margin-top:2px">Flow Score says institutions are leaving (DM 24.2, State 8). But options market shows bullish put/call ratio at 0.48. Possible explanations: options traders anticipating a reversal, or hedging activity creating misleading P/C reading. The DM reflects cumulative institutional positioning. Options reflect short-term bets. When they disagree, wait for resolution.</div>
+      </div>
+      <div style="margin-top:8px;display:flex;gap:6px">
+        <div style="flex:1;padding:5px 8px;background:rgba(239,68,68,0.04);border:1px solid rgba(239,68,68,0.1);border-radius:4px">
+          <div style="font-size:7px;color:var(--s7);font-weight:600">CANVAS TREATMENT</div>
+          <div style="font-size:8px;color:var(--dim);margin-top:2px">Orange dashed border on cell. "!" badge in corner. PM sees warning before clicking.</div>
+        </div>
+        <div style="flex:1;padding:5px 8px;background:rgba(239,68,68,0.04);border:1px solid rgba(239,68,68,0.1);border-radius:4px">
+          <div style="font-size:7px;color:var(--s7);font-weight:600">SIZING GUIDANCE</div>
+          <div style="font-size:8px;color:var(--dim);margin-top:2px">If entering despite contradiction: half size maximum. Set tight stop. Re-evaluate when signals align.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ PORTFOLIO CONVICTION COUNT — MY BOOK ═══ -->
+    <div class="sec t2" style="border-left:3px solid var(--accent)">
+      <div class="sec-title" style="color:var(--accent)">Portfolio Conviction — My Book (T2 Addition)</div>
+      <div style="font-size:8px;color:var(--dim);margin-bottom:10px;line-height:1.5">
+        This section appears in the My Book tab header, not in the ticker drill-down. It aggregates three-signal convergence across all holdings. Shown here for spec completeness.
+      </div>
+
+      <!-- Portfolio conviction summary -->
+      <div style="display:flex;gap:8px">
+        <div style="flex:1;padding:10px;background:rgba(56,189,248,0.04);border:1px solid rgba(56,189,248,0.15);border-radius:5px;text-align:center">
+          <div style="font-size:22px;font-weight:800;color:var(--accent)" class="mono">7</div>
+          <div style="font-size:7px;color:var(--dim);margin-top:2px">Holdings</div>
+        </div>
+        <div style="flex:1;padding:10px;background:rgba(16,185,129,0.04);border:1px solid rgba(16,185,129,0.15);border-radius:5px;text-align:center">
+          <div style="font-size:22px;font-weight:800;color:var(--s1)" class="mono">3</div>
+          <div style="font-size:7px;color:var(--dim);margin-top:2px">3/3 Convergence</div>
+        </div>
+        <div style="flex:1;padding:10px;background:rgba(245,158,11,0.04);border:1px solid rgba(245,158,11,0.15);border-radius:5px;text-align:center">
+          <div style="font-size:22px;font-weight:800;color:var(--s3)" class="mono">2</div>
+          <div style="font-size:7px;color:var(--dim);margin-top:2px">2/3 Partial</div>
+        </div>
+        <div style="flex:1;padding:10px;background:rgba(239,68,68,0.04);border:1px solid rgba(239,68,68,0.15);border-radius:5px;text-align:center">
+          <div style="font-size:22px;font-weight:800;color:var(--s7)" class="mono">1</div>
+          <div style="font-size:7px;color:var(--dim);margin-top:2px">Contradicted</div>
+        </div>
+      </div>
+
+      <!-- Holdings convergence breakdown -->
+      <div style="margin-top:10px">
+        <div style="font-size:7px;color:var(--t2);font-weight:700;letter-spacing:0.8px;margin-bottom:4px">HOLDING-BY-HOLDING CONVERGENCE</div>
+
+        <div style="display:flex;align-items:center;gap:6px;padding:4px 6px;background:rgba(16,185,129,0.04);border-radius:3px;margin-bottom:3px">
+          <span style="font-size:10px;font-weight:800;color:var(--s1);width:45px" class="mono">CEG</span>
+          <span style="font-size:8px;color:var(--s1);font-weight:600;width:28px">3/3</span>
+          <div style="display:flex;gap:3px">
+            <span style="width:14px;height:14px;border-radius:2px;background:rgba(16,185,129,0.2);display:flex;align-items:center;justify-content:center;font-size:7px;color:var(--s1)">F</span>
+            <span style="width:14px;height:14px;border-radius:2px;background:rgba(16,185,129,0.2);display:flex;align-items:center;justify-content:center;font-size:7px;color:var(--s1)">O</span>
+            <span style="width:14px;height:14px;border-radius:2px;background:rgba(16,185,129,0.2);display:flex;align-items:center;justify-content:center;font-size:7px;color:var(--s1)">I</span>
+          </div>
+          <span style="font-size:7px;color:var(--dim);margin-left:auto">S1 · DM 84</span>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:6px;padding:4px 6px;background:rgba(16,185,129,0.04);border-radius:3px;margin-bottom:3px">
+          <span style="font-size:10px;font-weight:800;color:var(--s1);width:45px" class="mono">MRNA</span>
+          <span style="font-size:8px;color:var(--s1);font-weight:600;width:28px">3/3</span>
+          <div style="display:flex;gap:3px">
+            <span style="width:14px;height:14px;border-radius:2px;background:rgba(16,185,129,0.2);display:flex;align-items:center;justify-content:center;font-size:7px;color:var(--s1)">F</span>
+            <span style="width:14px;height:14px;border-radius:2px;background:rgba(16,185,129,0.2);display:flex;align-items:center;justify-content:center;font-size:7px;color:var(--s1)">O</span>
+            <span style="width:14px;height:14px;border-radius:2px;background:rgba(16,185,129,0.2);display:flex;align-items:center;justify-content:center;font-size:7px;color:var(--s1)">I</span>
+          </div>
+          <span style="font-size:7px;color:var(--dim);margin-left:auto">S2 · DM 83</span>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:6px;padding:4px 6px;background:rgba(16,185,129,0.04);border-radius:3px;margin-bottom:3px">
+          <span style="font-size:10px;font-weight:800;color:var(--s1);width:45px" class="mono">DELL</span>
+          <span style="font-size:8px;color:var(--s1);font-weight:600;width:28px">3/3</span>
+          <div style="display:flex;gap:3px">
+            <span style="width:14px;height:14px;border-radius:2px;background:rgba(16,185,129,0.2);display:flex;align-items:center;justify-content:center;font-size:7px;color:var(--s1)">F</span>
+            <span style="width:14px;height:14px;border-radius:2px;background:rgba(16,185,129,0.2);display:flex;align-items:center;justify-content:center;font-size:7px;color:var(--s1)">O</span>
+            <span style="width:14px;height:14px;border-radius:2px;background:rgba(16,185,129,0.2);display:flex;align-items:center;justify-content:center;font-size:7px;color:var(--s1)">I</span>
+          </div>
+          <span style="font-size:7px;color:var(--dim);margin-left:auto">S1 · DM 90</span>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:6px;padding:4px 6px;background:rgba(245,158,11,0.04);border-radius:3px;margin-bottom:3px">
+          <span style="font-size:10px;font-weight:800;color:var(--s3);width:45px" class="mono">VRT</span>
+          <span style="font-size:8px;color:var(--s3);font-weight:600;width:28px">2/3</span>
+          <div style="display:flex;gap:3px">
+            <span style="width:14px;height:14px;border-radius:2px;background:rgba(16,185,129,0.2);display:flex;align-items:center;justify-content:center;font-size:7px;color:var(--s1)">F</span>
+            <span style="width:14px;height:14px;border-radius:2px;background:rgba(16,185,129,0.2);display:flex;align-items:center;justify-content:center;font-size:7px;color:var(--s1)">O</span>
+            <span style="width:14px;height:14px;border-radius:2px;background:rgba(100,100,100,0.2);display:flex;align-items:center;justify-content:center;font-size:7px;color:var(--dim)">I</span>
+          </div>
+          <span style="font-size:7px;color:var(--dim);margin-left:auto">S3 · DM 84</span>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:6px;padding:4px 6px;background:rgba(245,158,11,0.04);border-radius:3px;margin-bottom:3px">
+          <span style="font-size:10px;font-weight:800;color:var(--s3);width:45px" class="mono">TSM</span>
+          <span style="font-size:8px;color:var(--s3);font-weight:600;width:28px">2/3</span>
+          <div style="display:flex;gap:3px">
+            <span style="width:14px;height:14px;border-radius:2px;background:rgba(16,185,129,0.2);display:flex;align-items:center;justify-content:center;font-size:7px;color:var(--s1)">F</span>
+            <span style="width:14px;height:14px;border-radius:2px;background:rgba(100,100,100,0.2);display:flex;align-items:center;justify-content:center;font-size:7px;color:var(--dim)">O</span>
+            <span style="width:14px;height:14px;border-radius:2px;background:rgba(16,185,129,0.2);display:flex;align-items:center;justify-content:center;font-size:7px;color:var(--s1)">I</span>
+          </div>
+          <span style="font-size:7px;color:var(--dim);margin-left:auto">S4 · DM 30</span>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:6px;padding:4px 6px;margin-bottom:3px">
+          <span style="font-size:10px;font-weight:800;color:var(--dim);width:45px" class="mono">DNN</span>
+          <span style="font-size:8px;color:var(--dim);font-weight:600;width:28px">1/3</span>
+          <div style="display:flex;gap:3px">
+            <span style="width:14px;height:14px;border-radius:2px;background:rgba(100,100,100,0.2);display:flex;align-items:center;justify-content:center;font-size:7px;color:var(--dim)">F</span>
+            <span style="width:14px;height:14px;border-radius:2px;background:rgba(100,100,100,0.2);display:flex;align-items:center;justify-content:center;font-size:7px;color:var(--dim)">O</span>
+            <span style="width:14px;height:14px;border-radius:2px;background:rgba(16,185,129,0.2);display:flex;align-items:center;justify-content:center;font-size:7px;color:var(--s1)">I</span>
+          </div>
+          <span style="font-size:7px;color:var(--dim);margin-left:auto">S4 · DM 37</span>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:6px;padding:4px 6px;background:rgba(239,68,68,0.04);border-radius:3px;margin-bottom:3px">
+          <span style="font-size:10px;font-weight:800;color:var(--s7);width:45px" class="mono">GOOGL</span>
+          <span style="font-size:8px;color:var(--s7);font-weight:600;width:28px">⚠</span>
+          <div style="display:flex;gap:3px">
+            <span style="width:14px;height:14px;border-radius:2px;background:rgba(239,68,68,0.2);display:flex;align-items:center;justify-content:center;font-size:7px;color:var(--s7)">F</span>
+            <span style="width:14px;height:14px;border-radius:2px;background:rgba(239,68,68,0.2);display:flex;align-items:center;justify-content:center;font-size:7px;color:var(--s7)">O</span>
+            <span style="width:14px;height:14px;border-radius:2px;background:rgba(100,100,100,0.2);display:flex;align-items:center;justify-content:center;font-size:7px;color:var(--dim)">I</span>
+          </div>
+          <span style="font-size:7px;color:var(--s7);margin-left:auto">S8 · DM 24 · CONTRADICTED</span>
+        </div>
+      </div>
+
+      <!-- Summary line -->
+      <div style="margin-top:8px;padding:6px 10px;background:rgba(56,189,248,0.04);border:1px solid rgba(56,189,248,0.12);border-radius:4px;font-size:8px;color:var(--dim);line-height:1.5">
+        <strong style="color:var(--accent)">Portfolio conviction score: 68%</strong> — 3 of 7 holdings at full convergence, 2 partial, 1 weak, 1 contradicted. The contradicted holding (GOOGL) and weak holding (DNN) are the positions to review first. F = Flow Score, O = Options, I = Insider.
+      </div>
+    </div>
+
+    <!-- T2 Evidence Note -->
+    <div class="sec t2" style="border-bottom:none">
+      <div style="font-size:7px;color:var(--dim);line-height:1.6;padding:4px 0">
+        <strong style="color:var(--t2)">T2 Evidence:</strong> Z-score computed against 90-day rolling window. Density tier from 6f crossing analysis (37 crossings = HIGH tier, 48% hit rate). Options P/C from Polygon. Insider from SEC EDGAR Form 4. PE Echo: PE_Funding_Dial sector volumes cross-correlated with cluster DM at lag. Earnings base rate: backtest across 23 matching configurations.
+      </div>
+    </div>
+
+    <div style="height:20px"></div>
+
+  </div><!-- /panel -->
+</div><!-- /layout -->
+
+<script>
+// ── LEAD-LAG DATA (CEG example — developer will wire to live DM + price data) ──
+const LL_DATA = {
+  ticker: 'CEG',
+  leadDays: '11d',  leadGain: '+8.3%',  winrate: '68%',
+  leadDesc: 'PE capital deployed 11 days before DM responded. DM moved 8 days before price confirmed.',
+  entryDm: '84.0',  entryDate: 'Mar 12, 2026',
+  peakDm:  '88.1',  peakSub:   '14 sessions above 65',
+  corrPeakLag: 11,
+  corrNote: 'Peak correlation at <strong>+11 day lag</strong> — DM leads price by ~11 sessions on this ticker.',
+  // 86 points = ~90 trading days
+  dmSeries: [
+    30,28,30,32,35,38,40,38,36,34,38,42,45,48,50,52,55,58,60,62,
+    64,65,66,68,70,72,74,76,77,76,75,76,78,80,82,84,85,84,83,82,
+    83,84,85,84,83,82,83,84,85,84,83,82,83,84,85,84,83,82,83,84,
+    85,84,83,82,83,84,85,84,83,82,83,84,85,84,83,82,83,84,85,84,
+    85,84,83,84,85,84
+  ],
+  priceSeries: [
+    100,99,100,99,98,99,100,99,100,101,100,99,100,101,100,99,100,101,102,101,
+    100,101,102,101,100,101,102,103,102,101,102,103,104,105,104,105,106,107,106,105,
+    106,107,106,105,106,107,106,105,106,107,106,105,106,107,108,107,106,105,106,107,
+    108,107,106,107,108,107,108,107,108,107,108,107,108,107,108,107,108,107,108,107,
+    108,107,108,107,108,107
+  ],
+  timeline: [
+    { pct:0,    type:'signal', above:true,  date:'Mar 1',  desc:'DM Crosses 65', val:'DM 65.0', cls:'teal' },
+    { pct:0.18, type:'signal', above:false, date:'Mar 12', desc:'Entry Signal',   val:'DM 84.0', cls:'teal' },
+    { pct:0.40, type:'event',  above:true,  date:'Mar 23', desc:'PE Echo Arrives',val:'~11d lag', cls:'yel' },
+    { pct:0.58, type:'price',  above:false, date:'Apr 1',  desc:'Price Confirms', val:'$319.06', cls:'green' },
+    { pct:1.0,  type:'today',  above:true,  date:'Apr 8',  desc:'Today',          val:'State 1',  cls:'accent' },
+  ],
+  gap: { from:0.18, to:0.40, label:'~11d DM led price' }
+};
+
+// ── CHART ──────────────────────────────────────────────────────────────────
+function renderLLChart() {
+  const d = LL_DATA;
+  const svg = document.getElementById('ll-chart');
+  if (!svg) return;
+  svg.innerHTML = '';
+
+  const W=348,H=120, PL=30,PR=12,PT=10,PB=18;
+  const pw=W-PL-PR, ph=H-PT-PB;
+  const n=Math.min(d.dmSeries.length, d.priceSeries.length);
+
+  function ns(t){ return document.createElementNS('http://www.w3.org/2000/svg',t); }
+  const xAt = i => PL + (i/(n-1))*pw;
+  const yDM = v => PT+ph - ((v/100)*ph);
+  const prMin=Math.min(...d.priceSeries)-2, prMax=Math.max(...d.priceSeries)+2;
+  const yPr = v => PT+ph - (((v-prMin)/(prMax-prMin))*ph);
+
+  // Grid
+  [25,50,75].forEach(v => {
+    const l=ns('line');
+    l.setAttribute('x1',PL); l.setAttribute('x2',W-PR);
+    l.setAttribute('y1',yDM(v)); l.setAttribute('y2',yDM(v));
+    l.setAttribute('stroke','rgba(255,255,255,0.03)'); l.setAttribute('stroke-width','0.5');
+    svg.appendChild(l);
+  });
+
+  // DM 70 threshold
+  const y70=yDM(70);
+  const th=ns('line');
+  th.setAttribute('x1',PL); th.setAttribute('x2',W-PR);
+  th.setAttribute('y1',y70); th.setAttribute('y2',y70);
+  th.setAttribute('stroke','rgba(245,158,11,0.35)');
+  th.setAttribute('stroke-dasharray','3,2'); th.setAttribute('stroke-width','1');
+  svg.appendChild(th);
+
+  // DM fill
+  let fp=`${xAt(0)},${PT+ph}`;
+  d.dmSeries.slice(0,n).forEach((v,i)=>{ fp+=` ${xAt(i)},${yDM(v)}`; });
+  fp+=` ${xAt(n-1)},${PT+ph}`;
+  const fill=ns('polygon');
+  fill.setAttribute('points',fp); fill.setAttribute('fill','rgba(6,148,162,0.07)');
+  svg.appendChild(fill);
+
+  // Entry line
+  const ex=xAt(Math.round(n*0.18));
+  const el=ns('line');
+  el.setAttribute('x1',ex); el.setAttribute('x2',ex);
+  el.setAttribute('y1',PT); el.setAttribute('y2',H-PB);
+  el.setAttribute('stroke','rgba(6,148,162,0.25)');
+  el.setAttribute('stroke-dasharray','2,2'); el.setAttribute('stroke-width','1');
+  svg.appendChild(el);
+
+  // Price line
+  let pp='';
+  d.priceSeries.slice(0,n).forEach((v,i)=>{ pp+=(i===0?'M':'L')+xAt(i)+','+yPr(v); });
+  const pl=ns('path');
+  pl.setAttribute('d',pp); pl.setAttribute('fill','none');
+  pl.setAttribute('stroke','rgba(16,185,129,0.5)'); pl.setAttribute('stroke-width','1.5');
+  svg.appendChild(pl);
+
+  // DM line
+  let dp='';
+  d.dmSeries.slice(0,n).forEach((v,i)=>{ dp+=(i===0?'M':'L')+xAt(i)+','+yDM(v); });
+  const dline=ns('path');
+  dline.setAttribute('d',dp); dline.setAttribute('fill','none');
+  dline.setAttribute('stroke','rgba(6,148,162,0.9)'); dline.setAttribute('stroke-width','2');
+  svg.appendChild(dline);
+
+  // Y labels
+  [0,50,100].forEach(v => {
+    const t=ns('text');
+    t.setAttribute('x',PL-3); t.setAttribute('y',yDM(v)+3);
+    t.setAttribute('fill','rgba(6,148,162,0.45)'); t.setAttribute('font-size','7');
+    t.setAttribute('font-family','JetBrains Mono,monospace'); t.setAttribute('text-anchor','end');
+    t.textContent=v; svg.appendChild(t);
+  });
+
+  // X labels
+  [{i:0,lbl:'Day 1'},{i:Math.round(n/2),lbl:'Day 45'},{i:n-1,lbl:'Today'}].forEach(({i,lbl})=>{
+    const t=ns('text');
+    t.setAttribute('x',xAt(i)); t.setAttribute('y',H-PB+12);
+    t.setAttribute('fill','rgba(255,255,255,0.18)'); t.setAttribute('font-size','7');
+    t.setAttribute('font-family','JetBrains Mono,monospace'); t.setAttribute('text-anchor','middle');
+    t.textContent=lbl; svg.appendChild(t);
+  });
+
+  // Today dot
+  const dot=ns('circle');
+  dot.setAttribute('cx',xAt(n-1)); dot.setAttribute('cy',yDM(d.dmSeries[n-1]));
+  dot.setAttribute('r','3.5'); dot.setAttribute('fill','var(--accent)');
+  dot.setAttribute('stroke','var(--card)'); dot.setAttribute('stroke-width','1.5');
+  svg.appendChild(dot);
+}
+
+// ── TIMELINE ──────────────────────────────────────────────────────────────
+function renderLLTimeline() {
+  const d = LL_DATA;
+  const el = document.getElementById('ll-timeline');
+  if (!el) return;
+  el.innerHTML = '';
+
+  const track = document.createElement('div');
+  track.className = 'll-track';
+  track.style.marginTop = '28px';
+
+  const fill = document.createElement('div');
+  fill.className = 'll-fill'; fill.style.width='100%';
+  track.appendChild(fill);
+
+  d.timeline.forEach(n => {
+    const dot = document.createElement('div');
+    dot.className = 'll-node '+n.type;
+    dot.style.left = (n.pct*100)+'%';
+    track.appendChild(dot);
+
+    const lbl = document.createElement('div');
+    lbl.className = 'll-lbl '+(n.above?'above':'below');
+    lbl.style.left = (n.pct*100)+'%';
+    lbl.innerHTML = `<span class="d">${n.date}</span><span class="v ${n.cls}">${n.val}</span>`;
+    track.appendChild(lbl);
+  });
+
+  // Gap
+  const g = d.gap;
+  const gap = document.createElement('div');
+  gap.className = 'll-gap';
+  gap.style.left = (g.from*100)+'%';
+  gap.style.width = ((g.to-g.from)*100)+'%';
+  const badge = document.createElement('div');
+  badge.className = 'll-gap-badge';
+  badge.textContent = g.label;
+  gap.appendChild(badge);
+  track.appendChild(gap);
+
+  el.appendChild(track);
+}
+
+// ── CORRELATION BARS ──────────────────────────────────────────────────────
+function renderLLCorr() {
+  const d = LL_DATA;
+  const grid = document.getElementById('ll-corr');
+  if (!grid) return;
+  grid.innerHTML = '';
+
+  const peak = d.corrPeakLag;
+  const lags = [0,3,5,7,10,11,12,15,20,25,30];
+  const maxH = 38;
+
+  lags.forEach(lag => {
+    const dist = Math.abs(lag - peak);
+    const val  = Math.max(0.05, 0.76 - dist*0.052);
+    const h    = Math.round((val/0.80)*maxH);
+    const isP  = lag === peak;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'll-bar-wrap';
+
+    const vl = document.createElement('div');
+    vl.className = 'll-bar-val';
+    vl.textContent = val.toFixed(2);
+    if (isP) vl.style.color = 'var(--t2)';
+    wrap.appendChild(vl);
+
+    const bar = document.createElement('div');
+    bar.className = 'll-bar '+(isP?'hi':'lo');
+    bar.style.height = h+'px';
+
+    const bl = document.createElement('div');
+    bl.className = 'll-bar-lbl';
+    bl.textContent = '+'+lag+'d';
+    bar.appendChild(bl);
+    wrap.appendChild(bar);
+    grid.appendChild(wrap);
+  });
+
+  document.getElementById('ll-corr-note').innerHTML = '↑ &nbsp;' + d.corrNote;
+}
+
+// ── POPULATE TEXT FIELDS ──────────────────────────────────────────────────
+function populateLLFields() {
+  const d = LL_DATA;
+  document.getElementById('ll-lead-days').textContent  = d.leadDays;
+  document.getElementById('ll-lead-desc').textContent  = d.leadDesc;
+  document.getElementById('ll-stat-lead').textContent  = d.leadDays;
+  document.getElementById('ll-stat-gain').textContent  = d.leadGain;
+  document.getElementById('ll-stat-winrate').textContent = d.winrate;
+  document.getElementById('ll-entry-dm').textContent   = d.entryDm;
+  document.getElementById('ll-entry-date').textContent = d.entryDate;
+  document.getElementById('ll-peak-dm').textContent    = d.peakDm;
+  document.getElementById('ll-peak-sub').textContent   = d.peakSub;
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────
+populateLLFields();
+renderLLChart();
+renderLLTimeline();
+renderLLCorr();
+</script>
+
+</body>
+</html>

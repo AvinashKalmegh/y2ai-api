@@ -1,20 +1,21 @@
-name: PureSim Universe Weekly Review (Saturday)
+name: Pre-Market DM Scan (7:30 AM ET)
 
 on:
   schedule:
-    # Saturday 3:00 AM ET (07:00 UTC)
-    - cron: "0 7 * * 6"
+    # 7:30 AM ET = 11:30 UTC (12:30 UTC during EST)
+    - cron: "30 11 * * 1-5"
   workflow_dispatch: {}
 
 jobs:
-  run-puresim-review:
+  premarket-scan:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
 
     env:
       TZ: America/New_York
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      POLYGON_API_KEY: ${{ secrets.POLYGON_API_KEY }}
       GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
 
     steps:
@@ -35,19 +36,18 @@ jobs:
         run: |
           echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > credentials.json
 
-      - name: "PureSim Universe: DM Crossover Hit Rate (3yr lookback)"
+      - name: Run Pre-Market DM Scan
         run: |
           export PYTHONPATH=$PYTHONPATH:.
           echo "========================================"
-          echo "PURESIM UNIVERSE WEEKLY REVIEW"
-          echo "Lookback: trailing 3 years"
+          echo "PRE-MARKET DM SCAN"
           echo "Started at $(date)"
           echo "========================================"
-          python files_3/dm_crossover_hitrate.py --years 3 --push
+          python premarket_dm_scan.py
 
       - name: Log completion
         if: always()
         run: |
           echo "========================================"
-          echo "PureSim Weekly Review completed at $(date)"
+          echo "Pre-Market DM Scan completed at $(date)"
           echo "========================================"
