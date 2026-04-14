@@ -1,14 +1,13 @@
-import os
+import gspread
+from google.oauth2.service_account import Credentials
 from datetime import datetime, timedelta
-
-from dotenv import load_dotenv
-load_dotenv()
-
 import pandas as pd
 
 # -- CONFIG ------------------------------------------------------------------
 
-LOOKBACK_DAYS = 30
+SPREADSHEET_ID = '1YYwgMvY7I4_i0RD2OH0lM878OkK2WumdEz19UfFcUZ0'
+SHEET_NAME     = 'DM_2024_2026'
+LOOKBACK_DAYS  = 30
 
 TICKERS = {
     'T1_EQUITY':   ['TSLA', 'GOOGL', 'SATS'],
@@ -21,50 +20,47 @@ TICKERS = {
 
 ALL_TICKERS = [t for tier in TICKERS.values() for t in tier]
 
-# -- SUPABASE ----------------------------------------------------------------
+# -- AUTH ---------------------------------------------------------------------
 
-def _get_supabase():
-    url = os.getenv("SUPABASE_URL")
-    key = os.getenv("SUPABASE_KEY")
-    if not url or not key:
-        raise RuntimeError("SUPABASE_URL/SUPABASE_KEY not set.")
-    from supabase import create_client
-    return create_client(url, key)
+def get_sheet():
+    scopes = ['https://www.googleapis.com/auth/spreadsheets.readonly']
+    creds  = Credentials.from_service_account_file('credentials.json', scopes=scopes)
+    client = gspread.authorize(creds)
+    return client.open_by_key(SPREADSHEET_ID).worksheet(SHEET_NAME)
 
-# -- FETCH DM HISTORY --------------------------------------------------------
+# -- FETCH DM HISTORY ---------------------------------------------------------
 
-def fetch_dm_history():
-    client = _get_supabase()
-    cutoff = (datetime.today() - timedelta(days=int(LOOKBACK_DAYS * 1.5))).strftime('%Y-%m-%d')
+def fetch_dm_history(sheet):
+    data    = sheet.get_all_values()
+    headers = data[0]
+    date_col   = headers.index('Date')
+    ticker_col = headers.index('Ticker')
+    dm_col     = headers.index('DM')
+    phase_col  = headers.index('Phase')
 
-    rows = []
-    offset, page = 0, 10000
-    while True:
-        r = (client.table('dm_history')
-             .select('date,ticker,dm_smoothed,phase')
-             .gte('date', cutoff)
-             .in_('ticker', ALL_TICKERS)
-             .order('date')
-             .range(offset, offset + page - 1)
-             .execute())
-        rows.extend(r.data)
-        if len(r.data) < page:
-            break
-        offset += page
+    cutoff = datetime.today() - timedelta(days=LOOKBACK_DAYS)
+    rows   = []
 
-    if not rows:
-        raise RuntimeError("No DM history rows returned from Supabase.")
+    for row in data[1:]:
+        ticker = str(row[ticker_col]).strip().upper()
+        if ticker not in ALL_TICKERS:
+            continue
+        try:
+            date = datetime.strptime(str(row[date_col])[:10], '%Y-%m-%d')
+        except:
+            continue
+        if date < cutoff:
+            continue
+        rows.append({
+            'date':   date,
+            'ticker': ticker,
+            'dm':     float(row[dm_col]) if row[dm_col] else 0,
+            'phase':  str(row[phase_col]).strip(),
+        })
 
-    df = pd.DataFrame(rows)
-    df.rename(columns={'dm_smoothed': 'dm', 'ticker': 'ticker', 'date': 'date', 'phase': 'phase'}, inplace=True)
-    df['date']   = pd.to_datetime(df['date'])
-    df['dm']     = pd.to_numeric(df['dm'], errors='coerce').fillna(0)
-    df['ticker'] = df['ticker'].str.strip().str.upper()
-    df['phase']  = df['phase'].fillna('')
+    return pd.DataFrame(rows)
 
-    return df
-
-# -- ANALYSIS ----------------------------------------------------------------
+# -- ANALYSIS ------------------------------------------------------------------
 
 def analyze(df):
     print('\n' + '='*70)
@@ -110,10 +106,12 @@ def analyze(df):
 
     print('\n' + '='*70)
 
-# -- MAIN --------------------------------------------------------------------
+# -- MAIN ----------------------------------------------------------------------
 
 if __name__ == '__main__':
-    print('Fetching DM history from Supabase...')
-    df = fetch_dm_history()
+    print('Connecting to spreadsheet...')
+    sheet = get_sheet()
+    print('Fetching DM history...')
+    df = fetch_dm_history(sheet)
     print(f'Loaded {len(df)} rows for {df["ticker"].nunique()} tickers.')
     analyze(df)
