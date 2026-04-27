@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shadow_Rotation — Active Rotation Engine</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --ink: #0a0a0a;
+    --ink-soft: #3a3a3a;
+    --ink-muted: #6a6a6a;
+    --rule: #d8d8d8;
+    --cyan: #00b4d8;
+    --crimson: #c1121f;
+    --gold: #d4a017;
+    --green: #2d6a4f;
+    --paper: #fafaf8;
+  }
+
+  body {
+    font-family: 'IBM Plex Sans', sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    width: 8.5in;
+    min-height: 11in;
+    margin: 0 auto;
+    padding: 0.55in 0.65in 0.45in;
+    font-size: 9.5pt;
+    line-height: 1.45;
+  }
+
+  /* ── HEADER ── */
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 8px;
+    margin-bottom: 16px;
+  }
+
+  .header-left {}
+  .header-title {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 18pt;
+    font-weight: 600;
+    letter-spacing: -0.5px;
+    line-height: 1;
+  }
+  .header-sub {
+    font-size: 8.5pt;
+    color: var(--ink-muted);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    margin-top: 3px;
+  }
+  .header-right {
+    text-align: right;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 7.5pt;
+    color: var(--ink-muted);
+    line-height: 1.7;
+  }
+
+  /* ── THESIS BAR ── */
+  .thesis {
+    background: var(--ink);
+    color: white;
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 16px;
+  }
+  .thesis-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 7pt;
+    color: var(--cyan);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    white-space: nowrap;
+  }
+  .thesis-text {
+    font-size: 9pt;
+    font-weight: 400;
+    line-height: 1.4;
+  }
+  .thesis-text strong {
+    color: var(--cyan);
+  }
+
+  /* ── THREE COLUMN STATS ── */
+  .stats-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    margin-bottom: 16px;
+  }
+  .stat-box {
+    background: var(--paper);
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .stat-label {
+    font-size: 7pt;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--ink-muted);
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .stat-value {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 20pt;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: -1px;
+  }
+  .stat-value.green { color: var(--green); }
+  .stat-value.cyan  { color: var(--cyan); }
+  .stat-value.gold  { color: var(--gold); }
+  .stat-caption {
+    font-size: 7.5pt;
+    color: var(--ink-muted);
+    margin-top: 2px;
+  }
+
+  /* ── TWO COLUMN BODY ── */
+  .body-grid {
+    display: grid;
+    grid-template-columns: 1.15fr 0.85fr;
+    gap: 18px;
+    margin-bottom: 16px;
+  }
+
+  .section-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 7pt;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--ink-muted);
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: 4px;
+    margin-bottom: 10px;
+  }
+
+  /* ── ROTATION TABLE ── */
+  .rotation-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .rotation-table th {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 7pt;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--ink-muted);
+    text-align: left;
+    padding: 0 0 5px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .rotation-table th:last-child { text-align: right; }
+  .rotation-table td {
+    padding: 5px 0;
+    font-size: 8.5pt;
+    vertical-align: middle;
+    border-bottom: 1px solid #ebebeb;
+  }
+  .rotation-table td:last-child { text-align: right; }
+
+  .ticker-out {
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 600;
+    font-size: 9pt;
+    color: var(--crimson);
+  }
+  .ticker-in {
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 600;
+    font-size: 9pt;
+    color: var(--green);
+  }
+  .arrow {
+    color: var(--ink-muted);
+    font-size: 8pt;
+    padding: 0 4px;
+  }
+  .pct-out { color: var(--crimson); font-family: 'IBM Plex Mono', monospace; font-size: 8pt; }
+  .pct-in  { color: var(--green);   font-family: 'IBM Plex Mono', monospace; font-size: 8pt; }
+  .spread-val {
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 600;
+    font-size: 9pt;
+    color: var(--ink);
+  }
+
+  .rotation-footer {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 8pt;
+    color: var(--green);
+    font-weight: 600;
+    text-align: right;
+    padding-top: 6px;
+    border-top: 1.5px solid var(--ink);
+  }
+
+  /* ── RIGHT COLUMN ── */
+  .right-col {}
+
+  /* ── BENCHMARK BOX ── */
+  .benchmark-block {
+    margin-bottom: 14px;
+  }
+  .bm-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 0;
+    border-bottom: 1px solid #ebebeb;
+  }
+  .bm-name {
+    font-size: 8.5pt;
+    color: var(--ink-soft);
+  }
+  .bm-name span {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 7.5pt;
+    color: var(--ink-muted);
+    margin-left: 4px;
+  }
+  .bm-val {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9.5pt;
+    font-weight: 600;
+  }
+  .bm-val.lead { color: var(--green); }
+  .bm-val.base { color: var(--ink-soft); }
+  .bm-val.bench { color: var(--ink-muted); }
+
+  .bm-alpha-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0 0 0;
+  }
+  .bm-alpha-label {
+    font-size: 7.5pt;
+    color: var(--ink-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .bm-alpha-val {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9pt;
+    font-weight: 600;
+    color: var(--green);
+  }
+
+  /* ── RULE BOX ── */
+  .rule-box {
+    background: #f0f0ed;
+    border-left: 3px solid var(--ink);
+    padding: 8px 10px;
+    margin-bottom: 12px;
+  }
+  .rule-title {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 7pt;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--ink-muted);
+    margin-bottom: 5px;
+  }
+  .rule-item {
+    font-size: 8pt;
+    color: var(--ink-soft);
+    line-height: 1.6;
+    display: flex;
+    gap: 6px;
+  }
+  .rule-item::before {
+    content: '→';
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--ink-muted);
+    flex-shrink: 0;
+  }
+
+  /* ── CONCENTRATION CONTRAST ── */
+  .contrast-block {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+  }
+  .contrast-side {
+    background: var(--paper);
+    padding: 8px 10px;
+  }
+  .contrast-side.theirs {
+    background: #f5f5f5;
+  }
+  .contrast-head {
+    font-size: 7pt;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--ink-muted);
+    font-family: 'IBM Plex Mono', monospace;
+    margin-bottom: 4px;
+  }
+  .contrast-number {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 18pt;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: -0.5px;
+  }
+  .contrast-number.big { color: var(--ink-muted); }
+  .contrast-number.small { color: var(--ink); }
+  .contrast-desc {
+    font-size: 7.5pt;
+    color: var(--ink-muted);
+    margin-top: 3px;
+    line-height: 1.4;
+  }
+
+  /* ── WIN RATE COMPARE ── */
+  .winrate-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    margin-top: 12px;
+  }
+  .wr-item {
+    text-align: center;
+  }
+  .wr-val {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 14pt;
+    font-weight: 600;
+    line-height: 1;
+  }
+  .wr-val.lead { color: var(--green); }
+  .wr-val.base { color: var(--ink-muted); }
+  .wr-label {
+    font-size: 7pt;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--ink-muted);
+    margin-top: 2px;
+  }
+  .wr-divider {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10pt;
+    color: var(--rule);
+  }
+  .wr-note {
+    font-size: 7.5pt;
+    color: var(--ink-muted);
+    text-align: center;
+    font-style: italic;
+  }
+
+  /* ── FOOTER ── */
+  .footer {
+    border-top: 1px solid var(--rule);
+    padding-top: 7px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .footer-left {
+    font-size: 7pt;
+    color: var(--ink-muted);
+    font-family: 'IBM Plex Mono', monospace;
+    line-height: 1.6;
+  }
+  .footer-right {
+    font-size: 7pt;
+    color: var(--ink-muted);
+    text-align: right;
+    line-height: 1.6;
+  }
+
+  @media print {
+    body { margin: 0; padding: 0.5in 0.6in 0.4in; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-left">
+    <div class="header-title">Shadow_Rotation</div>
+    <div class="header-sub">Active Rotation Engine · Y2AI Research · April 2026</div>
+  </div>
+  <div class="header-right">
+    ARGUS | Signal Validation<br>
+    CONFIDENTIAL — NOT FOR GENERAL DISTRIBUTION<br>
+    Day 41 · April 21, 2026
+  </div>
+</div>
+
+<!-- THESIS -->
+<div class="thesis">
+  <div class="thesis-label">Core Thesis</div>
+  <div class="thesis-text">
+    A concentrated <strong>20-position book</strong> rotates algorithmically — replacing the weakest position with the highest-signal candidate when the composite score gap exceeds 20 points. No calendar. No discretion. <strong>The signal decides.</strong>
+  </div>
+</div>
+
+<!-- TOP STATS -->
+<div class="stats-row">
+  <div class="stat-box">
+    <div class="stat-label">NAV · Day 41</div>
+    <div class="stat-value green">+11.28%</div>
+    <div class="stat-caption">$1,112,804 from $1,000,000 inception</div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-label">Win / Loss Record</div>
+    <div class="stat-value cyan">17W / 3L</div>
+    <div class="stat-caption">vs PureSim baseline 14W / 6L — same book, no rotation</div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-label">Rotations Fired · Day 1–5</div>
+    <div class="stat-value gold">4</div>
+    <div class="stat-caption">Total divergence vs held positions: 41.7 points</div>
+  </div>
+</div>
+
+<!-- BODY GRID -->
+<div class="body-grid">
+
+  <!-- LEFT: ROTATION TABLE -->
+  <div>
+    <div class="section-label">Four Live Rotations — April 16–21, 2026</div>
+    <table class="rotation-table">
+      <thead>
+        <tr>
+          <th>Rotated Out</th>
+          <th>Rotated In</th>
+          <th>Day</th>
+          <th>Spread</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <span class="ticker-out">INSM</span>
+            <span class="pct-out"> −13.5%</span>
+            <div style="font-size:7pt;color:var(--ink-muted);margin-top:1px;">DM 8.4 · Score −8.4</div>
+          </td>
+          <td>
+            <span class="ticker-in">SYF</span>
+            <span class="pct-in"> +2.2%</span>
+            <div style="font-size:7pt;color:var(--ink-muted);margin-top:1px;">DM 80.1 · gap 88.5 pts</div>
+          </td>
+          <td style="font-family:'IBM Plex Mono',monospace;font-size:8pt;color:var(--ink-muted);">Day 1</td>
+          <td class="spread-val">+15.7 pts</td>
+        </tr>
+        <tr>
+          <td>
+            <span class="ticker-out">DOW</span>
+            <span class="pct-out"> −7.5%</span>
+            <div style="font-size:7pt;color:var(--ink-muted);margin-top:1px;">DM 21.3 · THIN status</div>
+          </td>
+          <td>
+            <span class="ticker-in">ROKU</span>
+            <span class="pct-in"> +2.0%</span>
+            <div style="font-size:7pt;color:var(--ink-muted);margin-top:1px;">DM 77.3 · gap 73.6 pts</div>
+          </td>
+          <td style="font-family:'IBM Plex Mono',monospace;font-size:8pt;color:var(--ink-muted);">Day 2</td>
+          <td class="spread-val">+9.5 pts</td>
+        </tr>
+        <tr>
+          <td>
+            <span class="ticker-out">AMAT</span>
+            <span class="pct-out"> −0.9%</span>
+            <div style="font-size:7pt;color:var(--ink-muted);margin-top:1px;">DM 49.4 · head fake</div>
+          </td>
+          <td>
+            <span class="ticker-in">ANET</span>
+            <span class="pct-in"> +7.4%</span>
+            <div style="font-size:7pt;color:var(--ink-muted);margin-top:1px;">DM 75.4 · gap 66.4 pts</div>
+          </td>
+          <td style="font-family:'IBM Plex Mono',monospace;font-size:8pt;color:var(--ink-muted);">Day 2</td>
+          <td class="spread-val">+8.3 pts</td>
+        </tr>
+        <tr>
+          <td>
+            <span class="ticker-out">NFLX</span>
+            <span class="pct-out"> −9.3%</span>
+            <div style="font-size:7pt;color:var(--ink-muted);margin-top:1px;">Score 3.9 · Wood bought at $97.31</div>
+          </td>
+          <td>
+            <span class="ticker-in">COHR</span>
+            <span class="pct-in"> −1.1%</span>
+            <div style="font-size:7pt;color:var(--ink-muted);margin-top:1px;">DM 77.2 · 94.4% hit rate</div>
+          </td>
+          <td style="font-family:'IBM Plex Mono',monospace;font-size:8pt;color:var(--ink-muted);">Day 5</td>
+          <td class="spread-val">+8.2 pts</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="rotation-footer">Total accumulated divergence vs held positions: +41.7 pts</div>
+
+    <!-- WIN RATE -->
+    <div class="winrate-row">
+      <div class="wr-item">
+        <div class="wr-val lead">17W / 3L</div>
+        <div class="wr-label">Shadow_Rotation</div>
+      </div>
+      <div class="wr-divider">|</div>
+      <div class="wr-item">
+        <div class="wr-val base">14W / 6L</div>
+        <div class="wr-label">PureSim (no rotation)</div>
+      </div>
+      <div class="wr-divider">|</div>
+      <div class="wr-item">
+        <div class="wr-val base" style="font-size:10pt;">−0.22%</div>
+        <div class="wr-label">QQQ same period</div>
+      </div>
+    </div>
+    <div class="wr-note">Same starting book, same universe, same signal — rotation added 3 wins and removed 3 losses in 5 days</div>
+  </div>
+
+  <!-- RIGHT COLUMN -->
+  <div class="right-col">
+
+    <!-- CONCENTRATION CONTRAST -->
+    <div class="section-label">The Concentration Difference</div>
+    <div class="contrast-block" style="margin-bottom:12px;">
+      <div class="contrast-side theirs">
+        <div class="contrast-head">Typical PM</div>
+        <div class="contrast-number big">100–300</div>
+        <div class="contrast-desc">Tickers managed. Diversification as primary risk tool.</div>
+      </div>
+      <div class="contrast-side">
+        <div class="contrast-head">Shadow_Rotation</div>
+        <div class="contrast-number small">20</div>
+        <div class="contrast-desc">Hard cap. Rotation is the risk management. Signal replaces conviction.</div>
+      </div>
+    </div>
+
+    <!-- ROTATION RULE -->
+    <div class="rule-box" style="margin-bottom:12px;">
+      <div class="rule-title">The Rotation Rule — Three Conditions</div>
+      <div class="rule-item">Weakest position composite score identified daily</div>
+      <div class="rule-item">Best available candidate (not in book) ranked by DM signal</div>
+      <div class="rule-item">Rotation fires only when gap exceeds 20 composite points</div>
+    </div>
+
+    <!-- BENCHMARK -->
+    <div class="section-label">Performance vs Benchmark</div>
+    <div class="benchmark-block">
+      <div class="bm-row">
+        <div class="bm-name">Shadow_Rotation <span>inception Apr 16</span></div>
+        <div class="bm-val lead">+11.28%</div>
+      </div>
+      <div class="bm-row">
+        <div class="bm-name">PureSim <span>no rotation</span></div>
+        <div class="bm-val base">+10.74%</div>
+      </div>
+      <div class="bm-row">
+        <div class="bm-name">QQQ <span>same 3-session window</span></div>
+        <div class="bm-val bench">−0.22%</div>
+      </div>
+      <div class="bm-alpha-row">
+        <div class="bm-alpha-label">Rotation alpha vs PureSim baseline</div>
+        <div class="bm-alpha-val">+0.54 pts · 5 days</div>
+      </div>
+    </div>
+
+    <!-- WHAT ROTATION IS NOT -->
+    <div class="rule-box" style="border-left-color:var(--crimson);">
+      <div class="rule-title" style="color:var(--crimson);">What Rotation Is Not</div>
+      <div class="rule-item">Not discretionary. No human overrides.</div>
+      <div class="rule-item">Not market timing. Fires on signal gap, not macro view.</div>
+      <div class="rule-item">Not momentum. Signal strengthens with detection lag.</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <div class="footer-left">
+    ARGUS | Shadow_Rotation | Y2AI Research | April 21, 2026<br>
+    Inception: April 16, 2026 · Days tracked: 5 · Sessions logged: 3<br>
+    CONFIDENTIAL — NOT FOR GENERAL DISTRIBUTION
+  </div>
+  <div class="footer-right">
+    PureSim inception: March 23, 2026 · QQQ alpha: +2.67 pts · 9 sessions<br>
+    Rotation alpha stated as net vs identical baseline book (PureSim)<br>
+    Past performance does not guarantee future results
+  </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,37 @@
+WAVE R — HOLLOWING SHORT BACKTEST REFINEMENT
+Y2AI Research | 2026-04-22 15:46
+======================================================================
+
+Total trades analyzed: 24
+Wave R contamination rate: 58.3% (14 trades)
+Genuine exit rate: 25.0% (6 trades)
+No signal: 16.7% (4 trades)
+
+PERFORMANCE:
+  Genuine Exit avg P&L: +2.96%
+  Wave R avg P&L:       +2.71%
+  Difference: +0.25 pts
+
+WAVE R POSITIONS (review before adding to):
+  WDAY   | Entry: 2026-02-10 | Class: WAVE_R_STRONG | P&L: +15.7%
+  ACN    | Entry: 2026-02-10 | Class: WAVE_R_STRONG | P&L: +18.1%
+  OMC    | Entry: 2026-02-10 | Class: WAVE_R | P&L: -14.0%
+  ARE    | Entry: 2026-02-10 | Class: WAVE_R_STRONG | P&L: +15.9%
+  UNH    | Entry: 2026-02-10 | Class: WAVE_R_STRONG | P&L: -12.5%
+  LDOS   | Entry: 2026-02-10 | Class: WAVE_R_STRONG | P&L: +21.3%
+  BLDR   | Entry: 2026-02-10 | Class: WAVE_R_STRONG | P&L: +30.1%
+  COIN   | Entry: 2026-04-10 | Class: WAVE_R_STRONG | P&L: -15.9%
+  VRSK   | Entry: 2026-04-10 | Class: WAVE_R_STRONG | P&L: -7.5%
+  CSGP   | Entry: 2026-04-10 | Class: WAVE_R | P&L: -4.3%
+  MOS    | Entry: 2026-04-16 | Class: WAVE_R | P&L: -2.0%
+  MSI    | Entry: 2026-04-16 | Class: WAVE_R_STRONG | P&L: -1.2%
+  CF     | Entry: 2026-04-21 | Class: WAVE_R_STRONG | P&L: -4.6%
+  KR     | Entry: 2026-04-21 | Class: WAVE_R_STRONG | P&L: -1.4%
+
+GENUINE EXIT POSITIONS (highest conviction shorts):
+  LPLA   | Entry: 2026-02-10 | P&L: +13.3%
+  SCHW   | Entry: 2026-02-10 | P&L: +6.0%
+  RJF    | Entry: 2026-02-10 | P&L: +1.7%
+  DXCM   | Entry: 2026-02-10 | P&L: +8.2%
+  SHW    | Entry: 2026-02-10 | P&L: +5.7%
+  PAYC   | Entry: 2026-04-11 | P&L: -17.1%

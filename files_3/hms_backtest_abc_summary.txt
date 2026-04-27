@@ -1,0 +1,21 @@
+ARGUS — HMS EARLY WARNING — TESTS A / B / C (2022-2026)
+Y2AI Research | 2026-04-23 14:52
+======================================================================
+
+Source: hms_backtest_results.csv (64,377 signals)
+
+Test A  (HMS >= 0.40  vs  HMS < 0.40)
+  30d: diff=+0.213 p=0.3071 (ns)
+  60d: diff=-0.732 p=0.0081 (sig)
+  90d: diff=-1.213 p=0.0000 (sig)
+
+Test B  (HMS < 0.30   vs  HMS >= 0.45)
+  30d: diff=-0.420 p=0.2278 (ns)
+  60d: diff=+1.644 p=0.0002 (sig)
+  90d: diff=+1.953 p=0.0000 (sig)
+
+Test C  (Mid-Rising   vs  HMS >= 0.45)
+  30d: diff=-0.583 p=0.0475 (sig)
+  60d: diff=+0.028 p=0.9411 (ns)
+  90d: diff=+1.224 p=0.0016 (sig)
+

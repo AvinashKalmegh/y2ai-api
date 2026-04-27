@@ -1,0 +1,80 @@
+================================================================================
+PURESIM UNIVERSE -- WALK-FORWARD LOOKBACK WINDOW VALIDATION
+Testing: Full History vs Trailing 3yr vs Trailing 5yr
+Metric: Which lookback best predicts out-of-sample hit rates?
+================================================================================
+
+Loading full DM history from Supabase (year by year)...
+(This loads once and all walk-forward analysis runs in memory)
+  2016: 120,195 total rows
+  2017: 251,487 total rows
+  2018: 383,800 total rows
+  2019: 518,359 total rows
+  2020: 657,193 total rows
+  2021: 801,639 total rows
+  2022: 947,645 total rows
+  2023: 1,093,695 total rows
+  2024: 1,242,654 total rows
+  2025: 1,390,958 total rows
+  2026: 1,432,483 total rows
+Loaded 1,432,483 rows | 602 tickers
+Date range: 2016-01-29 to 2026-04-14
+
+Running walk-forward validation...
+Folds: [2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]
+Lookback windows: ['full_history', 'trailing_3yr', 'trailing_5yr']
+
+  Fold 2018: train until 2017-12-31 | test 2018-01-01 to 2018-12-31
+    full_history    | universe:  49 | in-sample HR:  72.1% | out-of-sample HR:  37.2% | error: 34.9pts
+    trailing_3yr    | universe:  49 | in-sample HR:  72.1% | out-of-sample HR:  37.2% | error: 34.9pts
+    trailing_5yr    | universe:  49 | in-sample HR:  72.1% | out-of-sample HR:  37.2% | error: 34.9pts
+  Fold 2019: train until 2018-12-31 | test 2019-01-01 to 2019-12-31
+    full_history    | universe: 156 | in-sample HR:  64.9% | out-of-sample HR:  54.6% | error: 10.3pts
+    trailing_3yr    | universe: 156 | in-sample HR:  64.9% | out-of-sample HR:  54.6% | error: 10.3pts
+    trailing_5yr    | universe: 156 | in-sample HR:  64.9% | out-of-sample HR:  54.6% | error: 10.3pts
+  Fold 2020: train until 2019-12-31 | test 2020-01-01 to 2020-12-31
+    full_history    | universe: 261 | in-sample HR:  63.0% | out-of-sample HR:  70.7% | error:  7.7pts
+    trailing_3yr    | universe: 173 | in-sample HR:  65.3% | out-of-sample HR:  72.4% | error:  7.1pts
+    trailing_5yr    | universe: 261 | in-sample HR:  63.0% | out-of-sample HR:  70.7% | error:  7.7pts
+  Fold 2021: train until 2020-12-31 | test 2021-01-01 to 2021-12-31
+    full_history    | universe: 379 | in-sample HR:  64.1% | out-of-sample HR:  55.5% | error:  8.6pts
+    trailing_3yr    | universe: 265 | in-sample HR:  66.7% | out-of-sample HR:  56.2% | error: 10.5pts
+    trailing_5yr    | universe: 379 | in-sample HR:  64.1% | out-of-sample HR:  55.5% | error:  8.6pts
+  Fold 2022: train until 2021-12-31 | test 2022-01-01 to 2022-12-31
+    full_history    | universe: 434 | in-sample HR:  64.0% | out-of-sample HR:  41.9% | error: 22.1pts
+    trailing_3yr    | universe: 302 | in-sample HR:  66.7% | out-of-sample HR:  44.0% | error: 22.7pts
+    trailing_5yr    | universe: 410 | in-sample HR:  64.4% | out-of-sample HR:  43.0% | error: 21.4pts
+  Fold 2023: train until 2022-12-31 | test 2023-01-01 to 2023-12-31
+    full_history    | universe: 460 | in-sample HR:  61.9% | out-of-sample HR:  49.0% | error: 12.9pts
+    trailing_3yr    | universe: 348 | in-sample HR:  64.8% | out-of-sample HR:  51.2% | error: 13.6pts
+    trailing_5yr    | universe: 429 | in-sample HR:  62.5% | out-of-sample HR:  49.4% | error: 13.1pts
+  Fold 2024: train until 2023-12-31 | test 2024-01-01 to 2024-12-31
+    full_history    | universe: 490 | in-sample HR:  61.9% | out-of-sample HR:  52.8% | error:  9.1pts
+    trailing_3yr    | universe: 301 | in-sample HR:  67.4% | out-of-sample HR:  54.1% | error: 13.3pts
+    trailing_5yr    | universe: 467 | in-sample HR:  61.5% | out-of-sample HR:  53.1% | error:  8.4pts
+  Fold 2025: train until 2024-12-31 | test 2025-01-01 to 2025-12-31
+    full_history    | universe: 505 | in-sample HR:  62.0% | out-of-sample HR:  43.6% | error: 18.4pts
+    trailing_3yr    | universe: 285 | in-sample HR:  64.2% | out-of-sample HR:  51.9% | error: 12.3pts
+    trailing_5yr    | universe: 476 | in-sample HR:  63.3% | out-of-sample HR:  44.8% | error: 18.5pts
+
+================================================================================
+WALK-FORWARD VALIDATION RESULTS
+Lower prediction error = better predictive accuracy = recommended approach
+================================================================================
+Window             | Folds | Universe | IS HR% | OOS HR% | Avg Error | Recommendation
+------             | ----- | -------- | ------ | ------- | --------- | ---------------
+trailing_5yr       |     8 |    328.4 |   64.5 |    51.0 |      15.4 | * RECOMMENDED
+full_history       |     8 |    341.8 |   64.2 |    50.7 |      15.5 | 
+trailing_3yr       |     8 |    234.9 |   66.5 |    52.7 |      15.6 | 
+
+RECOMMENDATION: Use TRAILING_5YR lookback for PureSim Universe selection
+  Average prediction error: 15.4 percentage points
+  Average universe size:    328 tickers
+================================================================================
+
+Detailed results saved to: walkforward_results.csv
+Summary comparison saved to: lookback_comparison.csv
+
+NEXT STEP:
+  Use the recommended lookback window in dm_crossover_hitrate.py
+  to produce the final PureSim_Universe candidate list.

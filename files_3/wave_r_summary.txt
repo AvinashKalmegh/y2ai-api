@@ -1,0 +1,31 @@
+══════════════════════════════════════════════════════════════════════
+WAVE R VALIDATION SUMMARY — Y2AI Research
+Run: 2026-04-22 11:32
+══════════════════════════════════════════════════════════════════════
+
+HYPOTHESIS: DM declining + HMS stable = Wave R (hedge, not exit)
+            Wave R candidates should recover DM vs genuine exits.
+
+DATA:
+  Range:    2022-01-10 → 2026-04-21
+  Tickers:  587
+  Events:   120,070 total | 120,070 Wave R | 0 Genuine
+
+FORWARD DM RECOVERY:
+
+VERDICT:
+  ~  PARTIAL SUPPORT — direction correct, not fully significant.
+  NEXT: Extend lookback, lower DM_DECLINE threshold to 7, rerun.
+
+BY TIME PERIOD:
+  covid_tail     : Wave R=27,188 | Genuine=0
+  ai_cycle       : Wave R=92,882 | Genuine=0
+
+NEXT STEPS:
+  1. Send summary to Vikram for framework decision
+  2. If supported: implement HMS/DM flag in Hollowing Short scanner
+  3. Validate high-score Wave R dates with Calypso colleague
+  4. Add Wave R to Great Hollowing book chapter
+  5. Rerun in 90 days with new data
+
+══════════════════════════════════════════════════════════════════════

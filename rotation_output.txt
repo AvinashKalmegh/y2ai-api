@@ -1,0 +1,108 @@
+
+=================================================================
+  PURESIM -- QUALITY ROTATION WALKFORWARD (10-YEAR)
+  2016-02-01 to 2026-03-31
+  Sims: 3 | Thresholds: [10, 15, 20, 25, 30]
+  Total runs: 11
+=================================================================
+
+Loading universe...
+  Universe: 93 tickers from puresim_universe.csv
+
+Loading DM history from Supabase...
+
+  Connecting to Supabase...
+  Loading dm_history (2011 to 2026-03-31) year by year...
+    2011: 0 total rows
+    2012: 0 total rows
+    2013: 0 total rows
+    2014: 0 total rows
+    2015: 0 total rows
+    2016: 120,195 total rows
+    2017: 251,487 total rows
+    2018: 383,800 total rows
+    2019: 518,359 total rows
+    2020: 657,193 total rows
+    2021: 801,639 total rows
+    2022: 947,645 total rows
+    2023: 1,093,695 total rows
+    2024: 1,242,654 total rows
+    2025: 1,390,958 total rows
+    2026: 1,427,143 total rows
+  Total: 1,427,143 rows
+  After filter: 93 tickers | 2016-01-29 to 2026-03-31
+  Trading dates: 2590
+
+  Sim_A_Baseline | threshold=0...
+    Sharpe: 0.56 | CAGR: 18.9% | MaxDD: -21.91%
+
+  Sim_B_Rotation | threshold=10...
+    Sharpe: 0.62 | CAGR: 20.17% | MaxDD: -21.49% | Rotations: 1405
+
+  Sim_B_Rotation | threshold=15...
+    Sharpe: 0.62 | CAGR: 20.17% | MaxDD: -21.49% | Rotations: 1405
+
+  Sim_B_Rotation | threshold=20...
+    Sharpe: 0.62 | CAGR: 20.17% | MaxDD: -21.49% | Rotations: 1405
+
+  Sim_B_Rotation | threshold=25...
+    Sharpe: 0.62 | CAGR: 20.17% | MaxDD: -21.49% | Rotations: 1403
+
+  Sim_B_Rotation | threshold=30...
+    Sharpe: 0.62 | CAGR: 20.18% | MaxDD: -21.49% | Rotations: 1401
+
+  Sim_C_Rotation_5yr | threshold=10...
+    Sharpe: 0.58 | CAGR: 18.66% | MaxDD: -21.49% | Rotations: 1339
+
+  Sim_C_Rotation_5yr | threshold=15...
+    Sharpe: 0.58 | CAGR: 18.66% | MaxDD: -21.49% | Rotations: 1339
+
+  Sim_C_Rotation_5yr | threshold=20...
+    Sharpe: 0.58 | CAGR: 18.66% | MaxDD: -21.49% | Rotations: 1339
+
+  Sim_C_Rotation_5yr | threshold=25...
+    Sharpe: 0.58 | CAGR: 18.66% | MaxDD: -21.49% | Rotations: 1337
+
+  Sim_C_Rotation_5yr | threshold=30...
+    Sharpe: 0.58 | CAGR: 18.66% | MaxDD: -21.49% | Rotations: 1334
+
+=================================================================
+  SUMMARY -- KEY METRICS
+=================================================================
+               Sim  Threshold  Sharpe  CAGR  Max_Drawdown  Win_Rate  Rotations  Total_Return
+    Sim_A_Baseline          0    0.56 18.90        -21.91     49.59          0        491.96
+    Sim_B_Rotation         10    0.62 20.17        -21.49     46.12       1405        560.41
+    Sim_B_Rotation         15    0.62 20.17        -21.49     46.12       1405        560.41
+    Sim_B_Rotation         20    0.62 20.17        -21.49     46.12       1405        560.41
+    Sim_B_Rotation         25    0.62 20.17        -21.49     46.12       1403        560.59
+    Sim_B_Rotation         30    0.62 20.18        -21.49     46.17       1401        560.74
+Sim_C_Rotation_5yr         10    0.58 18.66        -21.49     45.85       1339        479.74
+Sim_C_Rotation_5yr         15    0.58 18.66        -21.49     45.85       1339        479.74
+Sim_C_Rotation_5yr         20    0.58 18.66        -21.49     45.85       1339        479.74
+Sim_C_Rotation_5yr         25    0.58 18.66        -21.49     45.85       1337        479.92
+Sim_C_Rotation_5yr         30    0.58 18.66        -21.49     45.87       1334        479.77
+
+  Baseline Sharpe: 0.56 | CAGR: 18.9%
+
+  Sim_B_Rotation:
+    Best Sharpe: 0.62 at threshold=10
+    vs Baseline: +0.060 -- [OK] ROTATION ADDS VALUE
+    Rotations at best threshold: 1405
+
+  Sim_C_Rotation_5yr:
+    Best Sharpe: 0.58 at threshold=10
+    vs Baseline: +0.020 -- ~ NEUTRAL
+    Rotations at best threshold: 1339
+
+  Total rotation events across all runs: 27414
+  Chart: ./results_rotation/rotation_walkforward_chart.png
+
+  All results saved to: ./results_rotation/
+=================================================================
+
+  INTERPRETATION GUIDE:
+  Sim B Sharpe > Sim A Sharpe + 0.05 -> rotation adds value at cap 20
+  Sim C Sharpe > Sim B Sharpe         -> 5yr history filter amplifies benefit
+  Optimal threshold = highest Sharpe with fewest rotations
+  If Sim A wins -> current rules are the answer. Stop here.
+=================================================================

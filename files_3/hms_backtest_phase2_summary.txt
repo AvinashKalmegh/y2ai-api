@@ -1,0 +1,21 @@
+ARGUS — HMS EARLY WARNING — PHASE 2 (2016-2021)
+Y2AI Research | 2026-04-23 15:28
+======================================================================
+
+Signals: 50,853 | With HMS: 50,853
+
+Test A (HMS>=0.40 vs <0.40)
+  30d: diff=+0.364 p=0.0160 (sig)
+  60d: diff=+0.319 p=0.1812 (ns)
+  90d: diff=+0.593 p=0.3251 (ns)
+
+Test B (Early <0.30 vs Mature >=0.45)
+  30d: diff=-1.882 p=0.0000 (sig)
+  60d: diff=-1.827 p=0.0030 (sig)
+  90d: diff=-3.016 p=0.0754 (ns)
+
+Test C (Mid-Rising vs Mature)
+  30d: diff=-1.374 p=0.0000 (sig)
+  60d: diff=-1.265 p=0.0005 (sig)
+  90d: diff=-1.890 p=0.0541 (ns)
+

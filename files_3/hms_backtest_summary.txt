@@ -1,0 +1,23 @@
+ARGUS — HMS EARLY WARNING BACKTEST SUMMARY
+Y2AI Research | 2026-04-23 14:39
+======================================================================
+
+Data range: 2022-01-01 → 2026-04-22
+Total signals: 64,377
+
+THRESHOLD SWEEP RESULTS:
+
+  Threshold 0.35:
+    30d: diff=+0.495 p=0.0349
+    60d: diff=-0.872 p=0.0050
+    90d: diff=-1.034 p=0.0020
+
+  Threshold 0.4:
+    30d: diff=+0.213 p=0.3071
+    60d: diff=-0.732 p=0.0081
+    90d: diff=-1.213 p=0.0000
+
+  Threshold 0.45:
+    30d: diff=+0.403 p=0.0580
+    60d: diff=-0.300 p=0.2871
+    90d: diff=-1.021 p=0.0008

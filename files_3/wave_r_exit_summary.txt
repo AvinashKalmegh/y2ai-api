@@ -1,0 +1,15 @@
+WAVE R — APPROACH 1: RETROSPECTIVE EXIT ANALYSIS
+Y2AI Research | 2026-04-22 19:22
+======================================================================
+
+Total exits: 6
+Wave R exits: 1 (17%)
+Genuine exits: 2 (33%)
+
+INDIVIDUAL EXITS:
+  AMAT   | 2026-04-22   | MA20_EXIT          | HMS20: +0.108   | Class: WAVE_R_STRONG      | P&L: -0.9%
+  PAYC   | 2026-04-17   | T3_LOSS_LIMIT      | HMS20: -0.195   | Class: GENUINE_EXIT       | P&L: -17.1%
+  COIN   | 2026-04-21   | T3_LOSS_LIMIT      | HMS20: +nan     | Class: NO_SIGNAL          | P&L: -15.9%
+  SHW    | 2026-04-21   | T2_PHASE_CONFIRM   | HMS20: +nan     | Class: NO_SIGNAL          | P&L: +5.7%
+  RJF    | 2026-04-17   | T2_PHASE_CONFIRM   | HMS20: +nan     | Class: NO_SIGNAL          | P&L: +1.7%
+  LPLA   | 2026-04-15   | T2_PHASE_CONFIRM   | HMS20: -0.259   | Class: GENUINE_EXIT       | P&L: +13.3%

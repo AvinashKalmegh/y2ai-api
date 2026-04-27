@@ -228,14 +228,55 @@ def classify(row):
 # -- LOAD CURRENT PURESIM UNIVERSE --------------------------------------------
 
 def load_current_universe():
-    """Load current PureSim Universe tickers from v4_universe_candidates.csv."""
+    """Load current PureSim Universe tickers from v4_universe_candidates.csv (fallback)."""
     if not os.path.exists(PURESIM_FILE):
         print(f"  WARNING: {PURESIM_FILE} not found. Comparison disabled.")
         return set()
     df = pd.read_csv(PURESIM_FILE)
     tickers = set(df['ticker'].str.strip().str.upper())
-    print(f"  Current PureSim Universe: {len(tickers)} tickers")
+    print(f"  Current PureSim Universe (CSV): {len(tickers)} tickers")
     return tickers
+
+
+def load_current_universe_from_sheets():
+    """Read last week's QUALIFY tickers from the live PureSim_Universe tab.
+
+    The Sheets tab is the source of truth — overwritten every Saturday — so
+    this gives proper week-over-week comparison without a static CSV that
+    drifts. Falls back to the CSV if Sheets auth/IO fails.
+    """
+    try:
+        import gspread
+        from oauth2client.service_account import ServiceAccountCredentials
+    except ImportError:
+        print("  gspread not installed; falling back to CSV.")
+        return load_current_universe()
+
+    if not os.path.exists(GS_CREDENTIALS):
+        print(f"  {GS_CREDENTIALS} not found; falling back to CSV.")
+        return load_current_universe()
+
+    try:
+        scope = [
+            'https://spreadsheets.google.com/feeds',
+            'https://www.googleapis.com/auth/drive',
+        ]
+        creds = ServiceAccountCredentials.from_json_keyfile_name(GS_CREDENTIALS, scope)
+        gc = gspread.authorize(creds)
+        sheet = gc.open(GS_SPREADSHEET).worksheet(GS_TAB)
+        rows = sheet.get_all_records()
+        tickers = {
+            str(r.get('Ticker', '')).strip().upper()
+            for r in rows
+            if str(r.get('Status', '')).strip() == 'QUALIFY'
+        }
+        tickers.discard('')
+        print(f"  Loaded prior universe from Sheets tab '{GS_TAB}': "
+              f"{len(tickers)} QUALIFY tickers")
+        return tickers
+    except Exception as e:
+        print(f"  Sheets read failed ({type(e).__name__}: {e}); falling back to CSV.")
+        return load_current_universe()
 
 
 # -- GOOGLE SHEETS PUSH --------------------------------------------------------
@@ -332,8 +373,20 @@ def main():
     client = get_client()
     df = load_dm_data(client, start_date, end_date)
 
-    # Load current universe for comparison
-    current_universe = load_current_universe()
+    # Load current universe for comparison.
+    # Sheets-first so weekly runs auto-compare against last Saturday's tab
+    # (which gets overwritten by this same script). CSV is fallback only.
+    current_universe = load_current_universe_from_sheets()
+
+    # Guardrail: in production runs (--push), an empty comparison set means
+    # every row's Change column will be blank — exactly the BUG-001 silent
+    # failure. Refuse to push under that condition.
+    if args.push and not current_universe:
+        print("ERROR: comparison universe is empty — Change column would be "
+              "blank for every row. Refusing to push to Sheets. "
+              "Check that the PureSim_Universe tab is reachable and the "
+              "credentials.json has access to the spreadsheet.")
+        sys.exit(1)
 
     # Run crossover analysis
     results = compute_crossover_hitrate(df)

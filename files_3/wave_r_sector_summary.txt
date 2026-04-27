@@ -1,0 +1,30 @@
+WAVE R — SECTOR BREAKDOWN SUMMARY
+Y2AI Research | 2026-04-22 13:29
+================================================================================
+
+Sectors analyzed: 18
+Min events per sector: 100
+
+IMPLICATION FOR HOLLOWING SHORT SCANNER:
+  Apply Wave R filter most aggressively in sectors where diff > 2.0
+  and p < 0.05. These sectors have the most Wave R contamination.
+
+SECTOR TABLE:
+Software                    6,387   4,211       3.0    ✓      4.05    ✓      2.11    ✓
+Nuclear                     1,288     841      2.69    ~      1.71    ~       5.5    ✓
+Aerospace & Defense         2,550   1,658      2.58    ✓      1.31    ~       0.6    ~
+Financials                  9,196   6,211      2.42    ✓      1.86    ✓      1.95    ✓
+Technology                  3,932   2,641      2.26    ✓      3.75    ✓       2.9    ✓
+Consumer Discretionary      8,327   5,555      2.13    ✓      1.67    ✓       1.3    ✓
+Industrials                 7,799   5,427      1.94    ✓      1.78    ✓      1.93    ✓
+Materials                   2,758   1,992      1.67    ✓      1.15    ~      0.61    ~
+Semiconductors              3,205   1,994      1.48    ~      4.12    ✓      1.38    ~
+Consumer Staples            3,255   2,569      1.46    ✓      1.68    ✓      1.26    ~
+Communication Services      4,057   2,774      0.78    ~      1.64    ✓       1.2    ~
+Real Estate                 3,603   2,629      0.61    ~      0.44    ~     -0.26    ~
+Health Care                 6,427   4,629       0.3    ~      1.23    ✓      1.19    ✓
+Biotechnology               1,710   1,083      0.28    ~      0.53    ~      0.49    ~
+Cybersecurity                 686     513      0.16    ~     -0.04    ~      1.38    ~
+Utilities                   2,037   1,683     -0.17    ~     -1.34    ~      -0.2    ~
+Energy                      2,565   1,848     -0.83    ~      0.75    ~      2.84    ✓
+Information Technology        558     382     -2.42    ~      0.98    ~      1.96    ~
