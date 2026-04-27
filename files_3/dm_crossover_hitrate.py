@@ -81,8 +81,24 @@ def get_client():
 
 # -- DATA LOADER --------------------------------------------------------------
 
-def load_dm_data(client, start_date, end_date):
-    """Load DM history year-by-year to avoid Supabase timeout."""
+def load_dm_data(client, start_date, end_date, min_tickers=None):
+    """Load DM history year-by-year with stable pagination and retries.
+
+    Fixes BUG-003: prior version ordered only by date, which left ~600
+    same-date rows un-tiebroken. Combined with OFFSET pagination this caused
+    whole tickers to silently fall through page seams (Saturday Apr 25 run
+    produced 387 rows instead of ~596).
+
+    Stable ordering on (date, ticker) eliminates the seam shuffle. Retry
+    loop catches transient 57014 / 5xx errors that previously corrupted a
+    page silently.
+
+    `min_tickers` is an optional sanity floor — if set and the load returns
+    fewer unique tickers, raises so the workflow fails loudly instead of
+    pushing a partial result.
+    """
+    import time
+
     start_year = start_date.year
     end_year   = end_date.year
 
@@ -96,17 +112,39 @@ def load_dm_data(client, start_date, end_date):
         offset  = 0
 
         while True:
-            r = (client.table(DM_TABLE)
-                 .select(f"{DATE_COL},{TICKER_COL},{CLOSE_COL},{DM_COL}")
-                 .gte(DATE_COL, y_start)
-                 .lte(DATE_COL, y_end)
-                 .order(DATE_COL)
-                 .range(offset, offset + page - 1)
-                 .execute())
+            attempt, cur = 0, page
+            while True:
+                try:
+                    r = (client.table(DM_TABLE)
+                         .select(f"{DATE_COL},{TICKER_COL},{CLOSE_COL},{DM_COL}")
+                         .gte(DATE_COL, y_start)
+                         .lte(DATE_COL, y_end)
+                         .order(DATE_COL).order(TICKER_COL)  # stable ordering
+                         .range(offset, offset + cur - 1)
+                         .execute())
+                    break
+                except Exception as e:
+                    msg, etype = str(e), type(e).__name__
+                    attempt += 1
+                    transient = (
+                        "57014" in msg or "502" in msg or "503" in msg or
+                        "504" in msg or "timeout" in msg.lower() or
+                        "Bad Gateway" in msg or "ConnectionTerminated" in msg or
+                        "RemoteProtocolError" in etype or "ReadError" in etype or
+                        "ConnectError" in etype or "ConnectTimeout" in etype or
+                        "ReadTimeout" in etype
+                    )
+                    if attempt >= 6 or not transient:
+                        raise
+                    cur = max(1000, cur // 2)
+                    print(f"    [retry {attempt}] {DM_TABLE} {year} "
+                          f"page={cur} sleep {2**attempt}s ({etype})")
+                    time.sleep(2 ** attempt)
+
             rows.extend(r.data)
-            if len(r.data) < page:
+            if len(r.data) < cur:
                 break
-            offset += page
+            offset += cur
 
         print(f"  {year}: {len(rows):,} total rows")
 
@@ -126,8 +164,17 @@ def load_dm_data(client, start_date, end_date):
     df = df.dropna(subset=['date', 'ticker', 'close', 'dm'])
     df = df.sort_values(['ticker', 'date']).reset_index(drop=True)
 
-    print(f"  Tickers: {df['ticker'].nunique():,}")
+    n_tickers = df['ticker'].nunique()
+    print(f"  Tickers: {n_tickers:,}")
     print(f"  Date range: {df['date'].min()} to {df['date'].max()}")
+
+    if min_tickers is not None and n_tickers < min_tickers:
+        raise RuntimeError(
+            f"Partial load detected: {n_tickers} tickers loaded, "
+            f"expected at least {min_tickers}. Aborting to avoid producing "
+            f"a partial result. Check Supabase pagination / connectivity."
+        )
+
     return df
 
 
@@ -369,9 +416,12 @@ def main():
     else:
         start_date = date(2016, 1, 1)
 
-    # Load data
+    # Load data. In production runs (--push) require at least 550 tickers
+    # to be loaded — guards against BUG-003-style partial loads where the
+    # April 25 Saturday run produced 387 rows instead of ~596.
     client = get_client()
-    df = load_dm_data(client, start_date, end_date)
+    min_tickers = 550 if args.push else None
+    df = load_dm_data(client, start_date, end_date, min_tickers=min_tickers)
 
     # Load current universe for comparison.
     # Sheets-first so weekly runs auto-compare against last Saturday's tab
