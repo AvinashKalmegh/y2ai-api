@@ -31,6 +31,15 @@ TICKERS_TO_ADD = {
     "ARM":   "Semiconductors",
     "VRT":   "Information Technology",
     "SMCI":  "Information Technology",
+    # Spinoffs / recent IPOs — sectors match SECTOR_ETF_MAP keys
+    "OGN":   "Health Care",       # ETF: XLV
+    "KVUE":  "Consumer Staples",  # ETF: XLP
+    "SOLV":  "Health Care",       # ETF: XLV
+    "GEHC":  "Health Care",       # ETF: XLV
+    "VLTO":  "Industrials",       # ETF: XLI
+    "TROX":  "Materials",         # ETF: XLB
+    # Indian pharma ADR
+    "SMPQY": "Health Care",       # ETF: XLV — Sun Pharma (unsponsored ADR)
 }
 
 # ── Step 1: Check existing universe ──
