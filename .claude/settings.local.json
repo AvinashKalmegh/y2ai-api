@@ -17,7 +17,9 @@
       "Read(//c/Users/avina/OneDrive/Desktop/New folder/y2ai-fast-api/**)",
       "Bash(python3 -c \":*)",
       "WebFetch(domain:ndcdyn.interactivebrokers.com)",
-      "WebFetch(domain:www.interactivebrokers.com)"
+      "WebFetch(domain:www.interactivebrokers.com)",
+      "Read(//tmp/**)",
+      "Bash(ls -la \"/tmp/\")"
     ]
   }
 }

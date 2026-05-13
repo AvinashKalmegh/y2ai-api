@@ -47,7 +47,7 @@ FINRA_BASE_URL = "https://cdn.finra.org/equity/regsho/daily"
 FINRA_PREFIX = "CNMSshvol"  # Consolidated NMS (all exchanges)
 
 # Google Sheets config
-SHEETS_SPREADSHEET = "Macro_and_Options_History"
+SHEETS_SPREADSHEET = "short_volume"
 SHEETS_TAB = "Short_Volume"
 
 SHORT_HEADERS = [
