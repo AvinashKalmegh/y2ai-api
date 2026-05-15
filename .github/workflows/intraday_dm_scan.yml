@@ -2,12 +2,13 @@ name: Intraday DM Scanner (3x Daily)
 
 on:
   schedule:
-    # 10:30 AM ET = 14:30 UTC (15:30 UTC during EST)
-    - cron: "30 14 * * 1-5"
-    # 1:00 PM ET = 17:00 UTC (18:00 UTC during EST)
-    - cron: "0 17 * * 1-5"
-    # 3:30 PM ET = 19:30 UTC (20:30 UTC during EST)
-    - cron: "30 19 * * 1-5"
+    # Scheduled 2 hours earlier than target to compensate for GitHub Actions cron delay.
+    # Target 10:30 AM ET → fire 8:30 AM ET (12:30 UTC, 13:30 UTC during EST)
+    - cron: "30 12 * * 1-5"
+    # Target 1:00 PM ET → fire 11:00 AM ET (15:00 UTC, 16:00 UTC during EST)
+    - cron: "0 15 * * 1-5"
+    # Target 3:30 PM ET → fire 1:30 PM ET (17:30 UTC, 18:30 UTC during EST)
+    - cron: "30 17 * * 1-5"
   workflow_dispatch:
     inputs:
       universe:
