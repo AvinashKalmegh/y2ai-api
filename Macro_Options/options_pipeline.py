@@ -92,6 +92,8 @@ PRIORITY_TICKERS = [
     # Infrastructure / Financial
     "GS", "MS", "JPM", "V", "MA", "BLK", "ICE",
     "EQIX", "DLR", "AMT", "CEG", "VST", "ANET", "DELL", "SMCI",
+    # Candidates (added 2026-06-01)
+    "SHOP", "LDOS", "MELI", "RBLX",
 ]
 PRIORITY_TICKERS = list(dict.fromkeys(PRIORITY_TICKERS))  # dedupe
 

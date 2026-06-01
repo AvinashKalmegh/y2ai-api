@@ -75,6 +75,8 @@ PRIORITY_TICKERS = [
     "EQIX", "DLR", "AMT", "CEG", "VST", "ANET", "DELL", "SMCI",
     # Other
     "HDB", "IBM",
+    # Candidates (added 2026-06-01)
+    "SHOP", "LDOS", "MELI", "RBLX",
 ]
 
 # Deduplicate while preserving order
