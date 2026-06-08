@@ -41,6 +41,11 @@ SUPABASE_KEY = os.getenv('SUPABASE_KEY')
 
 GOOGLE_SHEETS_CREDS_FILE = 'credentials.json'
 
+# Dedicated DM workbook ("DM-ALL"). Holds DM_Latest + the active 2024_2026 history
+# partition, isolated from the 40+ strategy tabs that filled the old shared workbook
+# to the 10M-cell cap. Opened by ID (open_by_key), robust to renames.
+DM_SPREADSHEET_ID = "1fliIWjl1bk-NWkIdQE61UsQ8Ld-9LKlUIORFdfgfVl8"
+
 # Spreadsheet -> partition mapping
 PARTITIONS = [
     {
@@ -59,6 +64,7 @@ PARTITIONS = [
     },
     {
         "spreadsheet": "copy-dm-history 2024-current",
+        "spreadsheet_id": DM_SPREADSHEET_ID,
         "tab": "DM_2024_2026",
         "start": "2024-01-01",
         "end": "2026-12-31",
@@ -66,8 +72,9 @@ PARTITIONS = [
     },
 ]
 
-# DM_Latest goes in main spreadsheet
-LATEST_SPREADSHEET = "copy-dm-history 2024-current"
+# DM_Latest goes in the dedicated DM workbook (by ID)
+LATEST_SPREADSHEET = "copy-dm-history 2024-current"  # legacy name, kept for reference
+LATEST_SPREADSHEET_ID = DM_SPREADSHEET_ID
 TAB_LATEST = "DM_Latest"
 
 LATEST_HEADERS = [
@@ -110,6 +117,13 @@ def get_sheets_client():
         GOOGLE_SHEETS_CREDS_FILE, scope
     )
     return gspread.authorize(creds)
+
+
+def open_dm_spreadsheet(client, name=None, spreadsheet_id=None):
+    """Open a spreadsheet by ID when available (robust to renames), else by name."""
+    if spreadsheet_id:
+        return client.open_by_key(spreadsheet_id)
+    return client.open(name)
 
 
 # ============================================================
@@ -161,7 +175,7 @@ def push_latest():
         ])
 
     client = get_sheets_client()
-    spreadsheet = client.open(LATEST_SPREADSHEET)
+    spreadsheet = open_dm_spreadsheet(client, LATEST_SPREADSHEET, LATEST_SPREADSHEET_ID)
 
     try:
         sheet = spreadsheet.worksheet(TAB_LATEST)
@@ -254,7 +268,7 @@ def push_partition(partition):
     # Open spreadsheet
     client = get_sheets_client()
     try:
-        spreadsheet = client.open(spreadsheet_name)
+        spreadsheet = open_dm_spreadsheet(client, spreadsheet_name, partition.get("spreadsheet_id"))
     except gspread.SpreadsheetNotFound:
         logger.error(f"Spreadsheet '{spreadsheet_name}' not found.")
         logger.error(f"Create it and share with service account first.")
@@ -334,7 +348,7 @@ def push_daily():
 
     client = get_sheets_client()
     try:
-        spreadsheet = client.open(spreadsheet_name)
+        spreadsheet = open_dm_spreadsheet(client, spreadsheet_name, active.get("spreadsheet_id"))
     except gspread.SpreadsheetNotFound:
         logger.error(f"Spreadsheet '{spreadsheet_name}' not found.")
         return
