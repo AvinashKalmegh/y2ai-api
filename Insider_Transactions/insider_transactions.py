@@ -57,7 +57,11 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 FINNHUB_BASE = "https://finnhub.io/api/v1"
 
 # Google Sheets config
-SHEETS_SPREADSHEET = "Macro_and_Options_History"
+# Dedicated "Insider_Transactions" workbook (opened by ID). Insider history grew to
+# ~500K+ rows after the 2018 backfill — far too large for the shared
+# Macro_and_Options_History workbook's 10M-cell budget, so it lives on its own.
+SHEETS_SPREADSHEET = "Macro_and_Options_History"  # legacy name, kept for reference
+SHEETS_SPREADSHEET_ID = "1JjZ_KF7cQKAd_4u_q1bt-VWf2eTfClNYRBaPyfRUI2w"
 SHEETS_TAB = "Insider_Transactions"
 
 SHEETS_HEADERS = [
@@ -331,9 +335,9 @@ def push_to_sheets():
     client = gspread.authorize(creds)
 
     try:
-        spreadsheet = client.open(SHEETS_SPREADSHEET)
-    except gspread.SpreadsheetNotFound:
-        logger.error(f"Spreadsheet '{SHEETS_SPREADSHEET}' not found.")
+        spreadsheet = client.open_by_key(SHEETS_SPREADSHEET_ID)
+    except Exception as e:
+        logger.error(f"Spreadsheet ID '{SHEETS_SPREADSHEET_ID}' not accessible: {e}")
         return
 
     # Get or create tab
