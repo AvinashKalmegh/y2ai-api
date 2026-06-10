@@ -117,6 +117,16 @@ ETF_UNIVERSE = [
     # Benchmarks
     {"ticker": "SPY",  "pillar": "Benchmark",      "weight": 0.50, "name": "S&P 500"},
     {"ticker": "QQQ",  "pillar": "Benchmark",      "weight": 0.50, "name": "Nasdaq 100"},
+
+    # Energy (tracked-only: not in PILLAR_WEIGHTS, excluded from regime score)
+    {"ticker": "XOP",  "pillar": "Energy",         "weight": 0.30, "name": "SPDR S&P Oil & Gas E&P"},
+    {"ticker": "XLE",  "pillar": "Energy",         "weight": 0.50, "name": "Energy Select Sector"},
+    {"ticker": "CRAK", "pillar": "Energy",         "weight": 0.20, "name": "VanEck Oil Refiners"},
+
+    # Real Estate (tracked-only: not in PILLAR_WEIGHTS, excluded from regime score)
+    {"ticker": "ITB",  "pillar": "Real Estate",    "weight": 0.25, "name": "iShares U.S. Home Construction"},
+    {"ticker": "XHB",  "pillar": "Real Estate",    "weight": 0.25, "name": "SPDR S&P Homebuilders"},
+    {"ticker": "XLRE", "pillar": "Real Estate",    "weight": 0.50, "name": "Real Estate Select Sector"},
 ]
 
 ETF_TICKERS = [e["ticker"] for e in ETF_UNIVERSE]
