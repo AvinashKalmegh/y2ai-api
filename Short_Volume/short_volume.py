@@ -354,7 +354,11 @@ def push_to_sheets(full=False):
         if sheet.row_count < len(sheet_rows) + 10:
             sheet.resize(rows=len(sheet_rows) + 100, cols=len(SHORT_HEADERS))
         sheet.update(range_name='A1', values=[SHORT_HEADERS], value_input_option='USER_ENTERED')
-        sheet.format('1:1', {'textFormat': {'bold': True}})
+        try:
+            sheet.format('1:1', {'textFormat': {'bold': True}})
+        except Exception as e:
+            # Cosmetic only — never let a transient API blip abort the data write below.
+            logger.warning(f"Header bold formatting skipped (non-fatal): {e}")
 
         BATCH_SIZE = 10000
         total = 0
