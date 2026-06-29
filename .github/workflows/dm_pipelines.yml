@@ -54,7 +54,11 @@ jobs:
         continue-on-error: true
         
 
+      # DEPRECATED 2026-06-29: the DM Latest + History sheet push now runs from FlowOS
+      # (manage.py run_dm_push --mode daily, writing the same DM-ALL workbook). Disabled
+      # here to stop double-writes. The upstream compute step (1/2) above still runs.
       - name: "DM Pipeline 2/2: Push DM Latest + History to Sheets"
+        if: false
         run: |
           export PYTHONPATH=$PYTHONPATH:.
           echo "========================================"
