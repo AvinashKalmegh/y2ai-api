@@ -1,9 +1,12 @@
 name: Pre-Market DM Scan (7:30 AM ET)
 
+# DEPRECATED 2026-06-30: the pre-market scan now runs from FlowOS
+# (market_data.tasks.run_premarket_scan_pipeline, celery beat 7:30 AM ET, writing
+# the same DM_PreMarket + DM_PreMarket_Analysis tabs). Schedule disabled here to
+# stop double-writes; workflow_dispatch kept for manual fallback only.
 on:
-  schedule:
-    # 7:30 AM ET = 11:30 UTC (12:30 UTC during EST)
-    - cron: "30 11 * * 1-5"
+  # schedule:
+  #   - cron: "30 11 * * 1-5"   # moved to FlowOS celery beat
   workflow_dispatch: {}
 
 jobs:
